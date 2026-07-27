@@ -255,6 +255,73 @@ describe('list tabs fit one viewport', () => {
     expect(new Set(limits).size, `page size oscillated: ${limits.join(', ')}`).toBe(1)
   }, 45_000)
 
+  /*
+   * Search belongs to the TreeMap tab, not the page header.
+   *
+   * It only controls the treemap, so a header placement showed it on tabs where
+   * picking a hit silently switched tab, and spent scarce header height on a per-tab
+   * control. Moving it beside the breadcrumb then exposed a second bug: the list
+   * panel below has its own stacking context and swallowed clicks on the dropdown.
+   * Both are asserted here because neither is visible to a type or unit check.
+   */
+  it('keeps the tree search inside the TreeMap tab', async () => {
+    if (!reachable || !browser) {
+      console.warn(`skipped: ${URL} unreachable`)
+      return
+    }
+
+    const page = await openTab('TreeMap', '.ent__rows', 1600, 900)
+    const placement = await page.evaluate(() => {
+      const search = document.querySelector('.tms')
+      const crumbs = document.querySelector('.crumbs')
+      if (!search || !crumbs) return null
+      const s = search.getBoundingClientRect()
+      const c = crumbs.getBoundingClientRect()
+      return {
+        inHeader: document.querySelector('.pagehead .tms') !== null,
+        // Same row as the breadcrumb it pairs with.
+        rowOffset: Math.abs(s.top - c.top),
+      }
+    })
+
+    // And gone from a tab it does not drive.
+    await page.click('.subtab:text-is("History")')
+    await page.waitForTimeout(400)
+    const onOtherTab = await page.evaluate(() => document.querySelector('.tms') !== null)
+    await page.close()
+
+    expect(placement).not.toBeNull()
+    expect(placement!.inHeader, 'search must not live in the page header').toBe(false)
+    expect(placement!.rowOffset, 'search should sit on the breadcrumb row').toBeLessThan(30)
+    expect(onOtherTab, 'search should not appear on the History tab').toBe(false)
+  }, 45_000)
+
+  it('lets the search dropdown be clicked above the list panel', async () => {
+    if (!reachable || !browser) {
+      console.warn(`skipped: ${URL} unreachable`)
+      return
+    }
+
+    const page = await openTab('TreeMap', '.ent__rows', 1600, 900)
+    await page.fill('.tms__field', 'lib')
+    await page.waitForSelector('.tms__hit', { timeout: 15_000 })
+
+    const before = await page.evaluate(() => document.querySelectorAll('.crumbs__item').length)
+    // A real click, not dispatchEvent: the bug was the panel intercepting pointer
+    // events, which a synthetic event would sail straight past.
+    await page.click('.tms__hit >> nth=0', { timeout: 10_000 })
+    await page.waitForTimeout(1200)
+
+    const after = await page.evaluate(() => ({
+      crumbs: document.querySelectorAll('.crumbs__item').length,
+      hash: location.hash,
+    }))
+    await page.close()
+
+    expect(after.crumbs, 'picking a hit should descend into the tree').toBeGreaterThan(before)
+    expect(after.hash, 'the jump should stay on the treemap tab').toContain('treemap')
+  }, 45_000)
+
   it('asks for more rows on a taller viewport', async () => {
     if (!reachable || !browser) {
       console.warn(`skipped: ${URL} unreachable`)

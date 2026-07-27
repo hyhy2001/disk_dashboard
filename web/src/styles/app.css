@@ -2336,14 +2336,34 @@ body.sidebar-collapsed .group__body {
 
 /* ---------- global search ---------- */
 
-.gsearch {
+/*
+ * Breadcrumb takes the room it needs; search keeps a fixed slot on the right.
+ *
+ * position + z-index raise the whole row above the list panel below it. Without
+ * them the search dropdown renders but the panel sits on top and swallows the
+ * clicks: the dropdown's own z-index cannot help, because it only orders children
+ * within this row, not this row against its siblings.
+ */
+.tm__locate {
+  display: flex;
+  align-items: center;
+  gap: 12px;
   position: relative;
-  flex: 1 1 220px;
-  min-width: 0;
-  max-width: 340px;
+  z-index: 5;
 }
 
-.gsearch__field {
+.tm__locate .crumbs {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.tms {
+  position: relative;
+  flex: 0 0 240px;
+  min-width: 0;
+}
+
+.tms__field {
   width: 100%;
   appearance: none;
   border: 1px solid var(--border);
@@ -2355,15 +2375,16 @@ body.sidebar-collapsed .group__body {
   border-radius: var(--radius-md);
 }
 
-.gsearch__field:focus {
+.tms__field:focus {
   outline: none;
   border-color: var(--border-strong);
 }
 
-.gsearch__panel {
+/* Right-anchored: the field sits at the panel's right edge, so a left-anchored
+   dropdown wide enough to show a path would hang off the side. */
+.tms__panel {
   position: absolute;
   top: calc(100% + 5px);
-  left: 0;
   right: 0;
   z-index: 70;
   max-height: 340px;
@@ -2376,20 +2397,20 @@ body.sidebar-collapsed .group__body {
   min-width: 380px;
 }
 
-.gsearch__msg {
+.tms__msg {
   margin: 0;
   padding: 12px;
   font-size: 12px;
   color: var(--text-muted);
 }
 
-.gsearch__list {
+.tms__list {
   list-style: none;
   margin: 0;
   padding: 4px;
 }
 
-.gsearch__hit {
+.tms__hit {
   appearance: none;
   width: 100%;
   border: 0;
@@ -2406,24 +2427,24 @@ body.sidebar-collapsed .group__body {
   align-items: center;
 }
 
-.gsearch__hit:hover {
+.tms__hit:hover {
   background: var(--bg-hover);
 }
 
-.gsearch__kind {
+.tms__kind {
   font-size: 10px;
   grid-row: span 2;
 }
 
-.gsearch__kind--dir {
+.tms__kind--dir {
   color: var(--sky-400);
 }
 
-.gsearch__kind--file {
+.tms__kind--file {
   color: var(--text-faint);
 }
 
-.gsearch__name {
+.tms__name {
   font-size: 12px;
   font-weight: 500;
   overflow: hidden;
@@ -2431,7 +2452,7 @@ body.sidebar-collapsed .group__body {
   white-space: nowrap;
 }
 
-.gsearch__path {
+.tms__path {
   grid-column: 2;
   font-size: 10px;
   font-family: var(--font-mono);
@@ -2444,7 +2465,7 @@ body.sidebar-collapsed .group__body {
   text-align: left;
 }
 
-.gsearch__size {
+.tms__size {
   grid-row: span 2;
   font-size: 11px;
   font-family: var(--font-mono);

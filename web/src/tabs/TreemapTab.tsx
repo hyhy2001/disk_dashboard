@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { TreemapLevel, TreemapNode } from '../../../shared/api.js'
 import { Breadcrumbs } from '../components/Breadcrumbs.js'
+import { TreeSearch } from '../components/TreeSearch.js'
 import { EntryList } from '../components/EntryList.js'
 import { Treemap } from '../components/Treemap.js'
 import { fetchTreemap } from '../lib/api.js'
@@ -27,12 +28,6 @@ interface Props {
   target: string
   /** Total scanned size, used as the denominator for the percentage column. */
   totalSize: number
-  /**
-   * Directory to open, set when a search hit was picked. Cleared through
-   * `onJumped` so returning to this tab later does not re-open it.
-   */
-  jumpTo?: number | null
-  onJumped?: () => void
 }
 
 /** One table row's height including its bottom border, measured in the browser. */
@@ -41,7 +36,7 @@ const ROW_HEIGHT = 38
 /** The column header (24px) plus the "Load more" footer (42px). */
 const CHROME = 66
 
-export function TreemapTab({ target, totalSize, jumpTo, onJumped }: Props): JSX.Element {
+export function TreemapTab({ target, totalSize }: Props): JSX.Element {
   const [view, setView] = useState<View>(() =>
     readString(VIEW_KEY) === 'treemap' ? 'treemap' : 'list',
   )
@@ -62,14 +57,6 @@ export function TreemapTab({ target, totalSize, jumpTo, onJumped }: Props): JSX.
   useEffect(() => {
     setOpenId(null)
   }, [target])
-
-  // A search hit sets jumpTo; consume it immediately so the jump happens once and
-  // normal drilling afterwards is not overridden.
-  useEffect(() => {
-    if (jumpTo === null || jumpTo === undefined) return
-    setOpenId(jumpTo)
-    onJumped?.()
-  }, [jumpTo, onJumped])
 
   // Page size follows the measured list height so a level fits without scrolling
   // the page. The treemap view is not a list — its tiles scale to whatever box they
@@ -226,8 +213,12 @@ export function TreemapTab({ target, totalSize, jumpTo, onJumped }: Props): JSX.
         </div>
       </div>
 
-      <div className="panel">
+      {/* Search sits beside the breadcrumb because the two are one control: a hit
+          moves you somewhere in the tree, and the breadcrumb is what says where you
+          landed. Legacy paired them the same way. */}
+      <div className="panel tm__locate">
         <Breadcrumbs path={path} onNavigate={navigate} />
+        <TreeSearch target={target} onOpen={setOpenId} />
       </div>
 
       {/* panel--fill: takes the height left over and lets the list scroll inside,

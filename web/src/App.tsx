@@ -15,7 +15,6 @@ import { clearApiCache, fetchGroups, fetchHealth, fetchOverview } from './lib/ap
 import { NoTargets } from './components/NoTargets.js'
 import { ColumnResizer } from './components/ColumnResizer.js'
 import { DiskColumn } from './components/DiskColumn.js'
-import { GlobalSearch } from './components/GlobalSearch.js'
 import { GroupList } from './components/GroupList.js'
 import { SettingsMenu } from './components/SettingsMenu.js'
 import { SyncPill } from './components/SyncPill.js'
@@ -86,8 +85,6 @@ export function App(): JSX.Element {
   const [loading, setLoading] = useState(true)
   /** Bumped to force a refetch of the current target without changing the route. */
   const [reloadKey, setReloadKey] = useState(0)
-  /** Set by search; consumed by the treemap tab to open a directory. */
-  const [jumpTo, setJumpTo] = useState<number | null>(null)
   const mainRef = useRef<HTMLElement>(null)
 
   useEffect(() => {
@@ -202,12 +199,6 @@ export function App(): JSX.Element {
     setRoute((r) => ({ ...r, page: 'detail', tab }))
   }, [])
 
-  /** Search picked a directory: open the treemap there. */
-  const openInTreemap = useCallback((id: number) => {
-    setJumpTo(id)
-    setRoute((r) => ({ ...r, page: 'detail', tab: 'treemap' }))
-  }, [])
-
   const shownGroups = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return groups
@@ -298,8 +289,6 @@ export function App(): JSX.Element {
                   <span className="pagehead__path">{active.scanRoot || '—'}</span>
                 </>
               )}
-
-              {route.disk && <GlobalSearch target={route.disk} onOpen={openInTreemap} />}
 
               {route.disk && (
                 <nav className="tabs" role="tablist" aria-label="Pages">
@@ -397,12 +386,7 @@ export function App(): JSX.Element {
               </nav>
 
               {route.tab === 'treemap' ? (
-                <TreemapTab
-                  target={route.disk}
-                  totalSize={overview.target.totalSize}
-                  jumpTo={jumpTo}
-                  onJumped={() => setJumpTo(null)}
-                />
+                <TreemapTab target={route.disk} totalSize={overview.target.totalSize} />
               ) : route.tab === 'history' ? (
                 <HistoryTab target={route.disk} />
               ) : route.tab === 'detail-user' ? (

@@ -1,9 +1,14 @@
-// Search a report by directory or file name.
+// Find a directory or file by name and jump the TreeMap to it.
 //
-// Placed in the page header rather than inside the TreeMap tab, because the thing a
-// viewer usually wants is "where is X on this disk", which is a question about the
-// disk, not about the tab they happen to be on. Picking a hit navigates the treemap
-// to the containing directory.
+// Lives inside the TreeMap tab, beside the breadcrumb, because that is the only
+// thing it controls: a hit sets the open directory, and the breadcrumb is what
+// reports where you landed. Legacy paired them the same way.
+//
+// An earlier version of this sat in the page header, which was wrong three ways: it
+// stayed visible on tabs it does not affect, so picking a hit silently switched tab;
+// it spent scarce header height on a per-tab control, which is part of what pushed
+// Overview past one screen; and it separated the query from the breadcrumb that
+// answers it.
 //
 // Queries are debounced and the in-flight request is aborted when the query moves
 // on, so typing does not queue a request per character.
@@ -24,7 +29,7 @@ interface Props {
   onOpen: (id: number) => void
 }
 
-export function GlobalSearch({ target, onOpen }: Props): JSX.Element {
+export function TreeSearch({ target, onOpen }: Props): JSX.Element {
   const [query, setQuery] = useState('')
   const [hits, setHits] = useState<SearchHit[] | null>(null)
   const [busy, setBusy] = useState(false)
@@ -95,10 +100,10 @@ export function GlobalSearch({ target, onOpen }: Props): JSX.Element {
   )
 
   return (
-    <div className="gsearch" ref={wrapRef}>
+    <div className="tms" ref={wrapRef}>
       <input
         type="search"
-        className="gsearch__field"
+        className="tms__field"
         placeholder="Find a file or folder…"
         aria-label="Search this disk"
         value={query}
@@ -118,27 +123,27 @@ export function GlobalSearch({ target, onOpen }: Props): JSX.Element {
       />
 
       {open && query.trim().length >= MIN_CHARS && (
-        <div className="gsearch__panel glass">
+        <div className="tms__panel glass">
           {error ? (
-            <p className="gsearch__msg">{error}</p>
+            <p className="tms__msg">{error}</p>
           ) : busy && hits === null ? (
-            <p className="gsearch__msg">Searching…</p>
+            <p className="tms__msg">Searching…</p>
           ) : hits === null || hits.length === 0 ? (
-            <p className="gsearch__msg">No match for “{query.trim()}”.</p>
+            <p className="tms__msg">No match for “{query.trim()}”.</p>
           ) : (
-            <ul className="gsearch__list">
+            <ul className="tms__list">
               {hits.map((h) => (
                 <li key={`${h.kind}-${h.id}-${h.path}`}>
-                  <button type="button" className="gsearch__hit" onClick={() => pick(h)}>
+                  <button type="button" className="tms__hit" onClick={() => pick(h)}>
                     <span
-                      className={`gsearch__kind gsearch__kind--${h.kind}`}
+                      className={`tms__kind tms__kind--${h.kind}`}
                       aria-hidden="true"
                     >
                       {h.kind === 'dir' ? '▣' : '▤'}
                     </span>
-                    <span className="gsearch__name">{h.name}</span>
-                    <span className="gsearch__path">{h.path}</span>
-                    <span className="gsearch__size">{formatSize(h.size)}</span>
+                    <span className="tms__name">{h.name}</span>
+                    <span className="tms__path">{h.path}</span>
+                    <span className="tms__size">{formatSize(h.size)}</span>
                   </button>
                 </li>
               ))}
