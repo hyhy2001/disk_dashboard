@@ -56,6 +56,44 @@ export interface Overview {
   history: HistoryPoint[]
 }
 
+/** One directory in the treemap. */
+export interface TreemapNode {
+  /** treemap_dirs.id — the drill-down key. */
+  id: number
+  /** Directory basename, not the full path. */
+  name: string
+  size: number
+  fileCount: number
+  dirCount: number
+  /** Resolved username, or `uid-N` when the uid has no passwd entry. */
+  owner: string
+  /** Whether drilling into this node would show anything. */
+  hasChildren: boolean
+  hasFiles: boolean
+}
+
+/** One step in the path from the scan root to the current node. */
+export interface TreemapCrumb {
+  id: number
+  name: string
+}
+
+export interface TreemapLevel {
+  node: TreemapNode
+  /** Root first, current node last. */
+  path: TreemapCrumb[]
+  /** Largest children, biggest first. */
+  children: TreemapNode[]
+  /**
+   * Size under `node` not covered by `children` — the truncated tail plus files
+   * living directly in this directory. Needed for the rectangles to fill the
+   * parent honestly.
+   */
+  remainder: number
+  /** Whether children were cut off by the server-side limit. */
+  truncated: boolean
+}
+
 export interface HealthInfo {
   ok: boolean
   sqliteVersion: string

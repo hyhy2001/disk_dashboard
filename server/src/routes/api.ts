@@ -4,10 +4,17 @@
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import Database from 'better-sqlite3'
 import { existsSync } from 'node:fs'
-import type { ApiResponse, HealthInfo, Overview, Target } from '../../../shared/api.js'
+import type {
+  ApiResponse,
+  HealthInfo,
+  Overview,
+  Target,
+  TreemapLevel,
+} from '../../../shared/api.js'
 import type { Config } from '../config.js'
 import { isSafeTargetName, listTargets, openReport, readMeta } from '../db/reports.js'
 import { readOverview } from '../db/overview.js'
+import { readTreemapLevel } from '../db/treemap.js'
 
 function ok<T>(data: T): ApiResponse<T> {
   return { status: 'success', data }
@@ -85,6 +92,41 @@ export function registerApi(app: FastifyInstance, config: Config): void {
       }
 
       return ok(readOverview(db, row))
+    },
+  )
+
+  // One level of the treemap. `parent` omitted means the scan root; the client
+  // drills by passing the id of the node it wants to open.
+  app.get<{ Params: { target: string }; Querystring: { parent?: string } }>(
+    '/api/treemap/:target',
+    async (request, reply): Promise<ApiResponse<TreemapLevel>> => {
+      const { target } = request.params
+      if (!isSafeTargetName(target)) {
+        return fail(reply, 400, 'invalid target name')
+      }
+
+      const raw = request.query.parent
+      let parentId: number | null = null
+      if (raw !== undefined && raw !== '') {
+        const n = Number(raw)
+        // Ids are non-negative integers; anything else is a malformed link
+        // rather than a missing node, so reject instead of falling back to root.
+        if (!Number.isInteger(n) || n < 0) {
+          return fail(reply, 400, 'parent must be a non-negative integer')
+        }
+        parentId = n
+      }
+
+      const db = openReport(config.reportsDir, target)
+      if (!db) {
+        return fail(reply, 404, `no report found for target '${target}'`)
+      }
+
+      const level = readTreemapLevel(db, parentId)
+      if (!level) {
+        return fail(reply, 404, 'directory not found in this report')
+      }
+      return ok(level)
     },
   )
 }

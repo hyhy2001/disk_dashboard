@@ -1,7 +1,13 @@
 // Typed fetch wrapper. The server always answers with the {status, data}
 // envelope, including on 4xx, so one unwrap handles every endpoint.
 
-import type { ApiResponse, HealthInfo, Overview, Target } from '../../../shared/api.js'
+import type {
+  ApiResponse,
+  HealthInfo,
+  Overview,
+  Target,
+  TreemapLevel,
+} from '../../../shared/api.js'
 
 async function get<T>(path: string): Promise<T> {
   const res = await fetch(path, { headers: { Accept: 'application/json' } })
@@ -29,4 +35,10 @@ export function fetchOverview(target: string): Promise<Overview> {
 
 export function fetchHealth(): Promise<HealthInfo> {
   return get<HealthInfo>('/api/health')
+}
+
+/** `parent` null starts at the scan root. */
+export function fetchTreemap(target: string, parent: number | null): Promise<TreemapLevel> {
+  const q = parent === null ? '' : `?parent=${parent}`
+  return get<TreemapLevel>(`/api/treemap/${encodeURIComponent(target)}${q}`)
 }

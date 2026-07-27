@@ -11,10 +11,18 @@ import { NoTargets } from './components/NoTargets.js'
 import { TargetList } from './components/TargetList.js'
 import { UsageList } from './components/UsageList.js'
 import { OverviewTab } from './tabs/OverviewTab.js'
+import { TreemapTab } from './tabs/TreemapTab.js'
 
 type Theme = 'dark' | 'light'
 
-const PLANNED_TABS = ['History', 'User detail', 'Treemap', 'Permissions', 'Inodes'] as const
+type TabId = 'overview' | 'treemap'
+
+const LIVE_TABS: { id: TabId; label: string }[] = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'treemap', label: 'Treemap' },
+]
+
+const PLANNED_TABS = ['History', 'User detail', 'Permissions', 'Inodes'] as const
 const THEME_KEY = 'duscan-theme'
 
 function useTheme(): [Theme, () => void] {
@@ -46,6 +54,7 @@ export function App(): JSX.Element {
   const [selected, setSelected] = useState<string | null>(null)
   const [overview, setOverview] = useState<Overview | null>(null)
   const [health, setHealth] = useState<HealthInfo | null>(null)
+  const [tab, setTab] = useState<TabId>('overview')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -117,9 +126,18 @@ export function App(): JSX.Element {
         </div>
 
         <nav className="tabs" role="tablist" aria-label="Views">
-          <button type="button" className="tab" role="tab" aria-selected={true}>
-            Overview
-          </button>
+          {LIVE_TABS.map((t) => (
+            <button
+              type="button"
+              className="tab"
+              role="tab"
+              key={t.id}
+              aria-selected={tab === t.id}
+              onClick={() => setTab(t.id)}
+            >
+              {t.label}
+            </button>
+          ))}
           {PLANNED_TABS.map((name) => (
             <button
               type="button"
@@ -182,10 +200,12 @@ export function App(): JSX.Element {
               <div className="skeleton" style={{ height: '64px' }} />
               <div className="skeleton" style={{ height: '220px' }} />
             </>
-          ) : overview ? (
+          ) : !overview || !selected ? (
+            <NoTargets health={health} />
+          ) : tab === 'overview' ? (
             <OverviewTab overview={overview} />
           ) : (
-            <NoTargets health={health} />
+            <TreemapTab target={selected} />
           )}
         </main>
       </div>
