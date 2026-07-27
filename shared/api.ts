@@ -78,6 +78,14 @@ export interface TreemapCrumb {
   name: string
 }
 
+/** A file inside the open directory. */
+export interface TreemapFile {
+  name: string
+  size: number
+  /** Resolved username, or `uid-N`. */
+  owner: string
+}
+
 export interface TreemapLevel {
   node: TreemapNode
   /** Root first, current node last. */
@@ -85,13 +93,24 @@ export interface TreemapLevel {
   /** Largest children, biggest first. */
   children: TreemapNode[]
   /**
+   * Largest files directly inside this directory, biggest first. Empty unless
+   * the request asked for them.
+   */
+  files: TreemapFile[]
+  /** Total number of files directly inside, for a "showing N of M" label. */
+  fileTotal: number
+  /**
    * Size under `node` not covered by `children` — the truncated tail plus files
    * living directly in this directory. Needed for the rectangles to fill the
    * parent honestly.
    */
   remainder: number
-  /** Whether children were cut off by the server-side limit. */
+  /** Whether more children exist past the ones returned. */
   truncated: boolean
+  /** Number of children returned so far, for the next offset. */
+  childOffset: number
+  /** Total subdirectories directly inside, for a "showing N of M" label. */
+  childTotal: number
 }
 
 export interface HealthInfo {

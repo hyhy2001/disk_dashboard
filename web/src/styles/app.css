@@ -633,6 +633,222 @@ body {
   cursor: default;
 }
 
+/* ---------- treemap toolbar ---------- */
+
+.tm__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.tm__nav {
+  display: flex;
+  gap: 6px;
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tm__meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  margin-right: auto;
+}
+
+.tm__views {
+  display: flex;
+  gap: 2px;
+  padding: 2px;
+  background: var(--bg-hover);
+  border-radius: var(--radius-md);
+}
+
+.tm__view {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: calc(var(--radius-md) - 2px);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.tm__view[aria-pressed='true'] {
+  background: var(--bg-raised);
+  color: var(--text);
+  box-shadow: var(--shadow-md);
+}
+
+/* ---------- entry list (legacy-style table) ---------- */
+
+.ent {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Shared grid so head and rows stay aligned without a real <table>. */
+.ent__head,
+.ent__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 110px 190px 56px;
+  gap: 12px;
+  align-items: center;
+}
+
+.ent__head {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-faint);
+  padding: 0 10px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.ent__rows {
+  display: flex;
+  flex-direction: column;
+}
+
+.ent__row {
+  appearance: none;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: 7px 10px;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+.ent__row--dir {
+  cursor: pointer;
+}
+
+.ent__row--dir:hover {
+  background: var(--bg-hover);
+}
+
+.ent__row--file {
+  /* Files are terminal: nothing to open, so they read as slightly recessed. */
+  color: var(--text-muted);
+}
+
+.ent__name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ent__icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: var(--text-faint);
+}
+
+.ent__icon--dir {
+  color: var(--accent);
+}
+
+.ent__label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.ent__owner,
+.ent__type {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ent__type {
+  text-align: right;
+}
+
+.ent__size {
+  display: grid;
+  gap: 3px;
+}
+
+.ent__size-text {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+
+.ent__size-pct {
+  color: var(--text-faint);
+}
+
+.ent__bar {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--bg-hover);
+  overflow: hidden;
+}
+
+.ent__bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  transform-origin: left center;
+  animation: grow var(--duration-base) var(--ease-out);
+}
+
+.ent__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 12px;
+}
+
+.ent__count {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+}
+
+.ent__empty {
+  color: var(--text-faint);
+  font-size: 12px;
+  font-style: italic;
+  padding: 16px 4px;
+}
+
+@media (max-width: 720px) {
+  /* Owner and type are the first things to go; size and name must survive. */
+  .ent__head,
+  .ent__row {
+    grid-template-columns: minmax(0, 1fr) 140px;
+  }
+  .ent__owner,
+  .ent__type,
+  .ent__head > :nth-child(2),
+  .ent__head > :nth-child(4) {
+    display: none;
+  }
+}
+
 /* ---------- treemap ---------- */
 
 .treemap__svg {

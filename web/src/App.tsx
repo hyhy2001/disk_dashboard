@@ -205,7 +205,7 @@ export function App(): JSX.Element {
           ) : tab === 'overview' ? (
             <OverviewTab overview={overview} />
           ) : (
-            <TreemapTab target={selected} />
+            <TreemapTab target={selected} totalSize={overview.target.totalSize} />
           )}
         </main>
       </div>

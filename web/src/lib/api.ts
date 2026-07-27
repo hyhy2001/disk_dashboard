@@ -37,8 +37,24 @@ export function fetchHealth(): Promise<HealthInfo> {
   return get<HealthInfo>('/api/health')
 }
 
-/** `parent` null starts at the scan root. */
-export function fetchTreemap(target: string, parent: number | null): Promise<TreemapLevel> {
-  const q = parent === null ? '' : `?parent=${parent}`
-  return get<TreemapLevel>(`/api/treemap/${encodeURIComponent(target)}${q}`)
+export interface TreemapQuery {
+  /** null starts at the scan root. */
+  parent: number | null
+  childOffset?: number
+  /** Files cost an extra query server-side, so only the list view asks. */
+  withFiles?: boolean
+  fileOffset?: number
+}
+
+export function fetchTreemap(target: string, q: TreemapQuery): Promise<TreemapLevel> {
+  const params = new URLSearchParams()
+  if (q.parent !== null) params.set('parent', String(q.parent))
+  if (q.childOffset) params.set('childOffset', String(q.childOffset))
+  if (q.withFiles) params.set('files', '1')
+  if (q.fileOffset) params.set('fileOffset', String(q.fileOffset))
+
+  const qs = params.toString()
+  return get<TreemapLevel>(
+    `/api/treemap/${encodeURIComponent(target)}${qs ? `?${qs}` : ''}`,
+  )
 }

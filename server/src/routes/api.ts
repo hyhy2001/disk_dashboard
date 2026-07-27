@@ -97,7 +97,10 @@ export function registerApi(app: FastifyInstance, config: Config): void {
 
   // One level of the treemap. `parent` omitted means the scan root; the client
   // drills by passing the id of the node it wants to open.
-  app.get<{ Params: { target: string }; Querystring: { parent?: string } }>(
+  app.get<{
+    Params: { target: string }
+    Querystring: { parent?: string; childOffset?: string; fileOffset?: string; files?: string }
+  }>(
     '/api/treemap/:target',
     async (request, reply): Promise<ApiResponse<TreemapLevel>> => {
       const { target } = request.params
@@ -105,16 +108,27 @@ export function registerApi(app: FastifyInstance, config: Config): void {
         return fail(reply, 400, 'invalid target name')
       }
 
-      const raw = request.query.parent
-      let parentId: number | null = null
-      if (raw !== undefined && raw !== '') {
+      /** Parse a non-negative integer query param, or null when absent. */
+      const intParam = (raw: string | undefined): number | null | 'bad' => {
+        if (raw === undefined || raw === '') return null
         const n = Number(raw)
-        // Ids are non-negative integers; anything else is a malformed link
-        // rather than a missing node, so reject instead of falling back to root.
-        if (!Number.isInteger(n) || n < 0) {
-          return fail(reply, 400, 'parent must be a non-negative integer')
-        }
-        parentId = n
+        // Anything else is a malformed link rather than a missing node, so
+        // reject instead of silently falling back to a default.
+        if (!Number.isInteger(n) || n < 0) return 'bad'
+        return n
+      }
+
+      const parent = intParam(request.query.parent)
+      if (parent === 'bad') return fail(reply, 400, 'parent must be a non-negative integer')
+
+      const childOffset = intParam(request.query.childOffset)
+      if (childOffset === 'bad') {
+        return fail(reply, 400, 'childOffset must be a non-negative integer')
+      }
+
+      const fileOffset = intParam(request.query.fileOffset)
+      if (fileOffset === 'bad') {
+        return fail(reply, 400, 'fileOffset must be a non-negative integer')
       }
 
       const db = openReport(config.reportsDir, target)
@@ -122,7 +136,12 @@ export function registerApi(app: FastifyInstance, config: Config): void {
         return fail(reply, 404, `no report found for target '${target}'`)
       }
 
-      const level = readTreemapLevel(db, parentId)
+      const level = readTreemapLevel(db, parent, {
+        childOffset: childOffset ?? 0,
+        // Files cost an extra skip-scan, so the client opts in.
+        withFiles: request.query.files === '1',
+        fileOffset: fileOffset ?? 0,
+      })
       if (!level) {
         return fail(reply, 404, 'directory not found in this report')
       }

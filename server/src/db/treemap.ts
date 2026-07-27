@@ -14,14 +14,21 @@
 // what breadcrumbs() does.
 
 import type Database from 'better-sqlite3'
-import type { TreemapLevel, TreemapNode, TreemapCrumb } from '../../../shared/api.js'
+import type {
+  TreemapCrumb,
+  TreemapFile,
+  TreemapLevel,
+  TreemapNode,
+} from '../../../shared/api.js'
 
 /**
- * Children returned per level. A treemap cannot usefully render more rectangles
- * than this, and the rest are summarised into one "other" node so the areas
- * still add up to the parent's size.
+ * Children returned per page. The treemap view cannot usefully render more
+ * rectangles than this, and the list view pages with "Load more".
  */
-const CHILD_LIMIT = 60
+export const CHILD_LIMIT = 60
+
+/** Files returned per page, same reasoning. */
+export const FILE_LIMIT = 60
 
 interface ChildRow {
   id: number
@@ -69,6 +76,44 @@ function readNode(db: Database.Database, id: number): NodeRow | undefined {
     .get(id) as NodeRow | undefined
 }
 
+/**
+ * Files sitting directly in one directory, largest first.
+ *
+ * detail_files has no dir_id index of its own — only the covering index
+ * (uid, size DESC, dir_id, name_id) — so this runs as a skip-scan over the 32
+ * distinct uids. That is fine at this scale (measured 9-22ms for a directory
+ * with 9,571 files) precisely because uid cardinality is tiny. If a report ever
+ * carries thousands of uids, this needs a dedicated dir_id index rather than a
+ * bigger LIMIT.
+ *
+ * Only call this when treemap_dirs.has_files is 1; it is exact, verified against
+ * a real report, so a 0 means the scan is guaranteed to find nothing.
+ */
+function readFiles(db: Database.Database, dirId: number, offset: number, limit: number): TreemapFile[] {
+  const rows = db
+    .prepare(
+      `SELECT n.name, f.size, f.uid, o.username
+         FROM detail_files f
+         JOIN detail_file_names n ON n.id = f.name_id
+    LEFT JOIN treemap_owners o ON o.uid = f.uid
+        WHERE f.dir_id = ?
+        ORDER BY f.size DESC, n.name ASC
+        LIMIT ? OFFSET ?`,
+    )
+    .all(dirId, limit, offset) as {
+    name: string
+    size: number
+    uid: number
+    username: string | null
+  }[]
+
+  return rows.map((r) => ({
+    name: r.name,
+    size: r.size,
+    owner: r.username ?? `uid-${r.uid}`,
+  }))
+}
+
 function toNode(r: ChildRow | NodeRow): TreemapNode {
   return {
     id: r.id,
@@ -104,17 +149,35 @@ function breadcrumbs(db: Database.Database, id: number): TreemapCrumb[] {
   return rows.map((r) => ({ id: r.id, name: r.name }))
 }
 
+export interface LevelOptions {
+  /** How many children to skip — the "Load more" cursor. */
+  childOffset?: number
+  /** Include files sitting directly in this directory. */
+  withFiles?: boolean
+  /** How many files to skip. */
+  fileOffset?: number
+}
+
 /**
- * One level of the tree: the node itself, its path, and its largest children.
+ * One level of the tree: the node itself, its path, its largest children, and
+ * optionally the files directly inside it.
+ *
  * Returns null when the id does not exist (a stale link after a rescan).
  */
-export function readTreemapLevel(db: Database.Database, parentId: number | null): TreemapLevel | null {
+export function readTreemapLevel(
+  db: Database.Database,
+  parentId: number | null,
+  opts: LevelOptions = {},
+): TreemapLevel | null {
+  const { childOffset = 0, withFiles = false, fileOffset = 0 } = opts
+
   const id = parentId ?? rootId(db)
   if (id === null) return null
 
   const node = readNode(db, id)
   if (!node) return null
 
+  // One extra row tells us whether more pages exist without a COUNT(*).
   const rows = db
     .prepare(
       `SELECT d.id, n.name, d.total_size, d.file_count, d.dir_count,
@@ -123,27 +186,57 @@ export function readTreemapLevel(db: Database.Database, parentId: number | null)
          JOIN treemap_names n ON n.id = d.name_id
     LEFT JOIN treemap_owners o ON o.uid = d.owner_uid
         WHERE d.parent_id = ?
-        ORDER BY d.total_size DESC
-        LIMIT ?`,
+        ORDER BY d.total_size DESC, n.name ASC
+        LIMIT ? OFFSET ?`,
     )
-    .all(id, CHILD_LIMIT + 1) as ChildRow[]
+    .all(id, CHILD_LIMIT + 1, childOffset) as ChildRow[]
 
   const shown = rows.slice(0, CHILD_LIMIT)
   const children = shown.map(toNode)
-
-  // Everything not accounted for by the returned children: the truncated tail
-  // plus this directory's own files. Without it the rectangles would not fill
-  // the parent and the proportions would lie.
-  const childrenSize = shown.reduce((sum, r) => sum + r.total_size, 0)
-  const remainder = node.total_size - childrenSize
   const truncated = rows.length > CHILD_LIMIT
+
+  // Size under this node not covered by the children returned *so far*: the
+  // unfetched tail plus this directory's own files. The treemap needs it so the
+  // rectangles fill the parent honestly instead of overstating each tile.
+  const coveredSize = shown.reduce((sum, r) => sum + r.total_size, 0)
+  const remainder = node.total_size - coveredSize - childOffsetSize(db, id, childOffset)
+
+  // has_files is exact, so skip the file query entirely when there are none —
+  // detail_files has no dir_id index and the skip-scan is not free.
+  const files =
+    withFiles && node.has_files === 1 ? readFiles(db, id, fileOffset, FILE_LIMIT) : []
 
   return {
     node: toNode(node),
     path: breadcrumbs(db, id),
     children,
-    /** Size under this node not covered by `children`. */
+    files,
+    fileTotal: node.file_count,
     remainder: remainder > 0 ? remainder : 0,
     truncated,
+    childOffset: childOffset + children.length,
+    childTotal: node.dir_count,
   }
+}
+
+/**
+ * Total size of the children already skipped past. Needed so `remainder` stays
+ * correct on later pages — without it page 2 would claim page 1's bytes as
+ * unaccounted-for.
+ */
+function childOffsetSize(db: Database.Database, id: number, offset: number): number {
+  if (offset <= 0) return 0
+  const row = db
+    .prepare(
+      `SELECT COALESCE(SUM(total_size), 0) AS s FROM (
+         SELECT d.total_size
+           FROM treemap_dirs d
+           JOIN treemap_names n ON n.id = d.name_id
+          WHERE d.parent_id = ?
+          ORDER BY d.total_size DESC, n.name ASC
+          LIMIT ?
+       )`,
+    )
+    .get(id, offset) as { s: number }
+  return row.s
 }

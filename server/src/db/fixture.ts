@@ -18,11 +18,14 @@ export interface FixtureOptions {
 /**
  * Tree built by default:
  *
- *   /            id 0   1000 bytes total, 2 files directly inside
- *   ├── var      id 1    600     owner root
- *   │   └── log  id 3    400     owner syslog
- *   └── home     id 2    300     owner alice   (leaf, has files)
- *   remainder at root: 100
+ *   /            id 0   1000 bytes total, 2 files directly inside (60 + 40)
+ *   ├── var      id 1    600     owner root,   no files of its own
+ *   │   └── log  id 3    400     owner syslog, 1 file
+ *   └── home     id 2    300     owner alice,  3 files (leaf)
+ *
+ * Root's remainder is 100 = 1000 - (600 + 300), which equals its own file bytes.
+ * home's owner uid 900 is absent from treemap_owners, covering the uid-N
+ * fallback; var has has_files = 0, covering the skip-the-file-query path.
  */
 export function createFixture(opts: FixtureOptions = {}): Database.Database {
   const { withHistory = true, extraChildren = 0 } = opts
@@ -49,6 +52,14 @@ export function createFixture(opts: FixtureOptions = {}): Database.Database {
       snapshot_id INTEGER NOT NULL, name TEXT, team_id INTEGER, size INTEGER, kind TEXT
     );
 
+    CREATE TABLE detail_file_names (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
+    CREATE TABLE detail_files (
+      dir_id INTEGER NOT NULL, name_id INTEGER NOT NULL, ext TEXT NOT NULL,
+      uid INTEGER NOT NULL, size INTEGER NOT NULL
+    );
+    CREATE INDEX ix_detail_files_uid_size_dir_name
+      ON detail_files(uid, size DESC, dir_id ASC, name_id ASC);
+
     CREATE TABLE treemap_names (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
     CREATE TABLE treemap_owners (uid INTEGER PRIMARY KEY, username TEXT NOT NULL);
     CREATE TABLE treemap_dirs (
@@ -71,11 +82,12 @@ export function createFixture(opts: FixtureOptions = {}): Database.Database {
       (0, '/'), (1, 'var'), (2, 'home'), (3, 'log');
 
     -- id, parent, name, size, files, dirs, owner, has_files
+    -- file counts match the detail_files rows inserted below.
     INSERT INTO treemap_dirs VALUES
       (0, NULL, 0, 1000, 2, 2, 0,   1),
       (1, 0,    1,  600, 0, 1, 0,   0),
-      (2, 0,    2,  300, 5, 0, 900, 1),
-      (3, 1,    3,  400, 3, 0, 104, 1);
+      (2, 0,    2,  300, 3, 0, 900, 1),
+      (3, 1,    3,  400, 1, 0, 104, 1);
 
     INSERT INTO detail_users (uid, username, team_id, total_files, total_dirs, total_size) VALUES
       (0,   'root',  '1',  20, 2, 700),
@@ -83,6 +95,21 @@ export function createFixture(opts: FixtureOptions = {}): Database.Database {
       (104, 'syslog', NULL, 3, 0,  80),
       (105, 'nobody', '',   1, 0,  20),
       (106, 'empty',  NULL, 0, 0,   0);
+
+    INSERT INTO detail_file_names (id, name) VALUES
+      (1, 'big.log'), (2, 'small.txt'), (3, 'mid.bin'),
+      (4, 'a.dat'), (5, 'b.dat');
+
+    -- Files in / (id 0, has_files=1): sizes 60 + 40 = 100, matching root's
+    -- remainder. Files in home (id 2) are owned by an uid absent from
+    -- treemap_owners so the uid-N fallback is covered.
+    INSERT INTO detail_files (dir_id, name_id, ext, uid, size) VALUES
+      (0, 1, 'log', 0,   60),
+      (0, 2, 'txt', 0,   40),
+      (2, 3, 'bin', 900, 150),
+      (2, 4, 'dat', 900, 100),
+      (2, 5, 'dat', 900,  50),
+      (3, 1, 'log', 104, 400);
   `)
 
   // Extra children are all smaller than the named ones, so they land in the
