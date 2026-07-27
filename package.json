@@ -1,0 +1,16 @@
+{
+  "name": "disk-dashboard",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Web dashboard for duscan report.db files",
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=server & npm run dev --workspace=web",
+    "build": "npm run build --workspace=server && npm run build --workspace=web",
+    "typecheck": "npm run typecheck --workspace=server && npm run typecheck --workspace=web",
+    "start": "npm run start --workspace=server"
+  }
+}

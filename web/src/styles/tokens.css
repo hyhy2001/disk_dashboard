@@ -1,0 +1,99 @@
+/* Design tokens.
+ *
+ * Values carried over from the legacy dashboard so the two feel like the same
+ * product: emerald accent, near-black surfaces in dark mode, warm paper in
+ * light mode. Everything the components use is declared here — no component
+ * hardcodes a colour, which is what makes the theme switch a one-attribute flip.
+ */
+
+:root {
+  --emerald-400: #34d399;
+  --emerald-500: #10b981;
+  --emerald-600: #059669;
+
+  --amber-400: #fbbf24;
+  --rose-400: #fb7185;
+  --sky-400: #38bdf8;
+  --violet-400: #a78bfa;
+
+  --accent: var(--emerald-500);
+  --accent-hover: var(--emerald-400);
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  --blur-sm: 6px;
+  --blur-lg: 14px;
+
+  --duration-fast: 0.12s;
+  --duration-base: 0.25s;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  --col2-width: 260px;
+  --col1-width: 220px;
+
+  --font-sans: 'Fira Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-mono: 'Fira Code', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
+
+  /* Categorical series for charts, ordered for adjacent-slice contrast. */
+  --series-1: var(--emerald-500);
+  --series-2: var(--sky-400);
+  --series-3: var(--amber-400);
+  --series-4: var(--violet-400);
+  --series-5: var(--rose-400);
+  --series-6: #2dd4bf;
+}
+
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+  --bg-base: #0f1115;
+  --bg-raised: #14181f;
+  --bg-surface: rgba(23, 27, 34, 0.88);
+  --bg-hover: rgba(255, 255, 255, 0.05);
+  --bg-active: rgba(16, 185, 129, 0.14);
+
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+
+  --text: #e6e8ec;
+  --text-muted: #9aa3b0;
+  --text-faint: #6b7480;
+
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --grid-line: rgba(255, 255, 255, 0.06);
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --bg-base: #f4f1ec;
+  --bg-raised: #fffdf9;
+  --bg-surface: rgba(255, 253, 249, 0.9);
+  --bg-hover: rgba(0, 0, 0, 0.04);
+  --bg-active: rgba(5, 150, 105, 0.12);
+
+  --border: rgba(0, 0, 0, 0.1);
+  --border-strong: rgba(0, 0, 0, 0.2);
+
+  --text: #1c1f24;
+  --text-muted: #5a6472;
+  --text-faint: #8a93a0;
+
+  --accent: var(--emerald-600);
+  --accent-hover: var(--emerald-500);
+
+  --shadow-md: 0 4px 16px rgba(28, 31, 36, 0.12);
+  --grid-line: rgba(0, 0, 0, 0.07);
+}
+
+/* Respect the OS setting for users who never touch the toggle. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
