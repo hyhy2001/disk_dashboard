@@ -3465,6 +3465,171 @@ body.sidebar-collapsed .group__body {
   border: 1px solid var(--border-strong);
 }
 
+/* ---------- inodes tab ---------- */
+
+/*
+ * Same two-column shape as the permission issues tab: a fixed-width panel of
+ * figures beside a list that takes the rest and scrolls inside. `min-height: 0`
+ * on both is what keeps the card grid from growing the page.
+ */
+.ino {
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+  gap: var(--gap);
+  align-items: stretch;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.ino__sys,
+.ino__users {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.ino__stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ino__stat {
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  min-width: 0;
+}
+
+.ino__stat-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.ino__stat-num {
+  font-size: 15px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ino__stat-num--hot {
+  color: var(--rose-400);
+}
+
+.ino__stat-num--warm {
+  color: var(--amber-400);
+}
+
+.ino__stat-num--cool,
+.ino__stat-num--good {
+  color: var(--emerald-500);
+}
+
+/* The ring takes the leftover height so the panel's figures stay put. */
+.ino__ring {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+.ino__ring .donut__svg {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: 150px;
+}
+
+.ino__search {
+  /* Sits in the panel header, so it takes only the slack the title leaves. */
+  margin-left: auto;
+  flex: 0 1 200px;
+  min-width: 0;
+}
+
+/*
+ * Holds the card grid. Unlike the list tabs there is no measured page size here —
+ * every account arrives in one payload — so this chain of bounded flex boxes is
+ * the whole fit-to-screen mechanism.
+ */
+.ino__body {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.ino__body > .skeleton {
+  flex: 1 1 auto;
+}
+
+.ino__grid {
+  list-style: none;
+  margin: 0;
+  padding: 0 4px 0 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  align-content: start;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.ino__card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  min-width: 0;
+}
+
+.ino__card-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+}
+
+.ino__user {
+  font-size: 13px;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ino__count {
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}
+
+.ino__card-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+
 /* ---------- narrow content ---------- */
 
 /*
@@ -3495,6 +3660,16 @@ body.sidebar-collapsed .group__body {
   }
 
   .ud__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  /* Both inode panels stack, and the user cards go single-column: two 160px
+     cards side by side truncate the username to nothing. */
+  .ino {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ino__grid {
     grid-template-columns: minmax(0, 1fr);
   }
 

@@ -13,6 +13,12 @@ export interface FixtureOptions {
   withHistory?: boolean
   /** Number of extra small children under the root, for truncation tests. */
   extraChildren?: number
+  /**
+   * Give hist_snapshots the inode columns duscan added after the table shipped.
+   * Off by default so the common fixture keeps reproducing the older schema,
+   * which is what reports written before that change still look like.
+   */
+  withInodes?: boolean
 }
 
 /**
@@ -28,7 +34,7 @@ export interface FixtureOptions {
  * fallback; var has has_files = 0, covering the skip-the-file-query path.
  */
 export function createFixture(opts: FixtureOptions = {}): Database.Database {
-  const { withHistory = true, extraChildren = 0 } = opts
+  const { withHistory = true, extraChildren = 0, withInodes = false } = opts
   const db = new Database(':memory:')
 
   db.exec(`
@@ -158,6 +164,17 @@ export function createFixture(opts: FixtureOptions = {}): Database.Database {
     }
   }
 
+  // Mirrors duscan's own ALTER TABLE migration: the columns are added to the
+  // table that already exists, so tests see the same shape a widened report has.
+  if (withInodes) {
+    db.exec(`
+      ALTER TABLE hist_snapshots ADD COLUMN inodes_total INTEGER;
+      ALTER TABLE hist_snapshots ADD COLUMN inodes_used INTEGER;
+      ALTER TABLE hist_snapshots ADD COLUMN inodes_free INTEGER;
+      ALTER TABLE hist_snapshots ADD COLUMN inodes_scanned INTEGER;
+    `)
+  }
+
   if (withHistory) {
     db.exec(`
       INSERT INTO hist_snapshots (id, scan_date, scanned_at, path, total, used, available) VALUES
@@ -174,6 +191,18 @@ export function createFixture(opts: FixtureOptions = {}): Database.Database {
         (2, 'root', 1, 700, 'user'),
         (2, 'syslog', NULL, 80, 'other');
     `)
+
+    // Only the newest snapshot carries inode figures. The older one stays NULL,
+    // which is what a widened report looks like: the migration adds the columns
+    // but cannot invent figures for scans that ran before it.
+    if (withInodes) {
+      db.exec(`
+        UPDATE hist_snapshots
+           SET inodes_total = 8000, inodes_used = 3000,
+               inodes_free = 5000, inodes_scanned = 31
+         WHERE scan_date = 20240102;
+      `)
+    }
   }
 
   return db

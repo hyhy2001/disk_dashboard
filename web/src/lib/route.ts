@@ -19,6 +19,7 @@ export const DETAIL_TABS = [
   'history',
   'detail-user',
   'permissions',
+  'inodes',
 ] as const
 
 export type DetailTab = (typeof DETAIL_TABS)[number]

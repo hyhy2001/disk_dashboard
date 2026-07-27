@@ -22,6 +22,7 @@ import { Toasts } from './components/Toasts.js'
 import { Tooltip } from './components/Tooltip.js'
 import { CompareTab } from './tabs/CompareTab.js'
 import { HistoryTab } from './tabs/HistoryTab.js'
+import { InodesTab } from './tabs/InodesTab.js'
 import { OverviewTab } from './tabs/OverviewTab.js'
 import { PermissionsTab } from './tabs/PermissionsTab.js'
 import { TreemapTab } from './tabs/TreemapTab.js'
@@ -51,6 +52,7 @@ const TAB_LABELS: Record<DetailTab, string> = {
   history: 'History',
   'detail-user': 'Detail User',
   permissions: 'Permission Issues',
+  inodes: 'Inodes Stat',
 }
 
 function useTheme(): [Theme, () => void] {
@@ -391,8 +393,10 @@ export function App(): JSX.Element {
                 <HistoryTab target={route.disk} />
               ) : route.tab === 'detail-user' ? (
                 <UserTab target={route.disk} initialUser={savedFilters.detailUser} />
-              ) : (
+              ) : route.tab === 'permissions' ? (
                 <PermissionsTab target={route.disk} />
+              ) : (
+                <InodesTab target={route.disk} />
               )}
             </>
           )}

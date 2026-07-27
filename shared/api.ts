@@ -211,6 +211,45 @@ export interface UserDetail {
   dirsSuppressed: boolean
 }
 
+/** One account's inode (file count) footprint. */
+export interface InodeUser {
+  name: string
+  /** Files owned by this user, from detail_users.total_files. */
+  inodes: number
+  /** Directories owned, shown alongside because both consume inodes. */
+  dirs: number
+}
+
+/**
+ * Inode usage for one target: the filesystem's own figures beside what the scan
+ * attributed to users.
+ *
+ * `total`/`used`/`free` come from statvfs at scan time and describe the whole
+ * filesystem, so they are null on a filesystem with no fixed inode table (btrfs,
+ * dynamic-inode XFS, most NFS mounts report f_files = 0). `scanned` is bounded by
+ * the scan root and so is normally far below `used` — the gap is inodes outside
+ * the scan root or unreadable, the same unattributed-usage signal the byte charts
+ * show.
+ */
+export interface InodeStats {
+  /** Null when the filesystem does not report an inode table. */
+  total: number | null
+  used: number | null
+  free: number | null
+  /** Inodes the walk visited: files + dirs + symlinks, hardlinks counted once. */
+  scanned: number
+  /** Unix seconds of the snapshot these figures came from, 0 when unknown. */
+  timestamp: number
+  /**
+   * False when the report predates inode recording. The tab still shows the
+   * per-user breakdown — that comes from detail_users, which every report has —
+   * and explains that the system figures need a rescan.
+   */
+  systemAvailable: boolean
+  /** Every account with at least one file, largest first. */
+  users: InodeUser[]
+}
+
 /** One unreadable path recorded during the scan. */
 export interface PermIssue {
   user: string

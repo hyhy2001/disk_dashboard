@@ -6,6 +6,7 @@ import type {
   DetailUser,
   HealthInfo,
   HistorySeries,
+  InodeStats,
   Overview,
   PermPage,
   ScanStatus,
@@ -190,6 +191,11 @@ export function fetchPermissions(
 ): Promise<PermPage> {
   const base = `/api/permissions/${encodeURIComponent(target)}`
   return get<PermPage>(withParams(base, { ...q }), signal)
+}
+
+export function fetchInodes(target: string, signal?: AbortSignal): Promise<InodeStats> {
+  // Cached: one bounded payload per target that only changes when the report does.
+  return get<InodeStats>(`/api/inodes/${encodeURIComponent(target)}`, signal, true)
 }
 
 export function fetchHistory(target: string, signal?: AbortSignal): Promise<HistorySeries> {

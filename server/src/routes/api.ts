@@ -10,6 +10,7 @@ import type {
   DetailUser,
   HealthInfo,
   HistorySeries,
+  InodeStats,
   Overview,
   PermPage,
   ScanStatus,
@@ -33,6 +34,7 @@ import { groupTargets, readMapping } from '../db/groups.js'
 import { findUid, listUsers, readUserDetail } from '../db/detail.js'
 import { readPermIssues } from '../db/perms.js'
 import { readHistorySeries } from '../db/history.js'
+import { readInodeStats } from '../db/inodes.js'
 import { searchNames } from '../db/search.js'
 import { readScanStatus } from '../db/status.js'
 
@@ -343,6 +345,16 @@ export function registerApi(app: FastifyInstance, config: Config): void {
       const opened = withReport(request.params.target, reply)
       if ('err' in opened) return opened.err
       return ok(readHistorySeries(opened.db))
+    },
+  )
+
+  // Inode usage: the filesystem's own figures plus the per-user breakdown.
+  app.get<{ Params: { target: string } }>(
+    '/api/inodes/:target',
+    async (request, reply): Promise<ApiResponse<InodeStats>> => {
+      const opened = withReport(request.params.target, reply)
+      if ('err' in opened) return opened.err
+      return ok(readInodeStats(opened.db))
     },
   )
 

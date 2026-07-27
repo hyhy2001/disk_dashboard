@@ -5,7 +5,7 @@
 // throw, because a bad hash on boot would mean a blank page.
 
 import { describe, expect, it } from 'vitest'
-import { buildHash, DEFAULT_ROUTE, parseHash } from './route.js'
+import { buildHash, DEFAULT_ROUTE, DETAIL_TABS, parseHash } from './route.js'
 
 describe('parseHash', () => {
   it('treats an empty hash as the default route', () => {
@@ -36,11 +36,19 @@ describe('parseHash', () => {
   it('falls back to the default tab for an unknown one', () => {
     // A link from an older build naming a tab that no longer exists must still
     // land on the right disk.
-    expect(parseHash('#/P/Test/detail/inodes')).toMatchObject({
+    expect(parseHash('#/P/Test/detail/quota')).toMatchObject({
       disk: 'Test',
       page: 'detail',
       tab: DEFAULT_ROUTE.tab,
     })
+  })
+
+  it('reads every tab the bar shows', () => {
+    // A tab in DETAIL_TABS that parseHash rejects is a dead link from the bar,
+    // which is how the Inodes tab first shipped unreachable.
+    for (const tab of DETAIL_TABS) {
+      expect(parseHash(`#/P/Test/detail/${tab}`)).toMatchObject({ page: 'detail', tab })
+    }
   })
 
   it('defaults to overview for an unknown page', () => {
