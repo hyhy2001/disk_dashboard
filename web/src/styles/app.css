@@ -702,37 +702,6 @@ body {
 
 /* ---------- content rows ---------- */
 
-/* Usage lists sit beside the charts on wide screens and stack below them when
-   the main column gets narrow. Container query, not viewport: the sidebar
-   already ate 280px. */
-.split {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--col2-width);
-  gap: 20px;
-  align-items: start;
-}
-
-@container main (max-width: 860px) {
-  .split {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-.side {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-  padding: 16px;
-}
-
-/* The charts column inside .split — panels stacked with the same rhythm as the
-   main column itself. */
-.stack {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  min-width: 0;
-}
 
 .col__title {
   font-size: 10px;
@@ -783,134 +752,9 @@ body {
   font-family: var(--font-mono);
 }
 
-/* ---------- usage rows ---------- */
-
-.rows {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.row {
-  display: grid;
-  gap: 3px;
-  padding: 5px 7px;
-  border-radius: var(--radius-sm);
-  transition: background var(--duration-fast) var(--ease-out);
-}
-
-.row:hover {
-  background: var(--bg-hover);
-}
-
-.row__head {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  font-size: 12px;
-}
-
-.row__name {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.row__value {
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  flex: 0 0 auto;
-}
-
-.row__track {
-  height: 3px;
-  border-radius: 2px;
-  background: var(--bg-hover);
-  overflow: hidden;
-}
-
-.row__fill {
-  height: 100%;
-  border-radius: 2px;
-  background: var(--accent);
-  transform-origin: left center;
-  animation: grow var(--duration-base) var(--ease-out);
-}
-
 @keyframes grow {
   from {
     transform: scaleX(0);
-  }
-}
-
-/* ---------- cards ---------- */
-
-.cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 12px;
-}
-
-.card {
-  background: var(--bg-surface);
-  backdrop-filter: blur(var(--blur-md));
-  -webkit-backdrop-filter: blur(var(--blur-md));
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 14px 16px;
-  box-shadow: var(--shadow-md);
-}
-
-.card__label {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--text-faint);
-  font-weight: 700;
-}
-
-.card__value {
-  font-size: 22px;
-  font-weight: 600;
-  font-family: var(--font-mono);
-  letter-spacing: -0.02em;
-  margin-top: 3px;
-}
-
-.card__hint {
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-top: 2px;
-}
-
-.panel {
-  background: var(--bg-surface);
-  backdrop-filter: blur(var(--blur-md));
-  -webkit-backdrop-filter: blur(var(--blur-md));
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 16px;
-  box-shadow: var(--shadow-md);
-}
-
-.panel__title {
-  font-size: 12px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--text-muted);
-  margin: 0 0 12px;
-}
-
-.panels {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 20px;
-}
-
-@container main (max-width: 640px) {
-  .panels {
-    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -1250,37 +1094,6 @@ body {
 .nodata p {
   margin: 0;
   max-width: 40ch;
-}
-
-/* ---------- capacity meter ---------- */
-
-.meter {
-  height: 10px;
-  border-radius: 5px;
-  background: var(--bg-hover);
-  overflow: hidden;
-  display: flex;
-}
-
-.meter__fill {
-  background: linear-gradient(90deg, var(--accent) 0%, var(--accent-hover) 100%);
-  animation: grow var(--duration-base) var(--ease-out);
-  transform-origin: left center;
-}
-
-/* Used but not walked by the scan — real consumption with no owner attached. */
-.meter__fill--unknown {
-  background: var(--text-faint);
-  opacity: 0.55;
-}
-
-.meter__legend {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11px;
-  color: var(--text-muted);
-  margin-top: 6px;
-  font-family: var(--font-mono);
 }
 
 /* ---------- states ---------- */

@@ -12,10 +12,10 @@ import { fetchGroups, fetchHealth, fetchOverview } from './lib/api.js'
 import { NoTargets } from './components/NoTargets.js'
 import { DiskColumn } from './components/DiskColumn.js'
 import { GroupList } from './components/GroupList.js'
-import { UsageList } from './components/UsageList.js'
 import { OverviewTab } from './tabs/OverviewTab.js'
 import { TreemapTab } from './tabs/TreemapTab.js'
 import { ScrollTop } from './components/ScrollTop.js'
+import { StatBar } from './components/StatBar.js'
 import { formatTimestamp } from './lib/format.js'
 
 type Theme = 'dark' | 'light'
@@ -261,6 +261,10 @@ export function App(): JSX.Element {
                 ? `Latest snapshot from ${formatTimestamp(active.scanTimestamp)}`
                 : 'Waiting for data…'}
             </div>
+
+            {/* Capacity figures belong to the target, not to one tab, so they sit
+                in the shared header as legacy had them. */}
+            {overview?.capacity && <StatBar capacity={overview.capacity} />}
           </header>
 
           {error ? (
@@ -277,35 +281,7 @@ export function App(): JSX.Element {
           ) : !overview || !selected ? (
             <NoTargets health={health} />
           ) : page === 'overview' ? (
-            <>
-              <OverviewTab overview={overview} />
-              {/* Ranked lists below the charts, not in a fourth column: with
-                  three columns already spent on navigation, a name is better
-                  read off a wide panel than a narrow rail. */}
-              <div className="panels">
-                <div className="panel">
-                  <UsageList
-                    title="Teams"
-                    rows={overview.teams}
-                    emptyText="No team mapping configured."
-                  />
-                </div>
-                <div className="panel">
-                  <UsageList
-                    title="Users"
-                    rows={overview.users}
-                    emptyText="No users mapped to a team."
-                  />
-                </div>
-                <div className="panel">
-                  <UsageList
-                    title="Unmapped users"
-                    rows={overview.otherUsers}
-                    emptyText="Every user maps to a team."
-                  />
-                </div>
-              </div>
-            </>
+            <OverviewTab overview={overview} />
           ) : (
             <>
               <nav className="subtabs" role="tablist" aria-label="Detail views">

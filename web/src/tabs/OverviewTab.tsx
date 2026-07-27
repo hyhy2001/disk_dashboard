@@ -1,8 +1,14 @@
-// Overview: summary cards, capacity meter, team split and the usage timeline.
-// This is the right-hand detail column; the two left columns live in App.
+// Overview: the three charts legacy shows, and nothing else.
 //
-// Chart controls mirror the legacy dashboard: a range selector on the timeline,
-// a log/linear toggle on the user bars, and an expand button on each chart.
+//   Capacity Over Time · Usage by Teams · Top Consuming Users
+//
+// Capacity figures live in App's shared page header, since they describe the
+// target rather than this tab. No summary cards and no ranked tables: the donut
+// and the bar chart already carry that data, and duplicating it just makes the
+// page longer.
+//
+// Chart controls mirror legacy: a range selector on the timeline, a log/linear
+// toggle on the user bars, and an expand button on each chart.
 
 import { useMemo, useState } from 'react'
 import type { Overview } from '../../../shared/api.js'
@@ -12,8 +18,6 @@ import { ChartModal } from '../components/ChartModal.js'
 import { DeltaBadge } from '../components/DeltaBadge.js'
 import { Donut } from '../components/Donut.js'
 import { filterByRange, RangePicker, type RangeDays } from '../components/RangePicker.js'
-import { StatBar } from '../components/StatBar.js'
-import { formatCount, formatPercent, formatSize, formatTimestamp } from '../lib/format.js'
 
 interface Props {
   overview: Overview
@@ -42,7 +46,7 @@ function ExpandButton({ onClick }: { onClick: () => void }): JSX.Element {
 }
 
 export function OverviewTab({ overview }: Props): JSX.Element {
-  const { target, capacity, teams, users, otherUsers, history } = overview
+  const { capacity, teams, users, otherUsers, history } = overview
   const [range, setRange] = useState<RangeDays>('all')
   const [logScale, setLogScale] = useState(false)
   const [expanded, setExpanded] = useState<Expanded>(null)
@@ -62,65 +66,9 @@ export function OverviewTab({ overview }: Props): JSX.Element {
 
   return (
     <>
-      <div className="cards">
-        <div className="card">
-          <div className="card__label">Scanned size</div>
-          <div className="card__value">{formatSize(target.totalSize)}</div>
-          <div className="card__hint">under {target.scanRoot || 'unknown root'}</div>
-        </div>
-        <div className="card">
-          <div className="card__label">Files</div>
-          <div className="card__value">{formatCount(target.totalFiles)}</div>
-          <div className="card__hint">{formatCount(target.totalDirs)} directories</div>
-        </div>
-        <div className="card">
-          <div className="card__label">Last scan</div>
-          <div className="card__value" style={{ fontSize: '16px' }}>
-            {formatTimestamp(target.scanTimestamp)}
-          </div>
-          <div className="card__hint">
-            {history.length} snapshot{history.length === 1 ? '' : 's'} on record
-          </div>
-        </div>
-        <div className="card">
-          <div className="card__label">Report size</div>
-          <div className="card__value">{formatSize(target.dbSizeBytes)}</div>
-          <div className="card__hint">report.db on disk</div>
-        </div>
-      </div>
-
-      {capacity && (
-        <div className="panel">
-          <StatBar capacity={capacity} />
-          {/* Three segments, not two: the part of "used" the scan could not walk
-              is what nobody can attribute to a user. */}
-          <div className="meter">
-            <div
-              className="meter__fill"
-              style={{ width: formatPercent(capacity.scanned, capacity.total) }}
-              title={`Scanned: ${formatSize(capacity.scanned)}`}
-            />
-            <div
-              className="meter__fill meter__fill--unknown"
-              style={{
-                width: formatPercent(Math.max(0, capacity.used - capacity.scanned), capacity.total),
-              }}
-              title={`Used but not scanned: ${formatSize(Math.max(0, capacity.used - capacity.scanned))}`}
-            />
-          </div>
-          <div className="meter__legend">
-            <span>
-              {formatSize(capacity.scanned)} scanned (
-              {formatPercent(capacity.scanned, capacity.total)})
-            </span>
-            <span>
-              {formatSize(Math.max(0, capacity.used - capacity.scanned))} unattributed
-            </span>
-            <span>{formatSize(capacity.available)} free</span>
-          </div>
-        </div>
-      )}
-
+      {/* Legacy's Overview is exactly three charts. The capacity figures live in
+          the shared page header, not here, and there are no summary cards or
+          ranked tables — the donut and bar chart already carry that data. */}
       <div className="panel">
         <div className="panel__head">
           <h2 className="panel__title">Capacity Over Time</h2>
