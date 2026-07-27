@@ -24,6 +24,8 @@ interface SnapshotRow {
   total: number | null
   used: number | null
   available: number | null
+  /** Derived: SUM of the snapshot's per-user sizes. */
+  scanned: number
 }
 
 /**
@@ -35,11 +37,18 @@ function readHistory(db: Database.Database): {
   history: HistoryPoint[]
   latestId: number | null
 } {
+  // hist_snapshots records what the *filesystem* reported (total/used/available).
+  // What the scan actually walked is the sum of its per-user rows — verified to
+  // equal meta.total_size exactly on every target, so it is the right source for
+  // a per-snapshot "scanned" series. Grouping over hist_user_usage is cheap: one
+  // row per user per scan.
   const rows = db
     .prepare(
-      `SELECT id, scan_date, scanned_at, total, used, available
-         FROM hist_snapshots
-        ORDER BY scan_date ASC`,
+      `SELECT s.id, s.scan_date, s.scanned_at, s.total, s.used, s.available,
+              COALESCE((SELECT SUM(u.size) FROM hist_user_usage u
+                         WHERE u.snapshot_id = s.id), 0) AS scanned
+         FROM hist_snapshots s
+        ORDER BY s.scan_date ASC`,
     )
     .all() as SnapshotRow[]
 
@@ -49,6 +58,7 @@ function readHistory(db: Database.Database): {
     totalSize: r.total ?? 0,
     usedSize: r.used ?? 0,
     availableSize: r.available ?? 0,
+    scannedSize: r.scanned,
   }))
 
   const last = rows.length > 0 ? rows[rows.length - 1] : undefined
@@ -59,7 +69,12 @@ function readHistory(db: Database.Database): {
   const capacity: Capacity | null =
     last.total === null || last.total === 0
       ? null
-      : { total: last.total, used: last.used ?? 0, available: last.available ?? 0 }
+      : {
+          total: last.total,
+          used: last.used ?? 0,
+          available: last.available ?? 0,
+          scanned: last.scanned,
+        }
 
   return { capacity, history, latestId: last.id }
 }
@@ -84,23 +99,40 @@ function readTeams(db: Database.Database, snapshotId: number | null): UsageRow[]
  * Top users from the current scan, split by whether they map to a team.
  * `hasTeam` selects the group: legacy called the unmapped ones "other".
  */
-function readUsers(db: Database.Database, hasTeam: boolean): UsageRow[] {
+function readUsers(
+  db: Database.Database,
+  hasTeam: boolean,
+  snapshotId: number | null,
+): UsageRow[] {
   const teamClause = hasTeam
-    ? "team_id IS NOT NULL AND team_id <> ''"
-    : "(team_id IS NULL OR team_id = '')"
+    ? "u.team_id IS NOT NULL AND u.team_id <> ''"
+    : "(u.team_id IS NULL OR u.team_id = '')"
 
+  // detail_users.team_id is a text id; the display name only exists in
+  // hist_team_usage. They match by value (text '1' = integer 1), so the join is
+  // on team_id and scoped to the newest snapshot to avoid duplicate name rows.
   const rows = db
     .prepare(
-      `SELECT username, total_size
-         FROM detail_users
+      `SELECT u.username, u.total_size, t.name AS team
+         FROM detail_users u
+    LEFT JOIN hist_team_usage t
+           ON t.team_id = u.team_id AND t.snapshot_id = ?
         WHERE ${teamClause}
-          AND total_size > 0
-        ORDER BY total_size DESC
+          AND u.total_size > 0
+        ORDER BY u.total_size DESC
         LIMIT ?`,
     )
-    .all(USER_LIMIT) as { username: string; total_size: number }[]
+    .all(snapshotId, USER_LIMIT) as {
+    username: string
+    total_size: number
+    team: string | null
+  }[]
 
-  return rows.map((r) => ({ name: r.username, used: r.total_size }))
+  return rows.map((r) => ({
+    name: r.username,
+    used: r.total_size,
+    ...(r.team ? { team: r.team } : {}),
+  }))
 }
 
 /** Assemble the whole Overview payload for one target. */
@@ -110,8 +142,8 @@ export function readOverview(db: Database.Database, target: Target): Overview {
     target,
     capacity,
     teams: readTeams(db, latestId),
-    users: readUsers(db, true),
-    otherUsers: readUsers(db, false),
+    users: readUsers(db, true, latestId),
+    otherUsers: readUsers(db, false, latestId),
     history,
   }
 }

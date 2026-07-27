@@ -22,30 +22,39 @@ const MAX_SLICES = 6
 interface Props {
   rows: UsageRow[]
   size?: number
+  /**
+   * Called when a slice is clicked, with the team name — or null when the
+   * already-selected slice is clicked again, which clears the filter.
+   */
+  onSelect?: (name: string | null) => void
+  /** Currently filtered team, drawn as the highlighted slice. */
+  selected?: string | null
 }
 
 interface Slice {
   name: string
   used: number
   color: string
+  /** False for the synthetic "others" wedge, which has no single team behind it. */
+  real: boolean
 }
 
 function buildSlices(rows: UsageRow[]): Slice[] {
   const sorted = [...rows].filter((r) => r.used > 0).sort((a, b) => b.used - a.used)
   if (sorted.length <= MAX_SLICES) {
-    return sorted.map((r, i) => ({ ...r, color: SERIES[i % SERIES.length] as string }))
+    return sorted.map((r, i) => ({ ...r, color: SERIES[i % SERIES.length] as string, real: true }))
   }
 
   const head = sorted.slice(0, MAX_SLICES - 1)
   const tail = sorted.slice(MAX_SLICES - 1)
   const rest = tail.reduce((sum, r) => sum + r.used, 0)
   return [
-    ...head.map((r, i) => ({ ...r, color: SERIES[i % SERIES.length] as string })),
-    { name: `${tail.length} others`, used: rest, color: 'var(--text-faint)' },
+    ...head.map((r, i) => ({ ...r, color: SERIES[i % SERIES.length] as string, real: true })),
+    { name: `${tail.length} others`, used: rest, color: 'var(--text-faint)', real: false },
   ]
 }
 
-export function Donut({ rows, size = 148 }: Props): JSX.Element {
+export function Donut({ rows, size = 148, onSelect, selected }: Props): JSX.Element {
   const slices = buildSlices(rows)
   const total = slices.reduce((sum, s) => sum + s.used, 0)
 
@@ -72,20 +81,34 @@ export function Donut({ rows, size = 148 }: Props): JSX.Element {
           {slices.map((s) => {
             const length = (s.used / total) * circumference
             const dash = `${length} ${circumference - length}`
+            // The synthetic "others" wedge is an aggregate, so it has no single
+            // team to filter by.
+            const clickable = onSelect !== undefined && s.real
             const el = (
               <circle
                 key={s.name}
-                className="donut__slice"
+                className={`donut__slice${clickable ? ' donut__slice--click' : ''}${
+                  selected === s.name ? ' donut__slice--on' : ''
+                }`}
                 cx={size / 2}
                 cy={size / 2}
                 r={radius}
                 fill="none"
                 stroke={s.color}
-                strokeWidth={stroke}
+                strokeWidth={selected === s.name ? stroke + 4 : stroke}
                 strokeDasharray={dash}
                 strokeDashoffset={-offset}
+                onClick={
+                  clickable
+                    ? () => onSelect(selected === s.name ? null : s.name)
+                    : undefined
+                }
               >
-                <title>{`${s.name}: ${formatSize(s.used)} (${formatPercent(s.used, total)})`}</title>
+                <title>
+                  {`${s.name}: ${formatSize(s.used)} (${formatPercent(s.used, total)})${
+                    clickable ? '\nClick to filter users by this team' : ''
+                  }`}
+                </title>
               </circle>
             )
             offset += length
@@ -116,13 +139,36 @@ export function Donut({ rows, size = 148 }: Props): JSX.Element {
       </svg>
 
       <ul className="legend">
-        {slices.map((s) => (
-          <li className="legend__item" key={s.name}>
-            <span className="legend__swatch" style={{ background: s.color }} />
-            <span className="legend__name">{s.name}</span>
-            <span className="legend__value">{formatPercent(s.used, total)}</span>
-          </li>
-        ))}
+        {slices.map((s) => {
+          const clickable = onSelect !== undefined && s.real
+          const body = (
+            <>
+              <span className="legend__swatch" style={{ background: s.color }} />
+              <span className="legend__name">{s.name}</span>
+              <span className="legend__value">{formatPercent(s.used, total)}</span>
+            </>
+          )
+          return (
+            <li key={s.name}>
+              {/* Clicking a legend row does the same as clicking its slice —
+                  thin slices are hard to hit precisely. */}
+              {clickable ? (
+                <button
+                  type="button"
+                  className={`legend__item legend__item--click${
+                    selected === s.name ? ' legend__item--on' : ''
+                  }`}
+                  onClick={() => onSelect(selected === s.name ? null : s.name)}
+                  aria-pressed={selected === s.name}
+                >
+                  {body}
+                </button>
+              ) : (
+                <span className="legend__item">{body}</span>
+              )}
+            </li>
+          )
+        })}
       </ul>
     </div>
   )

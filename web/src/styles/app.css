@@ -495,12 +495,250 @@ body {
   stroke-width: 2;
 }
 
+.chart__ref {
+  stroke: var(--amber-400);
+  stroke-dasharray: 3 3;
+  stroke-width: 1;
+  opacity: 0.5;
+}
+
+.chart__cross line {
+  stroke: var(--text-faint);
+  stroke-dasharray: 3 3;
+  stroke-width: 1;
+}
+
+.chart__legend {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.chart__key {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.chart__key-val {
+  font-family: var(--font-mono);
+  color: var(--text);
+  /* Reserve width so hovering across points does not jiggle the legend. */
+  min-width: 66px;
+}
+
+.chart__key-date {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  color: var(--text-faint);
+}
+
+/* ---------- donut interaction ---------- */
+
+.donut__slice--click {
+  cursor: pointer;
+}
+
+.donut__slice--on {
+  opacity: 1 !important;
+}
+
+.legend__item--click {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  width: 100%;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+
+.legend__item--click:hover {
+  background: var(--bg-hover);
+}
+
+.legend__item--on {
+  background: var(--bg-active);
+}
+
+.legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
 .chart__bar {
   transition: opacity var(--duration-fast) var(--ease-out);
 }
 
 .chart__bar:hover {
   opacity: 0.75;
+}
+
+/* ---------- stat bar ---------- */
+
+.statbar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+
+.statbar__item {
+  flex: 1 1 90px;
+  min-width: 0;
+}
+
+.statbar__figure {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.statbar__num {
+  font-size: 21px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  letter-spacing: -0.02em;
+  /* Digits must not shift width while the count-up runs. */
+  font-variant-numeric: tabular-nums;
+}
+
+.statbar__num--used {
+  color: var(--rose-400);
+}
+
+.statbar__num--scanned {
+  color: var(--amber-400);
+}
+
+.statbar__num--hot {
+  color: var(--rose-400);
+}
+
+.statbar__unit {
+  font-size: 11px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+}
+
+.statbar__label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  font-weight: 700;
+  margin-top: 1px;
+}
+
+.statbar__div {
+  width: 1px;
+  height: 30px;
+  background: var(--border);
+  flex: 0 0 auto;
+}
+
+@media (max-width: 600px) {
+  .statbar__div {
+    display: none;
+  }
+  .statbar__item {
+    flex-basis: 30%;
+  }
+}
+
+/* ---------- delta badge ---------- */
+
+.delta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--font-mono);
+}
+
+.delta__now {
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+
+.delta__badge {
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 10px;
+}
+
+/* Growth is the direction that eventually causes a problem, so it reads as a
+   warning rather than as success. */
+.delta__badge--up {
+  color: var(--rose-400);
+  background: color-mix(in srgb, var(--rose-400) 14%, transparent);
+}
+
+.delta__badge--down {
+  color: var(--emerald-400);
+  background: color-mix(in srgb, var(--emerald-400) 14%, transparent);
+}
+
+.delta__badge--flat {
+  color: var(--text-faint);
+  background: var(--bg-hover);
+}
+
+/* ---------- filter chip ---------- */
+
+.chip {
+  appearance: none;
+  border: 1px solid color-mix(in srgb, var(--sky-400) 40%, transparent);
+  background: color-mix(in srgb, var(--sky-400) 14%, transparent);
+  color: var(--sky-400);
+  font: inherit;
+  font-size: 11px;
+  padding: 2px 9px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.chip:hover {
+  background: color-mix(in srgb, var(--sky-400) 24%, transparent);
+}
+
+.chip__x {
+  opacity: 0.7;
+  margin-left: 2px;
+}
+
+/* ---------- no-data overlay ---------- */
+
+.nodata {
+  display: grid;
+  place-content: center;
+  gap: 4px;
+  text-align: center;
+  padding: 32px 12px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.nodata__title {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 13px;
+  margin: 0;
+}
+
+.nodata p {
+  margin: 0;
+  max-width: 40ch;
 }
 
 /* ---------- capacity meter ---------- */
@@ -517,6 +755,12 @@ body {
   background: linear-gradient(90deg, var(--accent) 0%, var(--accent-hover) 100%);
   animation: grow var(--duration-base) var(--ease-out);
   transform-origin: left center;
+}
+
+/* Used but not walked by the scan — real consumption with no owner attached. */
+.meter__fill--unknown {
+  background: var(--text-faint);
+  opacity: 0.55;
 }
 
 .meter__legend {
@@ -1097,4 +1341,21 @@ body {
 .modal__body {
   padding: 20px;
   overflow: auto;
+}
+
+.modal__tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal__foot {
+  padding: 10px 16px;
+  border-top: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.modal__err {
+  color: var(--rose-400);
 }

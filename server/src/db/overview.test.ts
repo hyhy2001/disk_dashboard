@@ -25,7 +25,24 @@ describe('readOverview', () => {
     db = createFixture()
     const out = readOverview(db, TARGET)
 
-    expect(out.capacity).toEqual({ total: 10_000, used: 6500, available: 3500 })
+    // scanned is the sum of snapshot 2's user rows: 700 + 80 = 780.
+    expect(out.capacity).toEqual({ total: 10_000, used: 6500, available: 3500, scanned: 780 })
+  })
+
+  it('derives scanned size per snapshot from its user rows', () => {
+    db = createFixture()
+    const out = readOverview(db, TARGET)
+
+    // Snapshot 1 has no hist_user_usage rows, snapshot 2 has 700 + 80.
+    expect(out.history.map((h) => h.scannedSize)).toEqual([0, 780])
+  })
+
+  it('keeps scanned below used, exposing unattributed space', () => {
+    db = createFixture()
+    const cap = readOverview(db, TARGET).capacity
+
+    // The gap is the point of tracking both: 6500 used, only 780 attributed.
+    expect(cap?.scanned).toBeLessThan(cap?.used ?? 0)
   })
 
   it('returns history oldest first so the client can plot it directly', () => {
@@ -57,6 +74,31 @@ describe('readOverview', () => {
     expect(out.otherUsers.map((u) => u.name)).toEqual(['syslog', 'nobody'])
   })
 
+  it('resolves each mapped user to its team display name', () => {
+    db = createFixture()
+    const out = readOverview(db, TARGET)
+
+    // detail_users.team_id is text '1'; hist_team_usage.team_id is integer 1.
+    // They must still join, or the donut filter would match nothing.
+    expect(out.users.map((u) => u.team)).toEqual(['ALPHA', 'ALPHA'])
+  })
+
+  it('leaves team undefined for unmapped users', () => {
+    db = createFixture()
+    const out = readOverview(db, TARGET)
+
+    expect(out.otherUsers.every((u) => u.team === undefined)).toBe(true)
+  })
+
+  it('does not duplicate users when several snapshots exist', () => {
+    // The team-name join must be scoped to one snapshot; without that scoping,
+    // ALPHA appearing in both snapshots would double every mapped user.
+    db = createFixture()
+    const out = readOverview(db, TARGET)
+
+    expect(out.users).toHaveLength(2)
+  })
+
   it('omits users with zero usage from both lists', () => {
     db = createFixture()
     const out = readOverview(db, TARGET)
@@ -81,6 +123,8 @@ describe('readOverview', () => {
     expect(out.teams).toEqual([])
     // Current-scan user data does not depend on history.
     expect(out.users.length).toBeGreaterThan(0)
+    // With no snapshot there is no name to resolve, but the user must still list.
+    expect(out.users[0]?.team).toBeUndefined()
   })
 
   it('passes the target row through unchanged', () => {

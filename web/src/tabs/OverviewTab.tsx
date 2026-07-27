@@ -9,8 +9,10 @@ import type { Overview } from '../../../shared/api.js'
 import { AreaChart } from '../components/AreaChart.js'
 import { BarChart } from '../components/BarChart.js'
 import { ChartModal } from '../components/ChartModal.js'
+import { DeltaBadge } from '../components/DeltaBadge.js'
 import { Donut } from '../components/Donut.js'
 import { filterByRange, RangePicker, type RangeDays } from '../components/RangePicker.js'
+import { StatBar } from '../components/StatBar.js'
 import { formatCount, formatPercent, formatSize, formatTimestamp } from '../lib/format.js'
 
 interface Props {
@@ -44,8 +46,14 @@ export function OverviewTab({ overview }: Props): JSX.Element {
   const [range, setRange] = useState<RangeDays>('all')
   const [logScale, setLogScale] = useState(false)
   const [expanded, setExpanded] = useState<Expanded>(null)
+  /** Team picked from the donut; filters the user chart. */
+  const [teamFilter, setTeamFilter] = useState<string | null>(null)
 
   const allUsers = useMemo(() => [...users, ...otherUsers], [users, otherUsers])
+  const shownUsers = useMemo(
+    () => (teamFilter === null ? allUsers : allUsers.filter((u) => u.team === teamFilter)),
+    [allUsers, teamFilter],
+  )
   const shownHistory = useMemo(() => filterByRange(history, range), [history, range])
 
   // A range with fewer than two points cannot draw a trend, so offer only the
@@ -83,19 +91,32 @@ export function OverviewTab({ overview }: Props): JSX.Element {
 
       {capacity && (
         <div className="panel">
-          <h2 className="panel__title">Filesystem capacity</h2>
+          <StatBar capacity={capacity} />
+          {/* Three segments, not two: the part of "used" the scan could not walk
+              is what nobody can attribute to a user. */}
           <div className="meter">
             <div
               className="meter__fill"
-              style={{ width: formatPercent(capacity.used, capacity.total) }}
+              style={{ width: formatPercent(capacity.scanned, capacity.total) }}
+              title={`Scanned: ${formatSize(capacity.scanned)}`}
+            />
+            <div
+              className="meter__fill meter__fill--unknown"
+              style={{
+                width: formatPercent(Math.max(0, capacity.used - capacity.scanned), capacity.total),
+              }}
+              title={`Used but not scanned: ${formatSize(Math.max(0, capacity.used - capacity.scanned))}`}
             />
           </div>
           <div className="meter__legend">
             <span>
-              {formatSize(capacity.used)} used ({formatPercent(capacity.used, capacity.total)})
+              {formatSize(capacity.scanned)} scanned (
+              {formatPercent(capacity.scanned, capacity.total)})
+            </span>
+            <span>
+              {formatSize(Math.max(0, capacity.used - capacity.scanned))} unattributed
             </span>
             <span>{formatSize(capacity.available)} free</span>
-            <span>{formatSize(capacity.total)} total</span>
           </div>
         </div>
       )}
@@ -103,6 +124,7 @@ export function OverviewTab({ overview }: Props): JSX.Element {
       <div className="panel">
         <div className="panel__head">
           <h2 className="panel__title">Capacity over time</h2>
+          <DeltaBadge points={shownHistory} />
           <div className="panel__tools">
             <RangePicker value={range} onChange={setRange} available={rangeAvailable} />
             <ExpandButton onClick={() => setExpanded('timeline')} />
@@ -117,12 +139,22 @@ export function OverviewTab({ overview }: Props): JSX.Element {
             <h2 className="panel__title">Usage by teams</h2>
             <ExpandButton onClick={() => setExpanded('teams')} />
           </div>
-          <Donut rows={teams} />
+          <Donut rows={teams} onSelect={setTeamFilter} selected={teamFilter} />
         </div>
 
         <div className="panel">
           <div className="panel__head">
             <h2 className="panel__title">Top consuming users</h2>
+            {teamFilter && (
+              <button
+                type="button"
+                className="chip"
+                onClick={() => setTeamFilter(null)}
+                title="Clear team filter"
+              >
+                {teamFilter} <span className="chip__x">✕</span>
+              </button>
+            )}
             <div className="panel__tools">
               <button
                 type="button"
@@ -136,24 +168,43 @@ export function OverviewTab({ overview }: Props): JSX.Element {
               <ExpandButton onClick={() => setExpanded('users')} />
             </div>
           </div>
-          <BarChart rows={allUsers} limit={10} logScale={logScale} />
+          {shownUsers.length === 0 ? (
+            <div className="nodata">
+              <p className="nodata__title">No consumer data</p>
+              <p>Usage in this segment is untracked or belongs to the system.</p>
+            </div>
+          ) : (
+            <BarChart rows={shownUsers} limit={10} logScale={logScale} />
+          )}
         </div>
       </div>
 
       {expanded === 'timeline' && (
-        <ChartModal title="Capacity over time" onClose={() => setExpanded(null)}>
-          <AreaChart points={shownHistory} />
+        <ChartModal
+          title="Capacity Over Time — Full View"
+          slug="timeline"
+          onClose={() => setExpanded(null)}
+        >
+          <AreaChart points={shownHistory} height={340} />
         </ChartModal>
       )}
       {expanded === 'teams' && (
-        <ChartModal title="Usage by teams" onClose={() => setExpanded(null)}>
-          <Donut rows={teams} size={280} />
+        <ChartModal
+          title="Usage by Teams — Full View"
+          slug="teams"
+          onClose={() => setExpanded(null)}
+        >
+          <Donut rows={teams} size={280} onSelect={setTeamFilter} selected={teamFilter} />
         </ChartModal>
       )}
       {expanded === 'users' && (
-        <ChartModal title="Top consuming users" onClose={() => setExpanded(null)}>
+        <ChartModal
+          title="Top Consuming Users — Full View"
+          slug="users"
+          onClose={() => setExpanded(null)}
+        >
           {/* More room means more bars are worth showing. */}
-          <BarChart rows={allUsers} limit={30} logScale={logScale} />
+          <BarChart rows={shownUsers} limit={30} logScale={logScale} />
         </ChartModal>
       )}
     </>

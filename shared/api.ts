@@ -28,11 +28,18 @@ export interface Capacity {
   total: number
   used: number
   available: number
+  /** Bytes the scan walked. See HistoryPoint.scannedSize. */
+  scanned: number
 }
 
 export interface UsageRow {
   name: string
   used: number
+  /**
+   * Team this row belongs to, when known. Present on user rows so the client can
+   * filter the user chart by a team picked from the donut; absent on team rows.
+   */
+  team?: string
 }
 
 /** A single point on the capacity/usage timeline (one per scan snapshot). */
@@ -43,6 +50,12 @@ export interface HistoryPoint {
   totalSize: number
   usedSize: number
   availableSize: number
+  /**
+   * Bytes the scan actually walked, which is normally *less* than usedSize:
+   * anything the scanner could not descend into is counted by the filesystem
+   * but not by duscan. The gap is the useful signal — it is unattributed usage.
+   */
+  scannedSize: number
 }
 
 export interface Overview {

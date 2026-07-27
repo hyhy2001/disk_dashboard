@@ -8,17 +8,22 @@
 // focus moved into the panel on open and restored on close, and background
 // scroll locked while open.
 
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { downloadSvgAsPng } from '../lib/exportPng.js'
 
 interface Props {
   title: string
+  /** Slug used in the downloaded file name. */
+  slug: string
   onClose: () => void
   children: React.ReactNode
 }
 
-export function ChartModal({ title, onClose, children }: Props): JSX.Element {
+export function ChartModal({ title, slug, onClose, children }: Props): JSX.Element {
   const panel = useRef<HTMLDivElement>(null)
+  const body = useRef<HTMLDivElement>(null)
   const restoreTo = useRef<HTMLElement | null>(null)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   useEffect(() => {
     restoreTo.current = document.activeElement as HTMLElement | null
@@ -39,6 +44,21 @@ export function ChartModal({ title, onClose, children }: Props): JSX.Element {
     }
   }, [onClose])
 
+  const savePng = (): void => {
+    const svg = body.current?.querySelector('svg')
+    if (!svg) {
+      setSaveError('nothing to save')
+      return
+    }
+    setSaveError(null)
+    const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '')
+    downloadSvgAsPng(svg as SVGSVGElement, `chart-${slug}-${stamp}.png`).catch(
+      (err: unknown) => {
+        setSaveError(err instanceof Error ? err.message : 'could not save PNG')
+      },
+    )
+  }
+
   return (
     <div
       className="modal"
@@ -58,11 +78,25 @@ export function ChartModal({ title, onClose, children }: Props): JSX.Element {
       >
         <div className="modal__head">
           <h2 className="modal__title">{title}</h2>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
-            ✕
-          </button>
+          <div className="modal__tools">
+            <button type="button" className="btn btn--sm" onClick={savePng}>
+              Save PNG
+            </button>
+            <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
+              ✕
+            </button>
+          </div>
         </div>
-        <div className="modal__body">{children}</div>
+        <div className="modal__body" ref={body}>
+          {children}
+        </div>
+        <div className="modal__foot">
+          {saveError ? (
+            <span className="modal__err">{saveError}</span>
+          ) : (
+            <span>Press Esc to close · Hover for details</span>
+          )}
+        </div>
       </div>
     </div>
   )
