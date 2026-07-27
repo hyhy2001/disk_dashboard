@@ -69,30 +69,37 @@ export function OverviewTab({ overview }: Props): JSX.Element {
       {/* Legacy's Overview is exactly three charts. The capacity figures live in
           the shared page header, not here, and there are no summary cards or
           ranked tables — the donut and bar chart already carry that data. */}
-      <div className="panel">
-        <div className="panel__head">
-          <h2 className="panel__title">Capacity Over Time</h2>
-          <DeltaBadge points={shownHistory} />
-          <div className="panel__tools">
-            <RangePicker value={range} onChange={setRange} available={rangeAvailable} />
-            <ExpandButton onClick={() => setExpanded('timeline')} />
+      {/* One grid, timeline spanning both columns — legacy's .charts-grid with
+          .large-span. Keeping the three panels in a single grid is what lets the
+          whole page be sized as one unit. */}
+      <div className="charts">
+        <div className="panel panel--wide">
+          <div className="panel__head">
+            <h2 className="panel__title">Capacity Over Time</h2>
+            <DeltaBadge points={shownHistory} />
+            <div className="panel__tools">
+              <RangePicker value={range} onChange={setRange} available={rangeAvailable} />
+              <ExpandButton onClick={() => setExpanded('timeline')} />
+            </div>
+          </div>
+          <div className="canvas canvas--tall">
+            <AreaChart points={shownHistory} />
           </div>
         </div>
-        <AreaChart points={shownHistory} />
-      </div>
 
-      <div className="panels">
         <div className="panel">
           <div className="panel__head">
             <h2 className="panel__title">Usage by Teams</h2>
             <ExpandButton onClick={() => setExpanded('teams')} />
           </div>
-          <Donut
-            rows={teams}
-            onSelect={setTeamFilter}
-            selected={teamFilter}
-            {...(capacity ? { totalUsed: capacity.used } : {})}
-          />
+          <div className="canvas">
+            <Donut
+              rows={teams}
+              onSelect={setTeamFilter}
+              selected={teamFilter}
+              {...(capacity ? { totalUsed: capacity.used } : {})}
+            />
+          </div>
         </div>
 
         <div className="panel">
@@ -121,14 +128,16 @@ export function OverviewTab({ overview }: Props): JSX.Element {
               <ExpandButton onClick={() => setExpanded('users')} />
             </div>
           </div>
-          {shownUsers.length === 0 ? (
-            <div className="nodata">
-              <p className="nodata__title">No consumer data</p>
-              <p>Usage in this segment is untracked or belongs to the system.</p>
-            </div>
-          ) : (
-            <BarChart rows={shownUsers} limit={10} logScale={logScale} />
-          )}
+          <div className="canvas">
+            {shownUsers.length === 0 ? (
+              <div className="nodata">
+                <p className="nodata__title">No consumer data</p>
+                <p>Usage in this segment is untracked or belongs to the system.</p>
+              </div>
+            ) : (
+              <BarChart rows={shownUsers} limit={10} logScale={logScale} />
+            )}
+          </div>
         </div>
       </div>
 

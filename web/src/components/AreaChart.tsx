@@ -18,7 +18,11 @@ import { formatScanDate, formatSize } from '../lib/format.js'
 
 interface Props {
   points: HistoryPoint[]
-  /** Taller plot for the fullscreen view. */
+  /**
+   * Height of the plot in viewBox units. Only affects the internal coordinate
+   * system — CSS decides the rendered size — so this is about the aspect ratio,
+   * not the pixel height.
+   */
   height?: number
 }
 

@@ -493,10 +493,10 @@ body {
   height: 100vh;
   overflow-y: auto;
   overflow-x: hidden;
-  padding: 24px 28px;
+  padding: 16px 20px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 14px;
   /* Chart panels size against this, not the viewport, so the sidebar width is
      already accounted for. */
   container-type: inline-size;
@@ -522,10 +522,11 @@ body {
 /* ---------- page header ---------- */
 
 .pagehead {
-  padding: 16px 20px;
+  padding: 11px 16px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;
+  flex: 0 0 auto;
 }
 
 .pagehead__top {
@@ -537,7 +538,7 @@ body {
 
 .pagehead__title {
   margin: 0;
-  font-size: 19px;
+  font-size: 17px;
   font-weight: 600;
   letter-spacing: -0.02em;
 }
@@ -766,8 +767,9 @@ body {
   -webkit-backdrop-filter: blur(var(--blur-md));
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 16px;
+  padding: 12px 14px;
   box-shadow: var(--shadow-md);
+  min-width: 0;
 }
 
 .panels {
@@ -784,13 +786,53 @@ body {
   }
 }
 
+/* Overview's chart grid: two equal columns, timeline spanning both. */
+.charts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+  min-width: 0;
+}
+
+.panel--wide {
+  grid-column: 1 / -1;
+}
+
+@container main (max-width: 700px) {
+  .charts {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Chart body height, scaled to viewport height between hard bounds — legacy's
+   approach. A fixed height either wastes a tall screen or overflows a short one;
+   clamp keeps all three panels inside one viewport on a 13" laptop through a
+   1080p desktop. The SVGs scale to whatever box they are given. */
+/* Bounds verified by measuring the rendered page at 700-1080px tall, not by
+   arithmetic over this file: the total depends on font metrics and wrapping.
+   See styles/viewport.test.ts. */
+.canvas {
+  height: clamp(140px, 21vh, 260px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
+.canvas--tall {
+  height: clamp(186px, 31vh, 380px);
+}
+
+.canvas > svg {
+  max-height: 100%;
+}
+
+/* Legacy sizes panel titles at 1.1rem in normal case, not as small caps. */
 .panel__title {
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  color: var(--text-muted);
-  margin: 0 0 12px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+  margin: 0;
 }
 
 /* ---------- charts ---------- */
@@ -798,13 +840,20 @@ body {
 .donut {
   display: flex;
   align-items: center;
-  gap: 18px;
-  flex-wrap: wrap;
+  gap: 14px;
+  min-height: 0;
+  height: 100%;
 }
 
+/* Square, sized by the panel's height rather than a fixed pixel value, so a
+   short viewport shrinks the ring instead of overflowing the panel. */
 .donut__svg {
+  height: 100%;
+  width: auto;
   flex: 0 0 auto;
+  max-width: 55%;
 }
+
 
 .donut__slice {
   transition: opacity var(--duration-fast) var(--ease-out);
@@ -821,9 +870,16 @@ body {
 .legend {
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 4px;
   min-width: 0;
-  flex: 1 1 140px;
+  flex: 1 1 130px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  /* Scrolls if a report has more teams than the panel height allows — better
+     than pushing the whole page past the fold. */
+  overflow-y: auto;
+  max-height: 100%;
 }
 
 .legend__item {
@@ -854,9 +910,12 @@ body {
   flex: 0 0 auto;
 }
 
+/* Fills the canvas box it is given and shrinks with it, rather than growing to
+   its intrinsic aspect ratio and pushing the page past one screen. */
 .chart {
   width: 100%;
-  height: auto;
+  flex: 1 1 auto;
+  min-height: 0;
   overflow: visible;
 }
 
@@ -901,11 +960,12 @@ body {
 .chart__legend {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
   flex-wrap: wrap;
-  margin-top: 10px;
+  margin-top: 6px;
   font-size: 11px;
   color: var(--text-muted);
+  flex: 0 0 auto;
 }
 
 .chart__key {
@@ -958,12 +1018,6 @@ body {
   background: var(--bg-active);
 }
 
-.legend {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-}
-
 .chart__bar {
   transition: opacity var(--duration-fast) var(--ease-out);
 }
@@ -979,7 +1033,9 @@ body {
   align-items: center;
   gap: 4px;
   flex-wrap: wrap;
-  margin-bottom: 14px;
+  /* Sits inside the page header now, so no bottom margin of its own. */
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
 }
 
 .statbar__item {
@@ -994,7 +1050,7 @@ body {
 }
 
 .statbar__num {
-  font-size: 21px;
+  font-size: 18px;
   font-weight: 600;
   font-family: var(--font-mono);
   letter-spacing: -0.02em;
@@ -1573,9 +1629,9 @@ body {
 .panel__head {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .panel__head .panel__title {
@@ -1700,6 +1756,23 @@ body {
 .modal__body {
   padding: 20px;
   overflow: auto;
+}
+
+/* The fullscreen view exists to give a chart room, so the compact canvas
+   heights must not apply inside it. */
+.modal__body .canvas,
+.modal__body .canvas--tall {
+  height: auto;
+}
+
+.modal__body .chart {
+  height: auto;
+}
+
+.modal__body .donut__svg {
+  height: auto;
+  width: 280px;
+  max-width: 100%;
 }
 
 .modal__tools {

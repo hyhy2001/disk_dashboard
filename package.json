@@ -16,6 +16,7 @@
     "start": "npm run start --workspace=server"
   },
   "devDependencies": {
+    "playwright": "1.49.1",
     "vitest": "2.1.8"
   }
 }

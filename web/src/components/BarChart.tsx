@@ -17,9 +17,9 @@ interface Props {
   logScale?: boolean
 }
 
-const ROW_H = 26
+const ROW_H = 22
 /** Legacy caps bars at 32px so labels never collide; rows here are tighter. */
-const BAR_H = 14
+const BAR_H = 12
 const LABEL_W = 108
 const VALUE_W = 66
 const WIDTH = 460
@@ -58,7 +58,9 @@ export function BarChart({ rows, limit = 10, logScale = false }: Props): JSX.Ele
     <svg
       className="chart"
       viewBox={`0 0 ${WIDTH} ${height}`}
-      preserveAspectRatio="xMinYMin meet"
+      // Fit inside the canvas box rather than overflowing it: the chart is
+      // allowed to shrink so all three panels stay within one screen.
+      preserveAspectRatio="xMidYMid meet"
       role="img"
       aria-label={`Top ${data.length} users by disk usage${logScale ? ', logarithmic scale' : ''}`}
     >
