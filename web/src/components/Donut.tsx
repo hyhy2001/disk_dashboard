@@ -23,6 +23,17 @@ const SERIES = [
 /** Colour of the synthetic "Unknown" wedge — legacy's slate #334155. */
 const UNKNOWN_COLOR = '#334155'
 
+/**
+ * "Other" is real, attributable usage, so it gets a live palette colour rather
+ * than Unknown's dead slate — and one distinct from the "N others" merge wedge,
+ * which means something different again.
+ */
+const OTHER_COLOR = '#64748b'
+
+/** Slice names the client treats specially rather than as a team. */
+export const OTHER_SLICE = 'Other'
+export const UNKNOWN_SLICE = 'Unknown'
+
 /** Slices beyond this are merged into one "others" wedge to keep the ring readable. */
 const MAX_SLICES = 8
 
@@ -38,43 +49,66 @@ interface Props {
   selected?: string | null
   /**
    * Total used bytes on the filesystem. Anything beyond the sum of the team rows
-   * is added as an "Unknown" slice, as legacy did — without it the ring silently
-   * rescales and every team looks like a larger share than it is.
+   * and `otherUsed` becomes an "Unknown" slice, as legacy did — without it the
+   * ring silently rescales and every team looks like a larger share than it is.
    */
   totalUsed?: number
+  /**
+   * Bytes belonging to scanned users with no team mapping, shown as a separate
+   * "Other" slice.
+   *
+   * Legacy keeps this distinct from "Unknown" on purpose: Other is real,
+   * attributable usage whose owners are known but ungrouped, so clicking it lists
+   * those users. Unknown is space the scan never walked, so there is nobody to
+   * list. Folding one into the other overstates whichever absorbs it.
+   */
+  otherUsed?: number
 }
 
 interface Slice {
   name: string
   used: number
   color: string
-  /** False for the synthetic "others" wedge, which has no single team behind it. */
-  real: boolean
+  /**
+   * Whether clicking this slice can filter the user chart. True for teams and for
+   * "Other" (which maps to the unmapped users); false for the "N others" merge
+   * wedge and for "Unknown", neither of which has a user list behind it.
+   */
+  selectable: boolean
 }
 
-function buildSlices(rows: UsageRow[], totalUsed?: number): Slice[] {
+function buildSlices(rows: UsageRow[], totalUsed?: number, otherUsed?: number): Slice[] {
   const sorted = [...rows].filter((r) => r.used > 0).sort((a, b) => b.used - a.used)
 
   let out: Slice[]
   if (sorted.length <= MAX_SLICES) {
-    out = sorted.map((r, i) => ({ ...r, color: SERIES[i % SERIES.length] as string, real: true }))
+    out = sorted.map((r, i) => ({ ...r, color: SERIES[i % SERIES.length] as string, selectable: true }))
   } else {
     const head = sorted.slice(0, MAX_SLICES - 1)
     const tail = sorted.slice(MAX_SLICES - 1)
     const rest = tail.reduce((sum, r) => sum + r.used, 0)
     out = [
-      ...head.map((r, i) => ({ ...r, color: SERIES[i % SERIES.length] as string, real: true })),
-      { name: `${tail.length} others`, used: rest, color: 'var(--text-faint)', real: false },
+      ...head.map((r, i) => ({ ...r, color: SERIES[i % SERIES.length] as string, selectable: true })),
+      { name: `${tail.length} others`, used: rest, color: 'var(--text-faint)', selectable: false },
     ]
   }
 
-  // Used space no team accounts for. Shown as its own wedge so the ring's total
-  // is the disk's real usage rather than just the attributed part.
+  const teamTotal = sorted.reduce((sum, r) => sum + r.used, 0)
+
+  // Scanned users with no team. Real usage with known owners, so it is its own
+  // slice and stays clickable.
+  if (otherUsed !== undefined && otherUsed > 0) {
+    // Clickable: it has a concrete user list behind it, unlike Unknown.
+    out.push({ name: OTHER_SLICE, used: otherUsed, color: OTHER_COLOR, selectable: true })
+  }
+
+  // Whatever `used` is left after teams and Other: space the scan never walked.
+  // Shown so the ring totals the disk's real usage rather than just the walked
+  // part.
   if (totalUsed !== undefined) {
-    const attributed = sorted.reduce((sum, r) => sum + r.used, 0)
-    const unknown = totalUsed - attributed
+    const unknown = totalUsed - teamTotal - (otherUsed ?? 0)
     if (unknown > 0) {
-      out.push({ name: 'Unknown', used: unknown, color: UNKNOWN_COLOR, real: false })
+      out.push({ name: UNKNOWN_SLICE, used: unknown, color: UNKNOWN_COLOR, selectable: false })
     }
   }
 
@@ -87,8 +121,9 @@ export function Donut({
   onSelect,
   selected,
   totalUsed,
+  otherUsed,
 }: Props): JSX.Element {
-  const slices = buildSlices(rows, totalUsed)
+  const slices = buildSlices(rows, totalUsed, otherUsed)
   const total = slices.reduce((sum, s) => sum + s.used, 0)
 
   if (total === 0) {
@@ -118,7 +153,7 @@ export function Donut({
             const dash = `${length} ${circumference - length}`
             // The synthetic "others" wedge is an aggregate, so it has no single
             // team to filter by.
-            const clickable = onSelect !== undefined && s.real
+            const clickable = onSelect !== undefined && s.selectable
             const el = (
               <circle
                 key={s.name}
@@ -175,7 +210,7 @@ export function Donut({
 
       <ul className="legend">
         {slices.map((s) => {
-          const clickable = onSelect !== undefined && s.real
+          const clickable = onSelect !== undefined && s.selectable
           const body = (
             <>
               <span className="legend__swatch" style={{ background: s.color }} />

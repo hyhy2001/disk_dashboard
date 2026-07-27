@@ -16,6 +16,8 @@
     "start": "npm run start --workspace=server"
   },
   "devDependencies": {
+    "@testing-library/react": "16.1.0",
+    "jsdom": "25.0.1",
     "playwright": "1.49.1",
     "vitest": "2.1.8"
   }

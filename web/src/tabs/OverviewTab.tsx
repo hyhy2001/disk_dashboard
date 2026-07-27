@@ -16,7 +16,7 @@ import { AreaChart } from '../components/AreaChart.js'
 import { BarChart } from '../components/BarChart.js'
 import { ChartModal } from '../components/ChartModal.js'
 import { DeltaBadge } from '../components/DeltaBadge.js'
-import { Donut } from '../components/Donut.js'
+import { Donut, OTHER_SLICE } from '../components/Donut.js'
 import { filterByRange, RangePicker, type RangeDays } from '../components/RangePicker.js'
 
 interface Props {
@@ -54,10 +54,18 @@ export function OverviewTab({ overview }: Props): JSX.Element {
   const [teamFilter, setTeamFilter] = useState<string | null>(null)
 
   const allUsers = useMemo(() => [...users, ...otherUsers], [users, otherUsers])
-  const shownUsers = useMemo(
-    () => (teamFilter === null ? allUsers : allUsers.filter((u) => u.team === teamFilter)),
-    [allUsers, teamFilter],
+  const otherTotal = useMemo(
+    () => otherUsers.reduce((sum, u) => sum + u.used, 0),
+    [otherUsers],
   )
+
+  const shownUsers = useMemo(() => {
+    if (teamFilter === null) return allUsers
+    // Picking the synthetic "Other" wedge means "the users with no team", which is
+    // exactly otherUsers — not a team-name match, since those rows have no team.
+    if (teamFilter === OTHER_SLICE) return otherUsers
+    return allUsers.filter((u) => u.team === teamFilter)
+  }, [allUsers, otherUsers, teamFilter])
   const shownHistory = useMemo(() => filterByRange(history, range), [history, range])
 
   // A range with fewer than two points cannot draw a trend, so offer only the
@@ -98,6 +106,7 @@ export function OverviewTab({ overview }: Props): JSX.Element {
               onSelect={setTeamFilter}
               selected={teamFilter}
               {...(capacity ? { totalUsed: capacity.used } : {})}
+            {...(otherTotal > 0 ? { otherUsed: otherTotal } : {})}
             />
           </div>
         </div>
@@ -165,6 +174,7 @@ export function OverviewTab({ overview }: Props): JSX.Element {
             onSelect={setTeamFilter}
             selected={teamFilter}
             {...(capacity ? { totalUsed: capacity.used } : {})}
+            {...(otherTotal > 0 ? { otherUsed: otherTotal } : {})}
           />
         </ChartModal>
       )}
