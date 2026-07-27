@@ -5,8 +5,9 @@
 // rather than hidden so the information architecture is visible from day one.
 
 import { useCallback, useEffect, useState } from 'react'
-import type { Overview, Target } from '../../shared/api.js'
-import { fetchOverview, fetchTargets } from './lib/api.js'
+import type { HealthInfo, Overview, Target } from '../../shared/api.js'
+import { fetchHealth, fetchOverview, fetchTargets } from './lib/api.js'
+import { NoTargets } from './components/NoTargets.js'
 import { TargetList } from './components/TargetList.js'
 import { UsageList } from './components/UsageList.js'
 import { OverviewTab } from './tabs/OverviewTab.js'
@@ -44,8 +45,23 @@ export function App(): JSX.Element {
   const [targets, setTargets] = useState<Target[]>([])
   const [selected, setSelected] = useState<string | null>(null)
   const [overview, setOverview] = useState<Overview | null>(null)
+  const [health, setHealth] = useState<HealthInfo | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
+
+  // Health is only needed to explain an empty target list, so a failure here is
+  // not surfaced as an error — the target list has its own error path.
+  useEffect(() => {
+    let live = true
+    fetchHealth()
+      .then((h) => {
+        if (live) setHealth(h)
+      })
+      .catch(() => undefined)
+    return () => {
+      live = false
+    }
+  }, [])
 
   // Target list loads once; it changes only when a scan adds a directory.
   useEffect(() => {
@@ -137,7 +153,9 @@ export function App(): JSX.Element {
         </aside>
 
         <aside className="col col--lists">
-          {overview ? (
+          {targets.length === 0 ? (
+            <p className="empty">Nothing to list yet.</p>
+          ) : overview ? (
             <>
               <UsageList title="Teams" rows={overview.teams} emptyText="No team mapping configured." />
               <UsageList title="Users" rows={overview.users} emptyText="No users mapped to a team." />
@@ -167,10 +185,7 @@ export function App(): JSX.Element {
           ) : overview ? (
             <OverviewTab overview={overview} />
           ) : (
-            <div className="state">
-              <p className="state__title">No scan data</p>
-              <p>Run duscan to produce a report.db, then reload.</p>
-            </div>
+            <NoTargets health={health} />
           )}
         </main>
       </div>

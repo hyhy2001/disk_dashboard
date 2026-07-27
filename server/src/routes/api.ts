@@ -3,6 +3,7 @@
 
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import Database from 'better-sqlite3'
+import { existsSync } from 'node:fs'
 import type { ApiResponse, HealthInfo, Overview, Target } from '../../../shared/api.js'
 import type { Config } from '../config.js'
 import { isSafeTargetName, listTargets, openReport, readMeta } from '../db/reports.js'
@@ -47,6 +48,7 @@ export function registerApi(app: FastifyInstance, config: Config): void {
       sqliteVersion: sqliteVersion(),
       trigramAvailable: detectTrigram(),
       reportsDir: config.reportsDir,
+      reportsDirExists: existsSync(config.reportsDir),
       targetsFound: listTargets(config.reportsDir).length,
     })
   })

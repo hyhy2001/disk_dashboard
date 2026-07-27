@@ -44,7 +44,15 @@ process.on('SIGTERM', () => void shutdown('SIGTERM'))
 
 try {
   await app.listen({ port: config.port, host: config.host })
-  app.log.info(`reports dir: ${config.reportsDir}`)
+  if (existsSync(config.reportsDir)) {
+    app.log.info(`reports dir: ${config.reportsDir}`)
+  } else {
+    // Not fatal — the directory may appear after the first scan — but it is the
+    // single most likely reason for an empty dashboard, so say it loudly.
+    app.log.warn(
+      `reports dir does not exist: ${config.reportsDir} — set DASHBOARD_REPORTS_DIR to the directory holding <target>/report.db`,
+    )
+  }
 } catch (err) {
   app.log.error(err)
   process.exit(1)

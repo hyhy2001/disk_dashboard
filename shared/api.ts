@@ -62,5 +62,11 @@ export interface HealthInfo {
   /** Whether this SQLite build can do infix search (FTS5 + trigram). */
   trigramAvailable: boolean
   reportsDir: string
+  /**
+   * Whether reportsDir exists at all. Distinguishes "misconfigured path" from
+   * "configured correctly but nothing scanned yet" — the two look identical in
+   * an empty target list.
+   */
+  reportsDirExists: boolean
   targetsFound: number
 }

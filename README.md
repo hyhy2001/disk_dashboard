@@ -30,6 +30,22 @@ npm run build
 DASHBOARD_WEB_DIR=web/dist npm start   # serves API + assets on :5310
 ```
 
+## Deployment
+
+`dashboard.hydev.me` is nginx proxying to `127.0.0.1:5311`. That port is served by
+one pm2-managed process which handles both the API and the built assets:
+
+```sh
+npm run build
+pm2 start ecosystem.config.cjs
+pm2 save                              # survive reboot
+```
+
+After changing code, `npm run build && pm2 restart disk-dashboard`.
+
+Do not put `npm run dev` behind the vhost. Vite plus `tsx watch` has no restart
+policy, so any crash leaves nginx returning 502 with nothing bringing it back.
+
 ## Configuration
 
 | Variable | Default | Meaning |
@@ -42,6 +58,11 @@ DASHBOARD_WEB_DIR=web/dist npm start   # serves API + assets on :5310
 
 Targets are auto-discovered: any `<reportsDir>/<name>/report.db` shows up in the
 picker. No manual disk map to maintain.
+
+The `DASHBOARD_REPORTS_DIR` default resolves from the repo root, not the current
+directory — `npm run dev` runs workspace scripts with cwd = `server/`, so a
+cwd-relative default would point at different places depending on how the server
+was started. `/api/health` reports the path it settled on plus whether it exists.
 
 ## Security
 

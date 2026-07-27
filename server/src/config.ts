@@ -2,7 +2,9 @@
 // build. Defaults point at the duscan checkout next door, which is where reports
 // land during development.
 
-import { resolve } from 'node:path'
+import { existsSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
 export interface Config {
   /** Directory holding one subdirectory per scanned target. */
@@ -20,10 +22,36 @@ function envInt(name: string, fallback: number): number {
   return Number.isInteger(n) && n > 0 ? n : fallback
 }
 
+/**
+ * Repo root, derived from this module's own location rather than cwd.
+ *
+ * `npm run dev` executes the workspace script with cwd = server/, while
+ * `npm start` from the repo root uses the root — so a cwd-relative default
+ * points somewhere different depending on how the server was launched. Anchoring
+ * to the module path makes the default mean the same thing either way.
+ *
+ * Layout: <root>/server/src/config.ts in dev, <root>/server/dist/server/src/
+ * config.js after tsc, so walk up until package.json with the workspaces key.
+ */
+function repoRoot(): string {
+  let dir = dirname(fileURLToPath(import.meta.url))
+  for (let i = 0; i < 6; i += 1) {
+    if (existsSync(join(dir, 'package.json')) && existsSync(join(dir, 'shared'))) return dir
+    const up = dirname(dir)
+    if (up === dir) break
+    dir = up
+  }
+  // Fall back to cwd rather than throwing: an explicit env var still works, and
+  // the health endpoint reports the path it settled on.
+  return process.cwd()
+}
+
 export function loadConfig(): Config {
-  const reportsDir = resolve(
-    process.env.DASHBOARD_REPORTS_DIR ?? '../disk_scanner/reports',
-  )
+  const fromEnv = process.env.DASHBOARD_REPORTS_DIR
+  // Sibling checkout of the scanner is where reports land in development.
+  const reportsDir = fromEnv
+    ? resolve(fromEnv)
+    : resolve(repoRoot(), '..', 'disk_scanner', 'reports')
   return {
     reportsDir,
     port: envInt('DASHBOARD_PORT', 5310),
