@@ -143,6 +143,35 @@ The exception is the extension filter — `ext` is not in the covering index, so
 candidate needs a row lookup and a rare extension scans a long way before filling a
 page (~1s cold). Fixing it would need an index we cannot add to a readonly report.
 
+### Page sizes
+
+| | UI page | Server max | Export chunk |
+|---|---|---|---|
+| Detail User dirs | 500 | 50,000 | 20,000 |
+| Detail User files | 500 | 50,000 | 50,000 |
+| Permission issues | 100 | 5,000 | 5,000 |
+| TreeMap children | 60 | 60 | — |
+| Name search | 40 | 400 candidates | — |
+
+The server maxima exist for exports, not the UI. Per-request overhead dominates at
+small page sizes — 500 file rows cost 23ms, 50,000 cost 322ms — so a bulk walk wants
+the biggest page it can get. Walking 300k rows takes 60 requests / 6.6s at a 5,000
+page versus 6 requests / 4.3s at 50,000.
+
+**Exports are never truncated.** Where the browser supports `CompressionStream` and
+the save picker (Chromium), rows stream straight to a `.csv.gz`. Elsewhere they are
+buffered and split every 500,000 rows into `_part1.csv`, `_part2.csv`, … because a
+single CSV past Excel's 1,048,576-row limit silently loses its tail when opened.
+Each part repeats the header.
+
+### Client cache
+
+Responses for immutable report data — treemap levels, the user list, history — are
+cached by URL with in-flight dedup, so drilling into a directory and back out does
+not refetch, and two components asking for the same URL share one request. The cache
+is dropped when the sync pill observes a new report stamp. `/api/status` is never
+cached: it is the one endpoint whose purpose is to report change.
+
 ## Sync
 
 The dashboard cannot start a scan. `/api/status/:target` reports what it observes: a
