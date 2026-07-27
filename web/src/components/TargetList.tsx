@@ -14,7 +14,7 @@ export function TargetList({ targets, selected, onSelect }: Props): JSX.Element 
     <>
       <h2 className="col__title">Targets ({targets.length})</h2>
       {targets.length === 0 ? (
-        <p className="empty">No report.db found.</p>
+        <p className="empty">No matching target.</p>
       ) : (
         targets.map((t) => (
           <button

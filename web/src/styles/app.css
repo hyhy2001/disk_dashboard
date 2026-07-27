@@ -1,8 +1,10 @@
 /* Layout and component styles.
  *
- * Structure mirrors the legacy dashboard: a top bar with tabs, then a
- * three-column master-detail body (targets / teams+users / charts). On narrow
- * viewports the columns stack rather than scroll horizontally.
+ * Structure mirrors the legacy dashboard: a fixed left sidebar for navigation, a
+ * mesh-gradient background with two blurred glow orbs, and floating translucent
+ * "glass" panels over it. That combination — not the individual charts — is what
+ * gives the legacy dashboard its look, so it is reproduced here rather than
+ * approximated with flat bordered boxes.
  */
 
 *,
@@ -35,33 +37,95 @@ body {
   border-radius: var(--radius-sm);
 }
 
-.app {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
+/* ---------- background mesh ---------- */
+
+.mesh {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  z-index: 0;
+  pointer-events: none;
 }
 
-/* ---------- top bar ---------- */
+.orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: var(--orb-opacity);
+  animation: float 20s infinite ease-in-out alternate;
+}
 
-.topbar {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  padding: 0 20px;
-  height: 56px;
-  flex: 0 0 auto;
+.orb--1 {
+  top: -10%;
+  right: -5%;
+  width: 40vw;
+  height: 40vw;
+  background: var(--orb-1);
+}
+
+.orb--2 {
+  bottom: -20%;
+  left: -10%;
+  width: 50vw;
+  height: 50vw;
+  background: var(--orb-2);
+  animation-delay: -10s;
+}
+
+@keyframes float {
+  to {
+    transform: translate(4%, -6%) scale(1.08);
+  }
+}
+
+/* ---------- glass surface ---------- */
+
+.glass {
   background: var(--bg-surface);
-  backdrop-filter: blur(var(--blur-lg));
-  border-bottom: 1px solid var(--border);
-  position: sticky;
+  backdrop-filter: blur(var(--blur-md));
+  -webkit-backdrop-filter: blur(var(--blur-md));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+}
+
+/* ---------- app shell ---------- */
+
+.app {
+  display: flex;
+  height: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+/* ---------- sidebar ---------- */
+
+.sidebar {
+  width: var(--sidebar-width);
+  flex: 0 0 auto;
+  height: 100vh;
+  position: fixed;
+  left: 0;
   top: 0;
-  z-index: 10;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: var(--space-6);
+  border-radius: 0;
+  border-right: 1px solid var(--border);
+  border-top: 0;
+  border-bottom: 0;
+  border-left: 0;
+  overflow: hidden;
+  transition: transform var(--duration-base) var(--ease-out);
 }
 
 .brand {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
+  align-items: center;
+  gap: 9px;
+  font-size: 16px;
   font-weight: 600;
   letter-spacing: -0.01em;
 }
@@ -72,13 +136,161 @@ body {
   border-radius: 50%;
   background: var(--accent);
   box-shadow: 0 0 12px var(--accent);
-  align-self: center;
+  flex: 0 0 auto;
 }
 
-.brand__sub {
-  color: var(--text-faint);
+.brand__accent {
+  color: var(--accent);
+}
+
+.sidebar__search {
+  appearance: none;
+  width: 100%;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  font: inherit;
   font-size: 12px;
+  padding: 7px 10px;
+  transition: border-color var(--duration-fast) var(--ease-out);
+}
+
+.sidebar__search::placeholder {
+  color: var(--text-faint);
+}
+
+.sidebar__search:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.sidebar__list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 calc(var(--space-6) * -0.5);
+  padding: 0 calc(var(--space-6) * 0.5);
+}
+
+.sidebar__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 10px;
   font-family: var(--font-mono);
+  color: var(--text-faint);
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+/* Mobile: the sidebar becomes an off-canvas drawer. */
+.sidebar__close {
+  display: none;
+}
+
+.backdrop {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .sidebar {
+    transform: translateX(-100%);
+  }
+  .sidebar--open {
+    transform: none;
+  }
+  .sidebar__close {
+    display: grid;
+  }
+  .backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 19;
+    background: rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* ---------- main column ---------- */
+
+.main {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin-left: var(--sidebar-width);
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 24px 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  /* Chart panels size against this, not the viewport, so the sidebar width is
+     already accounted for. */
+  container-type: inline-size;
+  container-name: main;
+}
+
+@media (max-width: 900px) {
+  .main {
+    margin-left: 0;
+    padding: 16px;
+  }
+}
+
+/* ---------- page header ---------- */
+
+.pagehead {
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.pagehead__top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.pagehead__title {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+
+.pagehead__sep {
+  color: var(--text-faint);
+}
+
+.pagehead__path {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--text-muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pagehead__sub {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+
+.hamburger {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .hamburger {
+    display: grid;
+  }
 }
 
 .tabs {
@@ -187,32 +399,61 @@ body {
   cursor: not-allowed;
 }
 
-/* ---------- 3-column body ---------- */
+/* ---------- scroll-to-top ---------- */
 
-.body {
-  flex: 1 1 auto;
+.fab {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 30;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  color: var(--text-muted);
+  font-size: 16px;
+  cursor: pointer;
   display: grid;
-  grid-template-columns: var(--col1-width) var(--col2-width) minmax(0, 1fr);
-  min-height: 0;
+  place-items: center;
+  animation: pop var(--duration-base) var(--ease-spring);
+  transition: color var(--duration-fast) var(--ease-out);
 }
 
-.col {
-  min-height: 0;
-  overflow-y: auto;
-  padding: 16px;
+.fab:hover {
+  color: var(--accent);
+}
+
+/* ---------- content rows ---------- */
+
+/* Usage lists sit beside the charts on wide screens and stack below them when
+   the main column gets narrow. Container query, not viewport: the sidebar
+   already ate 280px. */
+.split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) var(--col2-width);
+  gap: 20px;
+  align-items: start;
+}
+
+@container main (max-width: 860px) {
+  .split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.side {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-}
-
-.col--targets,
-.col--lists {
-  border-right: 1px solid var(--border);
-}
-
-.col--detail {
   gap: 16px;
-  background: linear-gradient(180deg, var(--bg-raised) 0%, var(--bg-base) 220px);
+  padding: 16px;
+}
+
+/* The charts column inside .split — panels stacked with the same rhythm as the
+   main column itself. */
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-width: 0;
 }
 
 .col__title {
@@ -221,21 +462,7 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.09em;
   color: var(--text-faint);
-  margin: 0 0 2px;
-}
-
-@media (max-width: 1000px) {
-  .body {
-    grid-template-columns: 1fr;
-  }
-  .col {
-    overflow-y: visible;
-  }
-  .col--targets,
-  .col--lists {
-    border-right: 0;
-    border-bottom: 1px solid var(--border);
-  }
+  margin: 0 0 6px;
 }
 
 /* ---------- target list ---------- */
@@ -348,6 +575,8 @@ body {
 
 .card {
   background: var(--bg-surface);
+  backdrop-filter: blur(var(--blur-md));
+  -webkit-backdrop-filter: blur(var(--blur-md));
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 14px 16px;
@@ -378,6 +607,8 @@ body {
 
 .panel {
   background: var(--bg-surface);
+  backdrop-filter: blur(var(--blur-md));
+  -webkit-backdrop-filter: blur(var(--blur-md));
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 16px;
@@ -396,7 +627,13 @@ body {
 .panels {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-  gap: 16px;
+  gap: 20px;
+}
+
+@container main (max-width: 640px) {
+  .panels {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 /* ---------- charts ---------- */

@@ -1,10 +1,12 @@
-// App shell: top bar with tabs, then the three-column master-detail body that
-// the legacy dashboard used (targets / teams+users / charts).
+// App shell, laid out like the legacy dashboard: a fixed sidebar owning target
+// navigation, a scrolling main column of floating glass panels, and a mesh
+// background behind both.
 //
-// Only the Overview tab exists so far. The remaining tabs are rendered disabled
-// rather than hidden so the information architecture is visible from day one.
+// The page header carries the target's identity (name, scanned root, scan time)
+// so the main column always says what you are looking at without consulting the
+// sidebar.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { HealthInfo, Overview, Target } from '../../shared/api.js'
 import { fetchHealth, fetchOverview, fetchTargets } from './lib/api.js'
 import { NoTargets } from './components/NoTargets.js'
@@ -12,6 +14,8 @@ import { TargetList } from './components/TargetList.js'
 import { UsageList } from './components/UsageList.js'
 import { OverviewTab } from './tabs/OverviewTab.js'
 import { TreemapTab } from './tabs/TreemapTab.js'
+import { ScrollTop } from './components/ScrollTop.js'
+import { formatTimestamp } from './lib/format.js'
 
 type Theme = 'dark' | 'light'
 
@@ -68,6 +72,9 @@ export function App(): JSX.Element {
   const [health, setHealth] = useState<HealthInfo | null>(null)
   const [page, setPage] = useState<PageId>('overview')
   const [detailTab, setDetailTab] = useState<DetailTabId>('treemap')
+  const [search, setSearch] = useState('')
+  const [drawer, setDrawer] = useState(false)
+  const mainRef = useRef<HTMLElement>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -129,65 +136,119 @@ export function App(): JSX.Element {
     }
   }, [selected])
 
-  return (
-    <div className="app">
-      <header className="topbar">
-        <div className="brand">
-          <span className="brand__dot" />
-          <span>Disk Usage</span>
-          <span className="brand__sub">duscan</span>
-        </div>
+  const active = overview?.target
+  const shownTargets = useMemo(() => {
+    const q = search.trim().toLowerCase()
+    if (!q) return targets
+    return targets.filter(
+      (t) => t.name.toLowerCase().includes(q) || t.scanRoot.toLowerCase().includes(q),
+    )
+  }, [targets, search])
 
-        <nav className="tabs" role="tablist" aria-label="Pages">
-          {PAGES.map((p) => (
+  return (
+    <>
+      <div className="mesh" aria-hidden="true">
+        <div className="orb orb--1" />
+        <div className="orb orb--2" />
+      </div>
+
+      <div className="app">
+        {drawer && <div className="backdrop" onClick={() => setDrawer(false)} />}
+
+        <aside className={`sidebar glass${drawer ? ' sidebar--open' : ''}`}>
+          <div className="pagehead__top" style={{ gap: '8px' }}>
+            <div className="brand">
+              <span className="brand__dot" />
+              <span>
+                Disk<span className="brand__accent"> Usage</span>
+              </span>
+            </div>
             <button
               type="button"
-              className="tab"
-              role="tab"
-              key={p.id}
-              aria-selected={page === p.id}
-              onClick={() => setPage(p.id)}
+              className="icon-btn icon-btn--sm sidebar__close"
+              onClick={() => setDrawer(false)}
+              aria-label="Close menu"
+              style={{ marginLeft: 'auto' }}
             >
-              {p.label}
+              ✕
             </button>
-          ))}
-        </nav>
+          </div>
 
-        <button
-          type="button"
-          className="icon-btn"
-          onClick={toggleTheme}
-          aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
-          title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
-        >
-          {theme === 'dark' ? '☀' : '☾'}
-        </button>
-      </header>
+          <input
+            type="search"
+            className="sidebar__search"
+            placeholder="Search targets..."
+            aria-label="Search targets"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
 
-      <div className="body">
-        <aside className="col col--targets">
-          <TargetList targets={targets} selected={selected} onSelect={setSelected} />
+          <div className="sidebar__list">
+            <TargetList
+              targets={shownTargets}
+              selected={selected}
+              onSelect={(name) => {
+                setSelected(name)
+                setDrawer(false)
+              }}
+            />
+          </div>
+
+          <div className="sidebar__foot">
+            <span>duscan</span>
+            <button
+              type="button"
+              className="icon-btn icon-btn--sm"
+              onClick={toggleTheme}
+              aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+              title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`}
+            >
+              {theme === 'dark' ? '☀' : '☾'}
+            </button>
+          </div>
         </aside>
 
-        <aside className="col col--lists">
-          {targets.length === 0 ? (
-            <p className="empty">Nothing to list yet.</p>
-          ) : overview ? (
-            <>
-              <UsageList title="Teams" rows={overview.teams} emptyText="No team mapping configured." />
-              <UsageList title="Users" rows={overview.users} emptyText="No users mapped to a team." />
-              <UsageList
-                title="Unmapped users"
-                rows={overview.otherUsers}
-                emptyText="Every user maps to a team."
-              />
-            </>
-          ) : (
-            <div className="skeleton" style={{ height: '160px' }} />
-          )}
-        </aside>
+        <main className="main" ref={mainRef}>
+          <header className="pagehead glass">
+            <div className="pagehead__top">
+              <button
+                type="button"
+                className="icon-btn hamburger"
+                onClick={() => setDrawer(true)}
+                aria-label="Open menu"
+              >
+                ☰
+              </button>
+              <h1 className="pagehead__title">{active?.name ?? 'Disk Usage'}</h1>
+              {active && (
+                <>
+                  <span className="pagehead__sep">·</span>
+                  <span className="pagehead__path">{active.scanRoot || '—'}</span>
+                </>
+              )}
 
-        <main className="col col--detail">
+              <nav className="tabs" role="tablist" aria-label="Pages">
+                {PAGES.map((p) => (
+                  <button
+                    type="button"
+                    className="tab"
+                    role="tab"
+                    key={p.id}
+                    aria-selected={page === p.id}
+                    onClick={() => setPage(p.id)}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </nav>
+            </div>
+            <div className="pagehead__sub">
+              {active
+                ? `Latest snapshot from ${formatTimestamp(active.scanTimestamp)}`
+                : 'Waiting for data…'}
+            </div>
+          </header>
+
           {error ? (
             <div className="state state--error">
               <p className="state__title">Could not load this target</p>
@@ -202,7 +263,30 @@ export function App(): JSX.Element {
           ) : !overview || !selected ? (
             <NoTargets health={health} />
           ) : page === 'overview' ? (
-            <OverviewTab overview={overview} />
+            // Charts lead; the ranked lists sit alongside so a name can be read
+            // off exactly rather than guessed from a bar.
+            <div className="split">
+              <div className="stack">
+                <OverviewTab overview={overview} />
+              </div>
+              <aside className="side glass">
+                <UsageList
+                  title="Teams"
+                  rows={overview.teams}
+                  emptyText="No team mapping configured."
+                />
+                <UsageList
+                  title="Users"
+                  rows={overview.users}
+                  emptyText="No users mapped to a team."
+                />
+                <UsageList
+                  title="Unmapped users"
+                  rows={overview.otherUsers}
+                  emptyText="Every user maps to a team."
+                />
+              </aside>
+            </div>
           ) : (
             <>
               <nav className="subtabs" role="tablist" aria-label="Detail views">
@@ -237,7 +321,9 @@ export function App(): JSX.Element {
             </>
           )}
         </main>
+
+        <ScrollTop targetRef={mainRef} />
       </div>
-    </div>
+    </>
   )
 }
