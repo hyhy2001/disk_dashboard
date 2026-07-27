@@ -30,6 +30,7 @@ function target(name: string): Target {
     totalDirs: 1,
     totalSize: 100,
     dbSizeBytes: 10,
+    capacity: null,
   }
 }
 

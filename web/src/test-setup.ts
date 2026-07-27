@@ -13,6 +13,12 @@ class NoopResizeObserver implements ResizeObserver {
 
 globalThis.ResizeObserver ??= NoopResizeObserver
 
+// jsdom implements Blob but not the object-URL registry around it, so the CSV
+// download path has nothing to hand an <a download>. Defined as real functions so
+// tests can spy on them; the values are never dereferenced.
+URL.createObjectURL ??= (): string => 'blob:stub'
+URL.revokeObjectURL ??= (): void => {}
+
 // matchMedia is read for prefers-reduced-motion and theme preference.
 globalThis.matchMedia ??= ((query: string) =>
   ({

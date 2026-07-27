@@ -3,15 +3,24 @@
 
 import type {
   ApiResponse,
+  DetailUser,
   HealthInfo,
+  HistorySeries,
   Overview,
+  PermPage,
+  ScanStatus,
+  SearchResult,
   Target,
   TargetGroup,
   TreemapLevel,
+  UserDetail,
 } from '../../../shared/api.js'
 
-async function get<T>(path: string): Promise<T> {
-  const res = await fetch(path, { headers: { Accept: 'application/json' } })
+async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
+  const res = await fetch(path, {
+    headers: { Accept: 'application/json' },
+    ...(signal ? { signal } : {}),
+  })
 
   let body: ApiResponse<T>
   try {
@@ -62,4 +71,82 @@ export function fetchTreemap(target: string, q: TreemapQuery): Promise<TreemapLe
   return get<TreemapLevel>(
     `/api/treemap/${encodeURIComponent(target)}${qs ? `?${qs}` : ''}`,
   )
+}
+
+export function fetchUsers(target: string): Promise<DetailUser[]> {
+  return get<DetailUser[]>(`/api/users/${encodeURIComponent(target)}`)
+}
+
+/**
+ * Filters as the UI holds them: free text and extensions arrive as typed strings
+ * so the input can round-trip exactly what the user wrote, and the server does the
+ * splitting.
+ */
+export interface DetailQuery {
+  dirCursor?: string
+  fileCursor?: string
+  limit?: number
+  /** Comma or tab separated path terms. */
+  query?: string
+  /** Comma or tab separated extensions. */
+  ext?: string
+  minSize?: number
+  maxSize?: number
+}
+
+/** Append only the params that carry a value, keeping URLs (and caches) stable. */
+function withParams(base: string, entries: Record<string, string | number | undefined>): string {
+  const params = new URLSearchParams()
+  for (const [key, value] of Object.entries(entries)) {
+    if (value === undefined || value === '' || value === 0) continue
+    params.set(key, String(value))
+  }
+  const qs = params.toString()
+  return qs ? `${base}?${qs}` : base
+}
+
+export function fetchUserDetail(
+  target: string,
+  user: string,
+  q: DetailQuery = {},
+  signal?: AbortSignal,
+): Promise<UserDetail> {
+  const base = `/api/detail/${encodeURIComponent(target)}/${encodeURIComponent(user)}`
+  return get<UserDetail>(withParams(base, { ...q }), signal)
+}
+
+export interface PermQuery {
+  offset?: number
+  limit?: number
+  /** Comma separated usernames. */
+  users?: string
+  itemType?: string
+  path?: string
+}
+
+export function fetchPermissions(
+  target: string,
+  q: PermQuery = {},
+  signal?: AbortSignal,
+): Promise<PermPage> {
+  const base = `/api/permissions/${encodeURIComponent(target)}`
+  return get<PermPage>(withParams(base, { ...q }), signal)
+}
+
+export function fetchHistory(target: string, signal?: AbortSignal): Promise<HistorySeries> {
+  return get<HistorySeries>(`/api/history/${encodeURIComponent(target)}`, signal)
+}
+
+export function fetchSearch(
+  target: string,
+  query: string,
+  kind?: 'dir' | 'file',
+  signal?: AbortSignal,
+): Promise<SearchResult> {
+  const base = `/api/search/${encodeURIComponent(target)}`
+  return get<SearchResult>(withParams(base, { q: query, ...(kind ? { kind } : {}) }), signal)
+}
+
+export function fetchStatus(target: string, signal?: AbortSignal): Promise<ScanStatus> {
+  return get<ScanStatus>(`/api/status/${encodeURIComponent(target)}`, signal)
 }

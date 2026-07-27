@@ -13,7 +13,7 @@
 import Database from 'better-sqlite3'
 import { existsSync, readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
-import type { Target } from '../../../shared/api.js'
+import type { Capacity, Target } from '../../../shared/api.js'
 
 export const REPORT_FILE = 'report.db'
 
@@ -92,6 +92,40 @@ function num(v: string | undefined): number {
 }
 
 /**
+ * Filesystem capacity from the newest snapshot.
+ *
+ * This is the one figure the `meta` table does not carry: meta records what the
+ * scan walked, hist_snapshots records what the filesystem reported. Disk cards
+ * need the latter to show real fullness rather than share-of-group, so the target
+ * list pays for one indexed row per target.
+ *
+ * Returns null when there is no snapshot, or when the scan could not stat the
+ * filesystem (total 0) — a bogus 0/0/0 would render as an empty disk.
+ */
+export function readCapacity(db: Database.Database): Capacity | null {
+  const row = db
+    .prepare(
+      `SELECT s.total, s.used, s.available,
+              COALESCE((SELECT SUM(u.size) FROM hist_user_usage u
+                         WHERE u.snapshot_id = s.id), 0) AS scanned
+         FROM hist_snapshots s
+        ORDER BY s.scan_date DESC
+        LIMIT 1`,
+    )
+    .get() as
+    | { total: number | null; used: number | null; available: number | null; scanned: number }
+    | undefined
+
+  if (!row || row.total === null || row.total === 0) return null
+  return {
+    total: row.total,
+    used: row.used ?? 0,
+    available: row.available ?? 0,
+    scanned: row.scanned,
+  }
+}
+
+/**
  * List every target that has a readable report.db, newest scan first. Targets
  * whose DB is missing or unreadable are skipped rather than failing the request,
  * so one corrupt report cannot take down the target picker.
@@ -117,6 +151,7 @@ export function listTargets(reportsDir: string): Target[] {
         totalDirs: num(meta.total_dirs),
         totalSize: num(meta.total_size),
         dbSizeBytes: statSync(path).size,
+        capacity: readCapacity(db),
       })
     } catch {
       continue

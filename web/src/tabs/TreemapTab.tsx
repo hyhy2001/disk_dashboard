@@ -16,22 +16,28 @@ import { EntryList } from '../components/EntryList.js'
 import { Treemap } from '../components/Treemap.js'
 import { fetchTreemap } from '../lib/api.js'
 import { formatCount, formatSize } from '../lib/format.js'
+import { KEYS, readString, writeString } from '../lib/prefs.js'
 
 type View = 'list' | 'treemap'
 
-const VIEW_KEY = 'duscan-treemap-view'
+const VIEW_KEY = KEYS.treemapView
 
 interface Props {
   target: string
   /** Total scanned size, used as the denominator for the percentage column. */
   totalSize: number
+  /**
+   * Directory to open, set when a search hit was picked. Cleared through
+   * `onJumped` so returning to this tab later does not re-open it.
+   */
+  jumpTo?: number | null
+  onJumped?: () => void
 }
 
-export function TreemapTab({ target, totalSize }: Props): JSX.Element {
-  const [view, setView] = useState<View>(() => {
-    const saved = localStorage.getItem(VIEW_KEY)
-    return saved === 'treemap' ? 'treemap' : 'list'
-  })
+export function TreemapTab({ target, totalSize, jumpTo, onJumped }: Props): JSX.Element {
+  const [view, setView] = useState<View>(() =>
+    readString(VIEW_KEY) === 'treemap' ? 'treemap' : 'list',
+  )
   const [openId, setOpenId] = useState<number | null>(null)
   const [level, setLevel] = useState<TreemapLevel | null>(null)
   /** Rows accumulated across "Load more" presses for the current directory. */
@@ -41,7 +47,7 @@ export function TreemapTab({ target, totalSize }: Props): JSX.Element {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    localStorage.setItem(VIEW_KEY, view)
+    writeString(VIEW_KEY, view)
   }, [view])
 
   // Ids are per-report, so a target switch must reset to the scan root rather
@@ -49,6 +55,14 @@ export function TreemapTab({ target, totalSize }: Props): JSX.Element {
   useEffect(() => {
     setOpenId(null)
   }, [target])
+
+  // A search hit sets jumpTo; consume it immediately so the jump happens once and
+  // normal drilling afterwards is not overridden.
+  useEffect(() => {
+    if (jumpTo === null || jumpTo === undefined) return
+    setOpenId(jumpTo)
+    onJumped?.()
+  }, [jumpTo, onJumped])
 
   useEffect(() => {
     let live = true

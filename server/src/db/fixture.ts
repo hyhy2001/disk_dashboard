@@ -60,6 +60,24 @@ export function createFixture(opts: FixtureOptions = {}): Database.Database {
     CREATE INDEX ix_detail_files_uid_size_dir_name
       ON detail_files(uid, size DESC, dir_id ASC, name_id ASC);
 
+    -- detail_dirs is keyed (id, uid): the same directory appears once per user who
+    -- owns bytes in it, which is why the Detail User queries can scan one user's
+    -- slice without touching anyone else's rows.
+    CREATE TABLE detail_dirs (
+      id INTEGER NOT NULL, uid INTEGER NOT NULL, parent_id INTEGER,
+      path TEXT NOT NULL, owner_uid INTEGER NOT NULL,
+      size INTEGER NOT NULL, files INTEGER NOT NULL,
+      PRIMARY KEY (id, uid)
+    );
+    CREATE INDEX ix_detail_dirs_uid_size_dir ON detail_dirs(uid, size DESC, id ASC);
+
+    CREATE TABLE perm_issues (
+      id INTEGER PRIMARY KEY, user TEXT NOT NULL, item_type TEXT NOT NULL,
+      error TEXT NOT NULL, path TEXT NOT NULL
+    );
+    CREATE INDEX ix_perm_user ON perm_issues(user);
+    CREATE INDEX ix_perm_user_type ON perm_issues(user, item_type);
+
     CREATE TABLE treemap_names (id INTEGER PRIMARY KEY, name TEXT NOT NULL);
     CREATE TABLE treemap_owners (uid INTEGER PRIMARY KEY, username TEXT NOT NULL);
     CREATE TABLE treemap_dirs (
@@ -110,6 +128,22 @@ export function createFixture(opts: FixtureOptions = {}): Database.Database {
       (2, 4, 'dat', 900, 100),
       (2, 5, 'dat', 900,  50),
       (3, 1, 'log', 104, 400);
+
+    -- Paths mirror the treemap tree. alice (900) owns two directories with equal
+    -- sizes so the keyset tie-break on id is exercised; root (0) owns the tail.
+    -- id, uid, parent, path, owner, size, files
+    INSERT INTO detail_dirs VALUES
+      (2, 900, 0, '/home',       900, 300, 3),
+      (4, 900, 2, '/home/alice', 900, 100, 1),
+      (5, 900, 2, '/home/bob',   900, 100, 1),
+      (0, 0,   NULL, '/',          0, 700, 2),
+      (3, 104, 1, '/var/log',    104, 400, 1);
+
+    INSERT INTO perm_issues (id, user, item_type, error, path) VALUES
+      (1, 'root',   'directory', 'Permission denied', '/proc/1/fd'),
+      (2, 'root',   'file',      'Permission denied', '/proc/1/mem'),
+      (3, 'alice',  'directory', 'Permission denied', '/home/alice/.ssh'),
+      (4, '',       'file',      'Stale file handle', '/mnt/nfs/gone');
   `)
 
   // Extra children are all smaller than the named ones, so they land in the

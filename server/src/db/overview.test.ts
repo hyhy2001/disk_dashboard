@@ -14,6 +14,7 @@ const TARGET: Target = {
   totalDirs: 4,
   totalSize: 1000,
   dbSizeBytes: 4096,
+  capacity: null,
 }
 
 afterEach(() => {

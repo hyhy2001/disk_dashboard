@@ -40,15 +40,21 @@ function pillClass(pct: number): string {
 }
 
 /**
- * Share of the group's total scanned bytes.
+ * How full the disk is, as a percentage of its filesystem capacity.
  *
- * Legacy coloured its pill by used/capacity, but /api/targets carries no
- * filesystem capacity — that lives in each report's snapshot. Rather than invent
- * a number, the pill answers a question this payload can actually answer: how
- * much of the group does this disk account for.
+ * Returns null when the report has no snapshot to read capacity from. That is a
+ * real state — a target scanned by an older duscan, or one whose filesystem could
+ * not be statted — and it must render as "unknown" rather than as 0%, which would
+ * claim the disk is empty.
  */
-function groupShare(t: Target, groupTotal: number): number {
-  return groupTotal > 0 ? (t.totalSize / groupTotal) * 100 : 0
+export function usedPercent(t: Target): number | null {
+  if (!t.capacity || t.capacity.total <= 0) return null
+  return (t.capacity.used / t.capacity.total) * 100
+}
+
+/** Free bytes, or null when capacity is unknown. */
+function freeBytes(t: Target): number | null {
+  return t.capacity ? t.capacity.available : null
 }
 
 function sortTargets(targets: Target[], sort: DiskSort): Target[] {
@@ -59,11 +65,11 @@ function sortTargets(targets: Target[], sort: DiskSort): Target[] {
     case 'alpha-desc':
       return out.sort((a, b) => b.name.localeCompare(a.name))
     case 'usage-desc':
-      // Without per-target capacity in this payload, "most used" is the largest
-      // scanned footprint — the same ordering intent, honest about its basis.
-      return out.sort((a, b) => b.totalSize - a.totalSize)
+      // Targets with unknown capacity sort last: they cannot be ranked by
+      // fullness, and putting them first would bury the disks that matter.
+      return out.sort((a, b) => (usedPercent(b) ?? -1) - (usedPercent(a) ?? -1))
     case 'free-desc':
-      return out.sort((a, b) => a.totalSize - b.totalSize)
+      return out.sort((a, b) => (freeBytes(b) ?? -1) - (freeBytes(a) ?? -1))
   }
 }
 
@@ -88,7 +94,6 @@ export function DiskColumn({
   }, [targets, search, sort])
 
   const biggest = Math.max(...shown.map((t) => t.totalSize), 1)
-  const groupTotal = targets.reduce((sum, t) => sum + t.totalSize, 0)
 
   return (
     <aside className="diskcol glass">
@@ -147,9 +152,18 @@ export function DiskColumn({
           </p>
         ) : (
           shown.map((t) => {
-            // Share of the largest target in view — a relative bar, since this
-            // payload has no per-target filesystem capacity.
-            const share = (t.totalSize / biggest) * 100
+            const pct = usedPercent(t)
+            // Three segments: what the scan attributed, what the filesystem counts
+            // as used but the scan could not reach, and free space. The middle one
+            // is the whole reason this is a bar and not a number.
+            const cap = t.capacity
+            const scannedPct = cap && cap.total > 0 ? (cap.scanned / cap.total) * 100 : 0
+            const usedPct = pct ?? 0
+            const unscannedPct = Math.max(0, usedPct - scannedPct)
+            // With no capacity there is nothing to be a fraction of, so fall back
+            // to a relative bar against the biggest target in view.
+            const fallbackPct = (t.totalSize / biggest) * 100
+
             return (
               <button
                 type="button"
@@ -160,16 +174,38 @@ export function DiskColumn({
               >
                 <div className="disk__top">
                   <span className="disk__name">{t.name}</span>
-                  <span
-                    className={pillClass(groupShare(t, groupTotal))}
-                    title={`${groupShare(t, groupTotal).toFixed(1)}% of this group's scanned bytes`}
-                  >
-                    {formatSize(t.totalSize)}
-                  </span>
+                  {pct === null ? (
+                    <span
+                      className="pill pill--unknown"
+                      data-tooltip="No snapshot in this report, so filesystem capacity is unknown"
+                    >
+                      {formatSize(t.totalSize)}
+                    </span>
+                  ) : (
+                    <span
+                      className={pillClass(pct)}
+                      data-tooltip={`${formatSize(cap?.used ?? 0)} of ${formatSize(cap?.total ?? 0)} used · ${formatSize(cap?.available ?? 0)} free`}
+                    >
+                      {pct.toFixed(0)}%
+                    </span>
+                  )}
                 </div>
 
                 <div className="disk__bar">
-                  <span className="disk__bar-fill" style={{ width: `${share}%` }} />
+                  {pct === null ? (
+                    <span className="disk__bar-fill" style={{ width: `${fallbackPct}%` }} />
+                  ) : (
+                    <>
+                      <span
+                        className="disk__seg disk__seg--scanned"
+                        style={{ width: `${scannedPct}%` }}
+                      />
+                      <span
+                        className="disk__seg disk__seg--unscanned"
+                        style={{ width: `${unscannedPct}%` }}
+                      />
+                    </>
+                  )}
                 </div>
 
                 <div className="disk__stats">
@@ -181,9 +217,15 @@ export function DiskColumn({
                     <span className="disk__dot disk__dot--dirs" />
                     {formatCount(t.totalDirs)} dirs
                   </span>
+                  {cap && (
+                    <span className="disk__stat">
+                      <span className="disk__dot disk__dot--free" />
+                      {formatSize(cap.available)} free
+                    </span>
+                  )}
                 </div>
 
-                <div className="disk__path" title={t.scanRoot}>
+                <div className="disk__path" data-tooltip={t.scanRoot}>
                   {t.scanRoot || '—'}
                 </div>
               </button>

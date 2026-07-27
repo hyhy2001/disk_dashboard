@@ -93,11 +93,60 @@ The server has **no authentication** and exposes filesystem usage and usernames.
 It binds `127.0.0.1` by default for that reason — put it behind a reverse proxy
 that handles auth before setting `DASHBOARD_HOST` to a public interface.
 
-## Status
+## Views
 
-Overview tab only. History, user detail, treemap, permissions and inodes are
-stubbed as disabled tabs.
+| View | Source tables |
+|---|---|
+| Space comparison (no disk selected) | `hist_snapshots` per target |
+| Overview | `hist_*`, `detail_users` |
+| TreeMap | `treemap_*` (+ `detail_files` for file lists) |
+| History | `hist_snapshots`, `hist_user_usage` |
+| Detail User | `detail_dirs`, `detail_files`, `detail_file_names` |
+| Permission Issues | `perm_issues` |
 
-Queries are deliberately bounded to `detail_users` and `hist_*` (one row per user
-or per scan). Nothing in the Overview path scans `detail_files`, which reaches
-70M+ rows on production targets.
+**Inodes** has no view: `report.db` carries no inode table, so there is nothing to
+read. It needs duscan to emit one first.
+
+**Permission Issues** shows "no permission issues" on most reports, because a scan
+run as root is denied nothing. That is the healthy result, not a failure — rows
+appear when duscan runs as a user that cannot read everything.
+
+## Routes
+
+The hash carries what you are looking at, so views are linkable and survive a
+reload:
+
+```
+#/                              first space, comparison view
+#/<space>                       one space, comparison view
+#/<space>/<disk>/overview       Overview
+#/<space>/<disk>/detail/<tab>   treemap | history | detail-user | permissions
+```
+
+## Performance
+
+Queries are bounded by design. The Overview and History paths touch only
+`detail_users` and `hist_*` — one row per user or per scan. Only Detail User and
+TreeMap reach `detail_files` (1.5M rows on a modest target, far more on a real one),
+and they ride existing indexes rather than sorting:
+
+```
+detail_dirs   ix_detail_dirs_uid_size_dir        (uid, size DESC, id ASC)
+detail_files  ix_detail_files_uid_size_dir_name  (uid, size DESC, dir_id ASC, name_id ASC)
+```
+
+Both lead with `uid`, so one user's rows are already a contiguous range in display
+order. Pagination is keyset, not `OFFSET`, so page 500 costs what page 1 does.
+Measured warm on a 1.5M-file report: directories 1.7ms, files 28ms per page.
+
+The exception is the extension filter — `ext` is not in the covering index, so each
+candidate needs a row lookup and a rare extension scans a long way before filling a
+page (~1s cold). Fixing it would need an index we cannot add to a readonly report.
+
+## Sync
+
+The dashboard cannot start a scan. `/api/status/:target` reports what it observes: a
+`stamp` of `report.db`'s mtime and size, the scan timestamp inside the report, and
+duscan's stage if a `scan_status.json` sits beside it. The client polls that and
+offers a reload when the stamp moves — which is why the pill reads "Up to date"
+rather than "Synced".

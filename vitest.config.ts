@@ -9,7 +9,14 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['{server,web,shared}/**/*.test.{ts,tsx}'],
-    environmentMatchGlobs: [['**/*.test.tsx', 'jsdom']],
+    // Component tests are .tsx. The web/src/lib tests also need a DOM — Blob
+    // downloads, clipboard, location — without rendering anything. Scoped to lib
+    // rather than the whole web tree because the stylesheet test reads files via
+    // import.meta.url, which jsdom resolves differently.
+    environmentMatchGlobs: [
+      ['**/*.test.tsx', 'jsdom'],
+      ['web/src/lib/**/*.test.ts', 'jsdom'],
+    ],
     setupFiles: ['./web/src/test-setup.ts'],
     // Report a clear failure rather than hanging if a DB handle is left open.
     testTimeout: 20_000,

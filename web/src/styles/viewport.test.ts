@@ -24,6 +24,26 @@ const VIEWPORTS = [
 let browser: Browser | null = null
 let reachable = false
 
+/**
+ * Open a page showing a disk's Overview.
+ *
+ * The root URL lands on the space comparison view, because a space with no disk
+ * chosen has nothing else useful to show. So these tests navigate: load the shell,
+ * then click the first disk card. Clicking rather than constructing a hash keeps
+ * the test independent of which targets happen to exist on the machine.
+ */
+async function openOverview(width: number, height: number): Promise<import('playwright').Page> {
+  if (!browser) throw new Error('browser not launched')
+  const page = await browser.newPage({ viewport: { width, height } })
+  await page.goto(URL, { waitUntil: 'networkidle' })
+  await page.waitForSelector('.disk', { timeout: 15_000 })
+  await page.click('.disk')
+  await page.waitForSelector('.charts', { timeout: 15_000 })
+  // Let ResizeObserver deliver the first measurement before anything is measured.
+  await page.waitForTimeout(500)
+  return page
+}
+
 beforeAll(async () => {
   try {
     browser = await chromium.launch({ args: ['--no-sandbox'] })
@@ -48,10 +68,7 @@ describe('Overview fits one viewport', () => {
         return
       }
 
-      const page = await browser.newPage({ viewport: { width: vp.w, height: vp.h } })
-      await page.goto(URL, { waitUntil: 'networkidle' })
-      // The charts render after /api/overview resolves.
-      await page.waitForSelector('.charts', { timeout: 15_000 })
+      const page = await openOverview(vp.w, vp.h)
 
       const metrics = await page.evaluate(() => {
         const main = document.querySelector('.main')
@@ -80,11 +97,8 @@ describe('Overview fits one viewport', () => {
       return
     }
 
-    const page = await browser.newPage({ viewport: { width: 1440, height: 768 } })
-    await page.goto(URL, { waitUntil: 'networkidle' })
+    const page = await openOverview(1440, 768)
     await page.waitForSelector('svg.chart text', { timeout: 15_000 })
-    // Let ResizeObserver deliver the first measurement.
-    await page.waitForTimeout(600)
 
     const sizes = await page.evaluate(() => {
       const out: { panel: string; rendered: number }[] = []
@@ -119,9 +133,7 @@ describe('Overview fits one viewport', () => {
       return
     }
 
-    const page = await browser.newPage({ viewport: { width: 1440, height: 768 } })
-    await page.goto(URL, { waitUntil: 'networkidle' })
-    await page.waitForSelector('.charts .panel', { timeout: 15_000 })
+    const page = await openOverview(1440, 768)
 
     const offscreen = await page.evaluate(() => {
       const bad: string[] = []
@@ -137,5 +149,70 @@ describe('Overview fits one viewport', () => {
     await page.close()
 
     expect(offscreen).toEqual([])
+  }, 45_000)
+})
+
+// The three-column shell positions both nav columns with `position: fixed`, so
+// every seam between them is computed arithmetic over CSS variables rather than
+// flex flow. Two bugs came from exactly that and neither was visible to a unit
+// test: the resize handle laid out at x=0 instead of at the column edge, and
+// collapsing the sidebar left a hole because only .sidebar's width changed while
+// .diskcol's `left` still pointed at the old --sidebar-width.
+describe('three-column shell geometry', () => {
+  it('puts the resize handle on the disk column edge', async () => {
+    if (!reachable || !browser) {
+      console.warn(`skipped: ${URL} unreachable`)
+      return
+    }
+
+    const page = await browser.newPage({ viewport: { width: 1600, height: 900 } })
+    await page.goto(URL, { waitUntil: 'networkidle' })
+    await page.waitForSelector('.resizer', { timeout: 15_000 })
+
+    const geo = await page.evaluate(() => {
+      const handle = document.querySelector('.resizer')?.getBoundingClientRect()
+      const column = document.querySelector('.diskcol')?.getBoundingClientRect()
+      if (!handle || !column) return null
+      return { handleLeft: handle.left, handleWidth: handle.width, columnRight: column.right }
+    })
+    await page.close()
+
+    expect(geo).not.toBeNull()
+    // The handle must straddle the seam, not sit somewhere else entirely.
+    const distance = Math.abs(geo!.handleLeft + geo!.handleWidth / 2 - geo!.columnRight)
+    expect(distance, `handle centre is ${Math.round(distance)}px from the column edge`).toBeLessThanOrEqual(6)
+  }, 45_000)
+
+  it('leaves no gap between the columns when the sidebar is collapsed', async () => {
+    if (!reachable || !browser) {
+      console.warn(`skipped: ${URL} unreachable`)
+      return
+    }
+
+    const page = await browser.newPage({ viewport: { width: 1600, height: 900 } })
+    await page.goto(URL, { waitUntil: 'networkidle' })
+    await page.waitForSelector('.diskcol', { timeout: 15_000 })
+
+    // Set the class directly rather than driving the menu: this is a layout
+    // assertion, and going through the UI would also be testing the menu.
+    const gaps = await page.evaluate(async () => {
+      document.body.classList.add('sidebar-collapsed')
+      await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+      const sidebar = document.querySelector('.sidebar')?.getBoundingClientRect()
+      const column = document.querySelector('.diskcol')?.getBoundingClientRect()
+      const main = document.querySelector('.main')?.getBoundingClientRect()
+      if (!sidebar || !column || !main) return null
+      return {
+        sidebarToColumn: column.left - sidebar.right,
+        columnToMain: main.left - column.right,
+        sidebarWidth: sidebar.width,
+      }
+    })
+    await page.close()
+
+    expect(gaps).not.toBeNull()
+    expect(gaps!.sidebarWidth, 'sidebar should shrink when collapsed').toBeLessThan(100)
+    expect(Math.abs(gaps!.sidebarToColumn), 'gap between sidebar and disk column').toBeLessThanOrEqual(2)
+    expect(Math.abs(gaps!.columnToMain), 'gap between disk column and main').toBeLessThanOrEqual(2)
   }, 45_000)
 })
