@@ -147,11 +147,31 @@ page (~1s cold). Fixing it would need an index we cannot add to a readonly repor
 
 | | UI page | Server max | Export chunk |
 |---|---|---|---|
-| Detail User dirs | 500 | 50,000 | 20,000 |
-| Detail User files | 500 | 50,000 | 50,000 |
-| Permission issues | 100 | 5,000 | 5,000 |
-| TreeMap children | 60 | 60 | — |
+| Detail User dirs | fits viewport | 50,000 | 20,000 |
+| Detail User files | fits viewport | 50,000 | 50,000 |
+| Permission issues | fits viewport | 5,000 | 5,000 |
+| TreeMap children | fits viewport | 60 | — |
 | Name search | 40 | 400 candidates | — |
+
+"Fits viewport" means the page size is measured, not fixed: `useFitRows` reads the
+height between the list's top edge and the bottom of the scroll column, and the row
+count follows. In practice that is 11 rows on a 1440x700 laptop and 25 on a 1920x1080
+monitor for Detail User.
+
+A fixed size cannot satisfy both — the page holds one screen, so 500 rows (legacy's
+value, which worked because legacy scrolled the whole page) overflowed a laptop by
+12,000px and buried the pager, while a value small enough for a laptop would waste
+half a desktop.
+
+Two traps, both guarded by tests in `web/src/styles/viewport.test.ts`:
+
+- **Do not measure the list's own container.** Its height depends on the rows in it,
+  so measuring it is a feedback loop: 21 rows shrinks the box, which measures 6, and
+  the tab fires two requests. Anchor on `.main`, whose height is the viewport, and
+  read the list's *position*.
+- **Use a callback ref, not `useEffect` + object ref.** These tabs render an empty
+  state before their data lands, so the measured element does not exist on the first
+  render; an effect keyed on stable deps runs once against `null` and never again.
 
 The server maxima exist for exports, not the UI. Per-request overhead dominates at
 small page sizes — 500 file rows cost 23ms, 50,000 cost 322ms — so a bulk walk wants
