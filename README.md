@@ -59,6 +59,29 @@ policy, so any crash leaves nginx returning 502 with nothing bringing it back.
 Targets are auto-discovered: any `<reportsDir>/<name>/report.db` shows up in the
 picker. No manual disk map to maintain.
 
+### Grouping targets
+
+The sidebar's two-level Space → Disk navigation comes from an optional
+`teams.json` in the reports directory:
+
+```json
+[
+  { "name": "Production", "targets": ["Test", "ABC"] },
+  { "name": "System",     "targets": ["usr"] }
+]
+```
+
+Re-read whenever the file changes, so no restart is needed. Rules:
+
+- Groups appear in file order; targets keep newest-scan-first order within one.
+- A target no group names is appended under **Ungrouped** — never hidden, since a
+  target on disk must always be reachable.
+- A target listed twice belongs to the first group only.
+- A named target that has not been scanned yet is skipped, not an error.
+- No file, or an unparseable one, puts everything in one **All Targets** group.
+  `/api/health` reports `groupConfigLoaded`, which is the only way to tell a typo
+  from an intentional absence.
+
 The `DASHBOARD_REPORTS_DIR` default resolves from the repo root, not the current
 directory — `npm run dev` runs workspace scripts with cwd = `server/`, so a
 cwd-relative default would point at different places depending on how the server

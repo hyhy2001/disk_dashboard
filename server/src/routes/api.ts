@@ -9,12 +9,14 @@ import type {
   HealthInfo,
   Overview,
   Target,
+  TargetGroup,
   TreemapLevel,
 } from '../../../shared/api.js'
 import type { Config } from '../config.js'
 import { isSafeTargetName, listTargets, openReport, readMeta } from '../db/reports.js'
 import { readOverview } from '../db/overview.js'
 import { readTreemapLevel } from '../db/treemap.js'
+import { groupTargets, readMapping } from '../db/groups.js'
 
 function ok<T>(data: T): ApiResponse<T> {
   return { status: 'success', data }
@@ -57,11 +59,19 @@ export function registerApi(app: FastifyInstance, config: Config): void {
       reportsDir: config.reportsDir,
       reportsDirExists: existsSync(config.reportsDir),
       targetsFound: listTargets(config.reportsDir).length,
+      // Distinguishes "no teams.json" from "teams.json present but unparseable",
+      // which otherwise both show up as a single default group.
+      groupConfigLoaded: readMapping(config.reportsDir) !== null,
     })
   })
 
   app.get('/api/targets', async (): Promise<ApiResponse<Target[]>> => {
     return ok(listTargets(config.reportsDir))
+  })
+
+  // Targets arranged into groups for the Team → Disk sidebar.
+  app.get('/api/groups', async (): Promise<ApiResponse<TargetGroup[]>> => {
+    return ok(groupTargets(config.reportsDir, listTargets(config.reportsDir)))
   })
 
   app.get<{ Params: { target: string } }>(

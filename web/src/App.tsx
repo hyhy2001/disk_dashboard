@@ -7,10 +7,11 @@
 // sidebar.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { HealthInfo, Overview, Target } from '../../shared/api.js'
-import { fetchHealth, fetchOverview, fetchTargets } from './lib/api.js'
+import type { HealthInfo, Overview, TargetGroup } from '../../shared/api.js'
+import { fetchGroups, fetchHealth, fetchOverview } from './lib/api.js'
 import { NoTargets } from './components/NoTargets.js'
-import { TargetList } from './components/TargetList.js'
+import { DiskColumn } from './components/DiskColumn.js'
+import { GroupList } from './components/GroupList.js'
 import { UsageList } from './components/UsageList.js'
 import { OverviewTab } from './tabs/OverviewTab.js'
 import { TreemapTab } from './tabs/TreemapTab.js'
@@ -66,7 +67,8 @@ function errorText(err: unknown): string {
 
 export function App(): JSX.Element {
   const [theme, toggleTheme] = useTheme()
-  const [targets, setTargets] = useState<Target[]>([])
+  const [groups, setGroups] = useState<TargetGroup[]>([])
+  const [group, setGroup] = useState<string | null>(null)
   const [selected, setSelected] = useState<string | null>(null)
   const [overview, setOverview] = useState<Overview | null>(null)
   const [health, setHealth] = useState<HealthInfo | null>(null)
@@ -92,15 +94,19 @@ export function App(): JSX.Element {
     }
   }, [])
 
-  // Target list loads once; it changes only when a scan adds a directory.
+  // Groups load once; they change only when a scan adds a target or teams.json
+  // is edited. Open the first group and its first disk so the dashboard shows
+  // something immediately rather than an empty prompt.
   useEffect(() => {
     let live = true
-    fetchTargets()
+    fetchGroups()
       .then((list) => {
         if (!live) return
-        setTargets(list)
-        setSelected(list[0]?.name ?? null)
-        if (list.length === 0) setLoading(false)
+        setGroups(list)
+        const first = list[0]
+        setGroup(first?.name ?? null)
+        setSelected(first?.targets[0]?.name ?? null)
+        if (!first) setLoading(false)
       })
       .catch((err: unknown) => {
         if (!live) return
@@ -137,13 +143,27 @@ export function App(): JSX.Element {
   }, [selected])
 
   const active = overview?.target
-  const shownTargets = useMemo(() => {
+  const shownGroups = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return targets
-    return targets.filter(
-      (t) => t.name.toLowerCase().includes(q) || t.scanRoot.toLowerCase().includes(q),
-    )
-  }, [targets, search])
+    if (!q) return groups
+    return groups.filter((g) => g.name.toLowerCase().includes(q))
+  }, [groups, search])
+
+  const activeGroup = useMemo(
+    () => groups.find((g) => g.name === group) ?? groups[0],
+    [groups, group],
+  )
+
+  /** Picking a group opens its first disk, so column 3 is never left stale. */
+  const pickGroup = useCallback(
+    (name: string) => {
+      setGroup(name)
+      const g = groups.find((x) => x.name === name)
+      setSelected(g?.targets[0]?.name ?? null)
+      setDrawer(false)
+    },
+    [groups],
+  )
 
   return (
     <>
@@ -177,21 +197,15 @@ export function App(): JSX.Element {
           <input
             type="search"
             className="sidebar__search"
-            placeholder="Search targets..."
-            aria-label="Search targets"
+            placeholder="Search spaces..."
+            aria-label="Search groups"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
           />
 
           <div className="sidebar__list">
-            <TargetList
-              targets={shownTargets}
-              selected={selected}
-              onSelect={(name) => {
-                setSelected(name)
-                setDrawer(false)
-              }}
-            />
+            <h2 className="col__title">Spaces ({groups.length})</h2>
+            <GroupList groups={shownGroups} selected={activeGroup?.name ?? null} onSelect={pickGroup} />
           </div>
 
           <div className="sidebar__foot">
@@ -208,17 +222,17 @@ export function App(): JSX.Element {
           </div>
         </aside>
 
+        <DiskColumn
+          groupName={activeGroup?.name ?? 'All Targets'}
+          targets={activeGroup?.targets ?? []}
+          selected={selected}
+          onSelect={setSelected}
+          onToggleSidebar={() => setDrawer((v) => !v)}
+        />
+
         <main className="main" ref={mainRef}>
           <header className="pagehead glass">
             <div className="pagehead__top">
-              <button
-                type="button"
-                className="icon-btn hamburger"
-                onClick={() => setDrawer(true)}
-                aria-label="Open menu"
-              >
-                ☰
-              </button>
               <h1 className="pagehead__title">{active?.name ?? 'Disk Usage'}</h1>
               {active && (
                 <>
@@ -263,30 +277,35 @@ export function App(): JSX.Element {
           ) : !overview || !selected ? (
             <NoTargets health={health} />
           ) : page === 'overview' ? (
-            // Charts lead; the ranked lists sit alongside so a name can be read
-            // off exactly rather than guessed from a bar.
-            <div className="split">
-              <div className="stack">
-                <OverviewTab overview={overview} />
+            <>
+              <OverviewTab overview={overview} />
+              {/* Ranked lists below the charts, not in a fourth column: with
+                  three columns already spent on navigation, a name is better
+                  read off a wide panel than a narrow rail. */}
+              <div className="panels">
+                <div className="panel">
+                  <UsageList
+                    title="Teams"
+                    rows={overview.teams}
+                    emptyText="No team mapping configured."
+                  />
+                </div>
+                <div className="panel">
+                  <UsageList
+                    title="Users"
+                    rows={overview.users}
+                    emptyText="No users mapped to a team."
+                  />
+                </div>
+                <div className="panel">
+                  <UsageList
+                    title="Unmapped users"
+                    rows={overview.otherUsers}
+                    emptyText="Every user maps to a team."
+                  />
+                </div>
               </div>
-              <aside className="side glass">
-                <UsageList
-                  title="Teams"
-                  rows={overview.teams}
-                  emptyText="No team mapping configured."
-                />
-                <UsageList
-                  title="Users"
-                  rows={overview.users}
-                  emptyText="No users mapped to a team."
-                />
-                <UsageList
-                  title="Unmapped users"
-                  rows={overview.otherUsers}
-                  emptyText="Every user maps to a team."
-                />
-              </aside>
-            </div>
+            </>
           ) : (
             <>
               <nav className="subtabs" role="tablist" aria-label="Detail views">

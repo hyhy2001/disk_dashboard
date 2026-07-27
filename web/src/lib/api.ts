@@ -6,6 +6,7 @@ import type {
   HealthInfo,
   Overview,
   Target,
+  TargetGroup,
   TreemapLevel,
 } from '../../../shared/api.js'
 
@@ -27,6 +28,10 @@ async function get<T>(path: string): Promise<T> {
 
 export function fetchTargets(): Promise<Target[]> {
   return get<Target[]>('/api/targets')
+}
+
+export function fetchGroups(): Promise<TargetGroup[]> {
+  return get<TargetGroup[]>('/api/groups')
 }
 
 export function fetchOverview(target: string): Promise<Overview> {

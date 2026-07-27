@@ -23,6 +23,17 @@ export interface Target {
   dbSizeBytes: number
 }
 
+/**
+ * A named set of targets, driving the sidebar's Team → Disk navigation.
+ *
+ * Grouping comes from an optional teams.json beside the reports directory;
+ * without one, every target lands in a single group.
+ */
+export interface TargetGroup {
+  name: string
+  targets: Target[]
+}
+
 /** Filesystem capacity as recorded by the scan. */
 export interface Capacity {
   total: number
@@ -139,4 +150,10 @@ export interface HealthInfo {
    */
   reportsDirExists: boolean
   targetsFound: number
+  /**
+   * Whether a readable teams.json was found. False means either no file or an
+   * unparseable one — both fall back to a single group, so this is the only way
+   * to tell a typo from an intentional absence.
+   */
+  groupConfigLoaded: boolean
 }

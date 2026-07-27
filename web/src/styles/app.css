@@ -215,12 +215,281 @@ body {
   }
 }
 
+/* ---------- group list (column 1) ---------- */
+
+.group {
+  appearance: none;
+  width: 100%;
+  text-align: left;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 8px 10px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.group:hover {
+  background: var(--bg-hover);
+}
+
+.group[aria-current='true'] {
+  background: var(--bg-active);
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.group__icon {
+  color: var(--text-faint);
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+
+.group[aria-current='true'] .group__icon {
+  color: var(--accent);
+}
+
+.group__body {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+
+.group__name {
+  font-weight: 600;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.group__meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+/* ---------- disk column (column 2) ---------- */
+
+.diskcol {
+  width: var(--col2-width);
+  flex: 0 0 auto;
+  height: 100vh;
+  position: fixed;
+  left: var(--sidebar-width);
+  top: 0;
+  z-index: 15;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 0;
+  border-top: 0;
+  border-bottom: 0;
+  border-left: 0;
+  border-right: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.diskcol__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.diskcol__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.diskcol__sort {
+  display: flex;
+  gap: 6px;
+}
+
+.select {
+  appearance: none;
+  flex: 1 1 auto;
+  min-width: 0;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text);
+  font: inherit;
+  font-size: 11px;
+  padding: 4px 7px;
+  cursor: pointer;
+}
+
+.diskcol__list {
+  flex: 1 1 auto;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  margin: 0 -4px;
+  padding: 0 4px;
+}
+
+.diskcol__foot {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-faint);
+  border-top: 1px solid var(--border);
+  padding-top: 9px;
+}
+
+/* ---------- disk card ---------- */
+
+.disk {
+  appearance: none;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--border);
+  background: var(--bg-hover);
+  color: inherit;
+  font: inherit;
+  padding: 9px 10px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: grid;
+  gap: 6px;
+  transition: all var(--duration-fast) var(--ease-out);
+}
+
+.disk:hover {
+  border-color: var(--border-strong);
+}
+
+.disk--on {
+  background: var(--bg-active);
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+
+.disk__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.disk__name {
+  font-weight: 600;
+  font-size: 13px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pill {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  padding: 1px 7px;
+  border-radius: 9px;
+}
+
+/* Legacy's three bands, by share of the group. */
+.pill--ok {
+  color: var(--emerald-400);
+  background: color-mix(in srgb, var(--emerald-400) 15%, transparent);
+}
+
+.pill--warn {
+  color: var(--amber-400);
+  background: color-mix(in srgb, var(--amber-400) 15%, transparent);
+}
+
+.pill--danger {
+  color: var(--rose-400);
+  background: color-mix(in srgb, var(--rose-400) 15%, transparent);
+}
+
+.disk__bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--bg-base);
+  overflow: hidden;
+}
+
+.disk__bar-fill {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--accent);
+  animation: grow var(--duration-base) var(--ease-out);
+  transform-origin: left center;
+}
+
+.disk__stats {
+  display: flex;
+  gap: 10px;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-muted);
+}
+
+.disk__stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.disk__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.disk__dot--scanned {
+  background: var(--accent);
+}
+
+.disk__dot--dirs {
+  background: var(--text-faint);
+}
+
+.disk__path {
+  font-size: 10px;
+  font-family: var(--font-mono);
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Column 2 collapses into the drawer alongside column 1 on small screens. */
+@media (max-width: 1100px) {
+  .diskcol {
+    position: static;
+    width: 100%;
+    height: auto;
+    max-height: 300px;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .app {
+    flex-wrap: wrap;
+  }
+}
+
 /* ---------- main column ---------- */
 
 .main {
   flex: 1 1 auto;
   min-width: 0;
-  margin-left: var(--sidebar-width);
+  margin-left: calc(var(--sidebar-width) + var(--col2-width));
   height: 100vh;
   overflow-y: auto;
   overflow-x: hidden;
@@ -232,6 +501,15 @@ body {
      already accounted for. */
   container-type: inline-size;
   container-name: main;
+}
+
+/* Column 2 goes static below 1100px, so main only owes it the sidebar offset. */
+@media (max-width: 1100px) {
+  .main {
+    margin-left: var(--sidebar-width);
+    height: auto;
+    overflow-y: visible;
+  }
 }
 
 @media (max-width: 900px) {
