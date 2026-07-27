@@ -123,7 +123,7 @@ export function OverviewTab({ overview }: Props): JSX.Element {
 
       <div className="panel">
         <div className="panel__head">
-          <h2 className="panel__title">Capacity over time</h2>
+          <h2 className="panel__title">Capacity Over Time</h2>
           <DeltaBadge points={shownHistory} />
           <div className="panel__tools">
             <RangePicker value={range} onChange={setRange} available={rangeAvailable} />
@@ -136,15 +136,20 @@ export function OverviewTab({ overview }: Props): JSX.Element {
       <div className="panels">
         <div className="panel">
           <div className="panel__head">
-            <h2 className="panel__title">Usage by teams</h2>
+            <h2 className="panel__title">Usage by Teams</h2>
             <ExpandButton onClick={() => setExpanded('teams')} />
           </div>
-          <Donut rows={teams} onSelect={setTeamFilter} selected={teamFilter} />
+          <Donut
+            rows={teams}
+            onSelect={setTeamFilter}
+            selected={teamFilter}
+            {...(capacity ? { totalUsed: capacity.used } : {})}
+          />
         </div>
 
         <div className="panel">
           <div className="panel__head">
-            <h2 className="panel__title">Top consuming users</h2>
+            <h2 className="panel__title">Top Consuming Users</h2>
             {teamFilter && (
               <button
                 type="button"
@@ -194,7 +199,13 @@ export function OverviewTab({ overview }: Props): JSX.Element {
           slug="teams"
           onClose={() => setExpanded(null)}
         >
-          <Donut rows={teams} size={280} onSelect={setTeamFilter} selected={teamFilter} />
+          <Donut
+            rows={teams}
+            size={280}
+            onSelect={setTeamFilter}
+            selected={teamFilter}
+            {...(capacity ? { totalUsed: capacity.used } : {})}
+          />
         </ChartModal>
       )}
       {expanded === 'users' && (

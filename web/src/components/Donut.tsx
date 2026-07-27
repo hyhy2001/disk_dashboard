@@ -7,17 +7,24 @@
 import type { UsageRow } from '../../../shared/api.js'
 import { formatPercent, formatSize } from '../lib/format.js'
 
+// Legacy's palette, in its order: sky, emerald, amber, rose, violet, slate,
+// cyan, light violet. Adjacent slices stay distinguishable.
 const SERIES = [
-  'var(--series-1)',
-  'var(--series-2)',
-  'var(--series-3)',
-  'var(--series-4)',
-  'var(--series-5)',
-  'var(--series-6)',
+  'var(--sky-400)',
+  'var(--emerald-500)',
+  'var(--amber-400)',
+  'var(--rose-400)',
+  '#8b5cf6',
+  'var(--text-faint)',
+  '#06b6d4',
+  '#a78bfa',
 ]
 
+/** Colour of the synthetic "Unknown" wedge — legacy's slate #334155. */
+const UNKNOWN_COLOR = '#334155'
+
 /** Slices beyond this are merged into one "others" wedge to keep the ring readable. */
-const MAX_SLICES = 6
+const MAX_SLICES = 8
 
 interface Props {
   rows: UsageRow[]
@@ -29,6 +36,12 @@ interface Props {
   onSelect?: (name: string | null) => void
   /** Currently filtered team, drawn as the highlighted slice. */
   selected?: string | null
+  /**
+   * Total used bytes on the filesystem. Anything beyond the sum of the team rows
+   * is added as an "Unknown" slice, as legacy did — without it the ring silently
+   * rescales and every team looks like a larger share than it is.
+   */
+  totalUsed?: number
 }
 
 interface Slice {
@@ -39,30 +52,51 @@ interface Slice {
   real: boolean
 }
 
-function buildSlices(rows: UsageRow[]): Slice[] {
+function buildSlices(rows: UsageRow[], totalUsed?: number): Slice[] {
   const sorted = [...rows].filter((r) => r.used > 0).sort((a, b) => b.used - a.used)
+
+  let out: Slice[]
   if (sorted.length <= MAX_SLICES) {
-    return sorted.map((r, i) => ({ ...r, color: SERIES[i % SERIES.length] as string, real: true }))
+    out = sorted.map((r, i) => ({ ...r, color: SERIES[i % SERIES.length] as string, real: true }))
+  } else {
+    const head = sorted.slice(0, MAX_SLICES - 1)
+    const tail = sorted.slice(MAX_SLICES - 1)
+    const rest = tail.reduce((sum, r) => sum + r.used, 0)
+    out = [
+      ...head.map((r, i) => ({ ...r, color: SERIES[i % SERIES.length] as string, real: true })),
+      { name: `${tail.length} others`, used: rest, color: 'var(--text-faint)', real: false },
+    ]
   }
 
-  const head = sorted.slice(0, MAX_SLICES - 1)
-  const tail = sorted.slice(MAX_SLICES - 1)
-  const rest = tail.reduce((sum, r) => sum + r.used, 0)
-  return [
-    ...head.map((r, i) => ({ ...r, color: SERIES[i % SERIES.length] as string, real: true })),
-    { name: `${tail.length} others`, used: rest, color: 'var(--text-faint)', real: false },
-  ]
+  // Used space no team accounts for. Shown as its own wedge so the ring's total
+  // is the disk's real usage rather than just the attributed part.
+  if (totalUsed !== undefined) {
+    const attributed = sorted.reduce((sum, r) => sum + r.used, 0)
+    const unknown = totalUsed - attributed
+    if (unknown > 0) {
+      out.push({ name: 'Unknown', used: unknown, color: UNKNOWN_COLOR, real: false })
+    }
+  }
+
+  return out
 }
 
-export function Donut({ rows, size = 148, onSelect, selected }: Props): JSX.Element {
-  const slices = buildSlices(rows)
+export function Donut({
+  rows,
+  size = 148,
+  onSelect,
+  selected,
+  totalUsed,
+}: Props): JSX.Element {
+  const slices = buildSlices(rows, totalUsed)
   const total = slices.reduce((sum, s) => sum + s.used, 0)
 
   if (total === 0) {
     return <p className="empty">No usage recorded.</p>
   }
 
-  const stroke = 20
+  // Legacy uses cutout 72%, i.e. the ring occupies 14% of the diameter per side.
+  const stroke = size * 0.14
   const radius = (size - stroke) / 2
   const circumference = 2 * Math.PI * radius
   let offset = 0
@@ -115,12 +149,13 @@ export function Donut({ rows, size = 148, onSelect, selected }: Props): JSX.Elem
             return el
           })}
         </g>
+        {/* Legacy's two-line centre: the figure, then what it counts. */}
         <text
           x={size / 2}
-          y={size / 2 - 4}
+          y={size / 2 - 6}
           textAnchor="middle"
           fill="var(--text)"
-          fontSize="15"
+          fontSize={size >= 240 ? 24 : 17}
           fontFamily="var(--font-mono)"
           fontWeight="600"
         >
@@ -128,13 +163,12 @@ export function Donut({ rows, size = 148, onSelect, selected }: Props): JSX.Elem
         </text>
         <text
           x={size / 2}
-          y={size / 2 + 12}
+          y={size / 2 + 13}
           textAnchor="middle"
-          fill="var(--text-faint)"
-          fontSize="9"
-          letterSpacing="0.08em"
+          fill="var(--text-muted)"
+          fontSize={size >= 240 ? 13 : 11}
         >
-          TOTAL
+          used
         </text>
       </svg>
 

@@ -12,7 +12,7 @@
 // mid-axis exaggerates small changes, and "how full is the disk" is only
 // meaningful against total capacity.
 
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import type { HistoryPoint } from '../../../shared/api.js'
 import { formatScanDate, formatSize } from '../lib/format.js'
 
@@ -23,20 +23,48 @@ interface Props {
 }
 
 const WIDTH = 560
-const PAD_L = 56
-const PAD_R = 14
+const PAD_L = 14
+/** Legacy pins the y axis on the right at a fixed 90px. */
+const PAD_R = 78
 const PAD_T = 12
 const PAD_B = 26
 
+// Legacy's exact strokes: solid amber for Used, translucent dashed amber for the
+// scan result, translucent dashed slate for Total.
 const SERIES = [
-  { key: 'usedSize', label: 'Used Capacity', color: 'var(--amber-400)', dash: '', fill: true },
-  { key: 'scannedSize', label: 'Scan Result', color: 'var(--accent)', dash: '4 3', fill: false },
-  { key: 'totalSize', label: 'Total Capacity', color: 'var(--text-faint)', dash: '6 4', fill: false },
+  {
+    key: 'usedSize',
+    label: 'Used Capacity',
+    color: '#fbbf24',
+    dash: '',
+    width: 1.5,
+    fill: true,
+  },
+  {
+    key: 'scannedSize',
+    label: 'Scan Result',
+    color: 'rgba(251,191,36,0.55)',
+    dash: '4 3',
+    width: 1,
+    fill: false,
+  },
+  {
+    key: 'totalSize',
+    label: 'Total Capacity',
+    color: 'rgba(148,163,184,0.60)',
+    dash: '6 4',
+    width: 2,
+    fill: false,
+  },
 ] as const
 
 export function AreaChart({ points, height = 190 }: Props): JSX.Element {
   // Index of the hovered point, driving the crosshair.
   const [hover, setHover] = useState<number | null>(null)
+  // The panel and the fullscreen modal both mount this chart, so the gradient
+  // needs an id unique per instance or one would reference the other's def.
+  const gradId = `used-fill-${useId().replace(/:/g, '')}`
+  const light = document.documentElement.dataset.theme === 'light'
 
   if (points.length === 0) {
     return <p className="empty">No history yet — the timeline needs at least one scan.</p>
@@ -90,19 +118,30 @@ export function AreaChart({ points, height = 190 }: Props): JSX.Element {
         onMouseMove={pick}
         onMouseLeave={() => setHover(null)}
       >
+        <defs>
+          {/* Gradient under the Used line, denser in light mode where a faint
+              wash would disappear against the paper background. */}
+          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="#fbbf24" stopOpacity={light ? 0.55 : 0.26} />
+            <stop offset="65%" stopColor="#fbbf24" stopOpacity={light ? 0.15 : 0.06} />
+            <stop offset="100%" stopColor="#fbbf24" stopOpacity={light ? 0.03 : 0.02} />
+          </linearGradient>
+        </defs>
+
         {ticks.map((t) => {
           const gy = PAD_T + plotH - t * plotH
           return (
             <g key={t}>
               <line className="chart__grid" x1={PAD_L} y1={gy} x2={WIDTH - PAD_R} y2={gy} />
-              <text className="chart__axis" x={PAD_L - 7} y={gy + 3} textAnchor="end">
+              {/* Axis labels on the right, as legacy positioned them. */}
+              <text className="chart__axis" x={WIDTH - PAD_R + 8} y={gy + 3}>
                 {formatSize(maxY * t)}
               </text>
             </g>
           )
         })}
 
-        <path className="chart__area" d={area} />
+        <path d={area} fill={`url(#${gradId})`} />
 
         {SERIES.map((s) => (
           <path
@@ -111,7 +150,7 @@ export function AreaChart({ points, height = 190 }: Props): JSX.Element {
             d={pathFor(s.key)}
             stroke={s.color}
             strokeDasharray={s.dash || undefined}
-            strokeWidth={s.fill ? 2 : 1.4}
+            strokeWidth={s.width}
           />
         ))}
 

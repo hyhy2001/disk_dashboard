@@ -992,10 +992,6 @@ body {
   font-family: var(--font-mono);
 }
 
-.chart__area {
-  fill: color-mix(in srgb, var(--accent) 18%, transparent);
-}
-
 .chart__line {
   fill: none;
   stroke: var(--accent);

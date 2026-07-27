@@ -17,8 +17,9 @@ interface Props {
   logScale?: boolean
 }
 
-const ROW_H = 22
-const BAR_H = 11
+const ROW_H = 26
+/** Legacy caps bars at 32px so labels never collide; rows here are tighter. */
+const BAR_H = 14
 const LABEL_W = 108
 const VALUE_W = 66
 const WIDTH = 460
@@ -64,12 +65,15 @@ export function BarChart({ rows, limit = 10, logScale = false }: Props): JSX.Ele
       {data.map((r, i) => {
         const y = i * ROW_H
         const w = Math.max(2, widthFor(r.used))
+        const mid = y + BAR_H / 2 + 4
         return (
           <g key={r.name}>
+            {/* Every name renders. Chart.js autoSkip would drop every other
+                label when narrow, showing 10 bars but 5 names. */}
             <text
               className="chart__axis"
               x={LABEL_W - 8}
-              y={y + BAR_H}
+              y={mid}
               textAnchor="end"
               fill="var(--text-muted)"
               fontSize="11"
@@ -81,7 +85,7 @@ export function BarChart({ rows, limit = 10, logScale = false }: Props): JSX.Ele
               y={y + 2}
               width={trackW}
               height={BAR_H}
-              rx={3}
+              rx={4}
               fill="var(--bg-hover)"
             />
             <rect
@@ -90,15 +94,15 @@ export function BarChart({ rows, limit = 10, logScale = false }: Props): JSX.Ele
               y={y + 2}
               width={w}
               height={BAR_H}
-              rx={3}
-              fill="var(--accent)"
+              rx={4}
+              fill="var(--sky-400)"
             >
               <title>{`${r.name}: ${formatSize(r.used)}`}</title>
             </rect>
             <text
               className="chart__axis"
               x={LABEL_W + trackW + 8}
-              y={y + BAR_H}
+              y={mid}
               fill="var(--text-muted)"
               fontSize="11"
             >
