@@ -109,6 +109,8 @@ export interface TreemapQuery {
   /** Files cost an extra query server-side, so only the list view asks. */
   withFiles?: boolean
   fileOffset?: number
+  /** Rows per page. Only the client knows how tall its list box is. */
+  limit?: number
 }
 
 export function fetchTreemap(target: string, q: TreemapQuery): Promise<TreemapLevel> {
@@ -117,6 +119,7 @@ export function fetchTreemap(target: string, q: TreemapQuery): Promise<TreemapLe
   if (q.childOffset) params.set('childOffset', String(q.childOffset))
   if (q.withFiles) params.set('files', '1')
   if (q.fileOffset) params.set('fileOffset', String(q.fileOffset))
+  if (q.limit) params.set('limit', String(q.limit))
 
   const qs = params.toString()
   // Cached: drilling in and back out re-requests a level already loaded, and a

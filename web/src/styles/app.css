@@ -1311,6 +1311,16 @@ body {
   animation: pulse 1.4s ease-in-out infinite;
 }
 
+/*
+ * A skeleton inside a filling container takes the whole box rather than a fixed
+ * height, so the panel does not visibly shrink and re-expand around the load.
+ */
+.panel--fill > .skeleton,
+.ud__body > .skeleton,
+.perm__body > .skeleton {
+  flex: 1 1 0;
+}
+
 @keyframes pulse {
   50% {
     opacity: 0.45;
@@ -1430,6 +1440,19 @@ body {
   cursor: default;
 }
 
+/*
+ * Placeholders that hold the loading state's layout identical to the loaded one.
+ * Their heights match the real toolbar (30px) and breadcrumb panel (48px), which is
+ * what keeps the row measurement stable across the load — see TreemapTab.
+ */
+.tm__toolbar--ghost {
+  height: 30px;
+}
+
+.tm__crumb-ghost {
+  height: 48px;
+}
+
 /* ---------- treemap toolbar ---------- */
 
 .tm__toolbar {
@@ -1488,6 +1511,9 @@ body {
 .ent {
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  /* Fills the panel so .ent__rows has a bounded box to scroll inside. */
+  flex: 1 1 0;
 }
 
 /* Shared grid so head and rows stay aligned without a real <table>. */
@@ -1509,9 +1535,16 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
+/*
+ * Scrolls within the panel instead of growing it. 60 children at ~33px is 2000px,
+ * which pushed the "Load more" button and everything after it below the fold.
+ */
 .ent__rows {
   display: flex;
   flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .ent__row {
@@ -1707,6 +1740,19 @@ body {
   font-size: 11px;
   color: var(--text-faint);
   margin: 8px 0 0;
+}
+
+/*
+ * A panel that consumes the leftover height of .main and scrolls its own content.
+ * `min-height: 0` is the load-bearing part — a flex item's default min-height is
+ * min-content, so without it the panel grows to fit every row and the page scrolls.
+ */
+.panel--fill {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .panel--loading {
@@ -2734,10 +2780,38 @@ body.sidebar-collapsed .group__body {
   gap: 6px;
 }
 
+/*
+ * The box useFitRows measures, and the one the grid fills. Always mounted, so a
+ * measurement exists before the first fetch decides its page size.
+ */
+.ud__body,
+.perm__body {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/*
+ * The two cards take whatever height is left after the toolbar and stop there.
+ * `min-height: 0` is what makes that work: a flex item defaults to min-content,
+ * so without it the grid grows to fit 500 rows and pushes the pager off screen
+ * instead of scrolling.
+ */
 .ud__grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
   gap: var(--gap);
+  flex: 1 1 0;
+  min-height: 0;
+}
+
+/* Each card is itself a column: header, scrolling rows, pager pinned at the end. */
+.ud__grid > .panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
 /* Dim while a new page loads, rather than replacing the list with a skeleton:
@@ -2747,6 +2821,11 @@ body.sidebar-collapsed .group__body {
   transition: opacity var(--duration-fast) var(--ease-out);
 }
 
+/*
+ * Scrolls inside its card rather than growing it. The page size is measured against
+ * this box (useFitRows), so in the normal case there is nothing to scroll — the
+ * overflow is a safety net for a row whose path wraps, not the primary mechanism.
+ */
 .ud__list {
   list-style: none;
   margin: 0;
@@ -2754,6 +2833,9 @@ body.sidebar-collapsed .group__body {
   display: flex;
   flex-direction: column;
   gap: 1px;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .ud__row {
@@ -3076,14 +3158,18 @@ body.sidebar-collapsed .group__body {
   display: grid;
   grid-template-columns: 250px minmax(0, 1fr);
   gap: var(--gap);
-  align-items: start;
+  /* stretch, not start: both columns fill the remaining height and scroll inside. */
+  align-items: stretch;
+  flex: 1 1 0;
+  min-height: 0;
 }
 
 .perm__filters {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  max-height: 70vh;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .perm__types {
@@ -3113,6 +3199,10 @@ body.sidebar-collapsed .group__body {
 
 .perm__list {
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .perm__rows {
@@ -3122,6 +3212,9 @@ body.sidebar-collapsed .group__body {
   display: flex;
   flex-direction: column;
   gap: 1px;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
 }
 
 .perm__row {

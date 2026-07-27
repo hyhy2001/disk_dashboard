@@ -15,13 +15,19 @@ import { copyPath } from '../lib/clipboard.js'
 import { exportPermissions } from '../lib/exports.js'
 import { formatCount } from '../lib/format.js'
 import { NumberPager } from '../components/Pager.js'
+import { useFitRows } from '../lib/useFitRows.js'
 
 interface Props {
   target: string
 }
 
-/** Rows per page. Matches the server default so page numbers line up. */
-const PAGE = 100
+/**
+ * One row's height plus its 1px gap, measured in the browser (27 + 1).
+ *
+ * The page size is derived from the measured list height rather than fixed at
+ * legacy's 100: this dashboard holds one screen, and 100 rows is ~2800px of it.
+ */
+const ROW_HEIGHT = 28
 
 /** The sentinel the server uses for issues with no owning user. */
 const UNKNOWN = '__unknown__'
@@ -47,6 +53,16 @@ export function PermissionsTab({ target }: Props): JSX.Element {
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
 
+  // Page size follows the measured list height, so a page always fits on screen.
+  /*
+   * reserve covers what sits *below* the list inside the panel: the pager (35px) and
+   * the panel's bottom padding. The measurement runs from the list's top edge to the
+   * bottom of the scroll host, so anything underneath has to be subtracted or the
+   * page comes back one screenful too tall.
+   */
+  const fit = useFitRows({ rowHeight: ROW_HEIGHT, min: 8, max: 100, reserve: 64 })
+  const pageSize = fit.rows
+
   // Typing a path filter fires a COUNT plus a page query, so it waits for a pause.
   useEffect(() => {
     const id = setTimeout(() => setPathApplied(pathQuery), 350)
@@ -54,12 +70,16 @@ export function PermissionsTab({ target }: Props): JSX.Element {
   }, [pathQuery])
 
   // Any filter change invalidates the page number: page 7 of an unfiltered list is
-  // usually past the end of a filtered one.
+  // usually past the end of a filtered one. A resize does too — page 7 of 12-row
+  // pages is a different offset from page 7 of 30-row pages.
   useEffect(() => {
     setPage(1)
-  }, [itemType, pathApplied, users])
+  }, [itemType, pathApplied, users, pageSize])
 
   useEffect(() => {
+    // Wait for the measurement so the first request already asks for the right size.
+    if (!fit.measured) return
+
     const controller = new AbortController()
     setLoading(true)
     setError(null)
@@ -67,8 +87,8 @@ export function PermissionsTab({ target }: Props): JSX.Element {
     fetchPermissions(
       target,
       {
-        offset: (page - 1) * PAGE,
-        limit: PAGE,
+        offset: (page - 1) * pageSize,
+        limit: pageSize,
         ...(users.length > 0 ? { users: users.join(',') } : {}),
         ...(itemType ? { itemType } : {}),
         ...(pathApplied ? { path: pathApplied } : {}),
@@ -87,7 +107,7 @@ export function PermissionsTab({ target }: Props): JSX.Element {
       })
 
     return () => controller.abort()
-  }, [target, page, users, itemType, pathApplied])
+  }, [target, page, users, itemType, pathApplied, pageSize, fit.measured])
 
   const toggleUser = useCallback((name: string) => {
     setUsers((cur) => (cur.includes(name) ? cur.filter((n) => n !== name) : [...cur, name]))
@@ -116,33 +136,37 @@ export function PermissionsTab({ target }: Props): JSX.Element {
     return data.userCounts.filter((u) => u.name.toLowerCase().includes(q))
   }, [data, userQuery])
 
-  if (error) {
+  /**
+   * Pre-list states share one wrapper carrying the measuring ref.
+   *
+   * They cannot be early returns: the first fetch waits on the measurement, and a
+   * measurement needs a mounted box, so returning a bare skeleton would deadlock.
+   */
+  if (error || !data || data.userCounts.length === 0) {
     return (
-      <div className="state state--error">
-        <p className="state__title">Could not load permission issues</p>
-        <p>{error}</p>
+      <div className="perm__body" ref={fit.ref}>
+        {error ? (
+          <div className="state state--error">
+            <p className="state__title">Could not load permission issues</p>
+            <p>{error}</p>
+          </div>
+        ) : !data ? (
+          <div className="skeleton" />
+        ) : (
+          // No rows anywhere in the report, filters aside: the healthy case.
+          <div className="state">
+            <p className="state__title">No permission issues</p>
+            <p>
+              The scan read every path it visited. Nothing on this target was skipped for
+              permissions.
+            </p>
+          </div>
+        )}
       </div>
     )
   }
 
-  if (!data) {
-    return <div className="skeleton" style={{ height: '420px' }} />
-  }
-
-  // No rows anywhere in the report, filters aside: the healthy case.
-  if (data.userCounts.length === 0) {
-    return (
-      <div className="state">
-        <p className="state__title">No permission issues</p>
-        <p>
-          The scan read every path it visited. Nothing on this target was skipped for
-          permissions.
-        </p>
-      </div>
-    )
-  }
-
-  const pageCount = Math.max(1, Math.ceil(data.total / PAGE))
+  const pageCount = Math.max(1, Math.ceil(data.total / pageSize))
   const totalIssues = data.userCounts.reduce((sum, u) => sum + u.count, 0)
   const namedUsers = data.userCounts.filter((u) => u.name !== UNKNOWN)
 
@@ -285,10 +309,14 @@ export function PermissionsTab({ target }: Props): JSX.Element {
             </span>
           </header>
 
-          {data.rows.length === 0 ? (
-            <p className="empty">No issue matches the current filters.</p>
-          ) : (
-            <ul className="perm__rows">
+          {/* The measured box: whatever height the flex layout leaves it decides how
+              many rows the next request asks for. Wraps the empty state too, so a
+              filter matching nothing does not lose the measurement. */}
+          <div className="perm__body" ref={fit.ref}>
+            {data.rows.length === 0 ? (
+              <p className="empty">No issue matches the current filters.</p>
+            ) : (
+              <ul className="perm__rows">
               {data.rows.map((r, i) => (
                 <li className="perm__row" key={`${r.path}-${i}`}>
                   <span
@@ -311,8 +339,9 @@ export function PermissionsTab({ target }: Props): JSX.Element {
                   <span className="perm__err">{r.error}</span>
                 </li>
               ))}
-            </ul>
-          )}
+              </ul>
+            )}
+          </div>
 
           <NumberPager page={page} pageCount={pageCount} onGo={setPage} busy={loading} />
         </section>

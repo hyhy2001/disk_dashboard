@@ -9,12 +9,13 @@
 // user's whole slice of detail_files, which is not something to fire on every
 // character.
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { DetailUser, UserDetail } from '../../../shared/api.js'
 import { fetchUserDetail, fetchUsers, type DetailQuery } from '../lib/api.js'
 import { formatCount, formatPercent, formatSize } from '../lib/format.js'
 import { copyPath } from '../lib/clipboard.js'
 import { saveFilters } from '../lib/prefs.js'
+import { useFitRows } from '../lib/useFitRows.js'
 import { EMPTY_SIZE, SizeInput, toBytes, type SizeValue } from '../components/SizeInput.js'
 import { StepPager } from '../components/Pager.js'
 import { TagInput } from '../components/TagInput.js'
@@ -55,6 +56,15 @@ function activeCount(form: FormState): number {
   return Object.keys(q).length
 }
 
+/**
+ * One row's height including its 1px gap, measured in the browser.
+ *
+ * Hardcoded rather than measured per-row: reading a rendered row's height to decide
+ * how many rows to request is circular, and the row is a fixed single line by
+ * design (paths are ellipsised, never wrapped).
+ */
+const ROW_HEIGHT = 26
+
 /** Extension chip colours, keyed by the extensions that actually dominate scans. */
 const EXT_CLASS: Record<string, string> = {
   log: 'ext--log',
@@ -86,7 +96,6 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
   const [fileStack, setFileStack] = useState<(string | undefined)[]>([undefined])
 
   const [exporting, setExporting] = useState(false)
-  const listRef = useRef<HTMLDivElement>(null)
 
   // Users load per target. A user selected on the previous target may not exist
   // here, so the selection is validated against the new list rather than kept.
@@ -110,12 +119,25 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
     }
   }, [target])
 
+  /*
+   * Page size follows the measured height, so a page always fits on screen. Both
+   * cards are the same height, so one measurement drives both lists.
+   *
+   * The measurement runs from the measured box's top edge to the bottom of the
+   * scroll host, so reserve has to cover everything between that top edge and the
+   * rows (the card header, 43px) plus everything below them (the pager at 35px and
+   * the card's bottom padding). Measured at 1920x1080: box top 317, host bottom
+   * 1080, rows 360→1017 — so 96px of chrome.
+   */
+  const fit = useFitRows({ rowHeight: ROW_HEIGHT, min: 8, max: 60, reserve: 96 })
+
   // Reset paging whenever the identity of the query changes. Reusing a cursor
   // across a different user or filter would resume at a meaningless position.
+  // The page size counts: a cursor from a 30-row page is meaningless on a 12-row one.
   useEffect(() => {
     setDirStack([undefined])
     setFileStack([undefined])
-  }, [user, applied])
+  }, [user, applied, fit.rows])
 
   const dirCursor = dirStack[dirStack.length - 1]
   const fileCursor = fileStack[fileStack.length - 1]
@@ -125,6 +147,9 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
       setDetail(null)
       return
     }
+    // Wait for the first measurement rather than fetching a provisional page and
+    // immediately refetching at the real size.
+    if (!fit.measured) return
 
     const controller = new AbortController()
     setLoading(true)
@@ -135,6 +160,7 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
       user,
       {
         ...toQuery(applied),
+        limit: fit.rows,
         ...(dirCursor !== undefined ? { dirCursor } : {}),
         ...(fileCursor !== undefined ? { fileCursor } : {}),
       },
@@ -154,7 +180,7 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
       })
 
     return () => controller.abort()
-  }, [target, user, applied, dirCursor, fileCursor])
+  }, [target, user, applied, dirCursor, fileCursor, fit.rows, fit.measured])
 
   // Remember the account so reopening the tab returns to it.
   useEffect(() => {
@@ -289,24 +315,28 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
         </div>
       )}
 
-      {!user ? (
-        <div className="state">
-          <p className="state__title">Select a user</p>
-          <p>Choose an account above to see its largest directories and files.</p>
-        </div>
-      ) : selectedMeta && !selectedMeta.hasDetail ? (
-        <div className="state">
-          <p className="state__title">{user}</p>
-          <p>
-            Total usage <strong>{formatSize(selectedMeta.used)}</strong>. This account has no
-            per-directory breakdown in the report.
-          </p>
-        </div>
-      ) : !detail ? (
-        <div className="skeleton" style={{ height: '420px' }} />
-      ) : (
-        <div className={`ud__grid${loading ? ' ud__grid--loading' : ''}`} ref={listRef}>
-          <section className="panel">
+      {/* Always mounted, and the box useFitRows measures. It has to exist before the
+          first fetch, because the fetch waits on the measurement to know its page
+          size — measuring the rendered list instead would deadlock. */}
+      <div className="ud__body" ref={fit.ref}>
+        {!user ? (
+          <div className="state">
+            <p className="state__title">Select a user</p>
+            <p>Choose an account above to see its largest directories and files.</p>
+          </div>
+        ) : selectedMeta && !selectedMeta.hasDetail ? (
+          <div className="state">
+            <p className="state__title">{user}</p>
+            <p>
+              Total usage <strong>{formatSize(selectedMeta.used)}</strong>. This account has no
+              per-directory breakdown in the report.
+            </p>
+          </div>
+        ) : !detail ? (
+          <div className="skeleton" />
+        ) : (
+          <div className={`ud__grid${loading ? ' ud__grid--loading' : ''}`}>
+            <section className="panel">
             <header className="panel__head">
               <h2 className="panel__title">Top directories</h2>
               <span className="panel__note">
@@ -420,9 +450,10 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
                 )
               }
             />
-          </section>
-        </div>
-      )}
+            </section>
+          </div>
+        )}
+      </div>
     </>
   )
 }

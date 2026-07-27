@@ -17,6 +17,7 @@ import { Treemap } from '../components/Treemap.js'
 import { fetchTreemap } from '../lib/api.js'
 import { formatCount, formatSize } from '../lib/format.js'
 import { KEYS, readString, writeString } from '../lib/prefs.js'
+import { useFitRows } from '../lib/useFitRows.js'
 
 type View = 'list' | 'treemap'
 
@@ -33,6 +34,12 @@ interface Props {
   jumpTo?: number | null
   onJumped?: () => void
 }
+
+/** One table row's height including its bottom border, measured in the browser. */
+const ROW_HEIGHT = 38
+
+/** The column header (24px) plus the "Load more" footer (42px). */
+const CHROME = 66
 
 export function TreemapTab({ target, totalSize, jumpTo, onJumped }: Props): JSX.Element {
   const [view, setView] = useState<View>(() =>
@@ -64,12 +71,33 @@ export function TreemapTab({ target, totalSize, jumpTo, onJumped }: Props): JSX.
     onJumped?.()
   }, [jumpTo, onJumped])
 
+  // Page size follows the measured list height so a level fits without scrolling
+  // the page. The treemap view is not a list — its tiles scale to whatever box they
+  // get — so it keeps the server default.
+  // reserve covers the column header and the "Load more" footer, which live inside
+  // the measured panel but are not rows.
+  const fit = useFitRows({ rowHeight: ROW_HEIGHT, min: 6, max: 60, reserve: CHROME })
+  /*
+   * The limit applies to children *and* files separately, so the list renders up to
+   * twice it. Halving keeps the two together inside one screen, less one row of
+   * slack: a directory with files also gets a synthetic row for them, which is not
+   * part of either page.
+   */
+  const pageSize = view === 'list' ? Math.max(3, Math.floor((fit.rows - 1) / 2)) : undefined
+
   useEffect(() => {
+    // In list view, wait for the measurement rather than fetching twice.
+    if (view === 'list' && !fit.measured) return
+
     let live = true
     setLoading(true)
     setError(null)
     setExtraDirs([])
-    fetchTreemap(target, { parent: openId, withFiles: view === 'list' })
+    fetchTreemap(target, {
+      parent: openId,
+      withFiles: view === 'list',
+      ...(pageSize !== undefined ? { limit: pageSize } : {}),
+    })
       .then((data) => {
         if (!live) return
         setLevel(data)
@@ -84,13 +112,17 @@ export function TreemapTab({ target, totalSize, jumpTo, onJumped }: Props): JSX.
     return () => {
       live = false
     }
-  }, [target, openId, view])
+  }, [target, openId, view, pageSize, fit.measured])
 
   const loadMore = useCallback(() => {
     if (!level) return
     setLoadingMore(true)
     const offset = level.childOffset + extraDirs.length
-    fetchTreemap(target, { parent: openId, childOffset: offset })
+    fetchTreemap(target, {
+      parent: openId,
+      childOffset: offset,
+      ...(pageSize !== undefined ? { limit: pageSize } : {}),
+    })
       .then((page) => {
         setExtraDirs((prev) => [...prev, ...page.children])
         // The tail page tells us whether anything is still left.
@@ -100,7 +132,7 @@ export function TreemapTab({ target, totalSize, jumpTo, onJumped }: Props): JSX.
         setError(err instanceof Error ? err.message : String(err))
       })
       .finally(() => setLoadingMore(false))
-  }, [level, extraDirs.length, target, openId])
+  }, [level, extraDirs.length, target, openId, pageSize])
 
   const open = useCallback((node: TreemapNode) => setOpenId(node.id), [])
   const navigate = useCallback((id: number) => setOpenId(id), [])
@@ -119,10 +151,26 @@ export function TreemapTab({ target, totalSize, jumpTo, onJumped }: Props): JSX.
     )
   }
 
-  // Keep the previous level on screen while the next loads; swapping in a
-  // skeleton on every drill makes the whole panel flash.
+  /*
+   * Keep the previous level on screen while the next loads; swapping in a skeleton
+   * on every drill makes the whole panel flash.
+   *
+   * The placeholders above the panel are deliberate. The skeleton carries the
+   * measuring ref, and the measurement is taken from the list's top edge — so if
+   * this branch omitted the toolbar and breadcrumb rows, the list would sit ~90px
+   * higher here than once loaded, measure three rows too many, and refetch. Holding
+   * the same vertical space keeps one measurement valid for both states.
+   */
   if (!level) {
-    return <div className="skeleton" style={{ height: '460px' }} />
+    return (
+      <>
+        <div className="tm__toolbar tm__toolbar--ghost" aria-hidden="true" />
+        <div className="panel tm__crumb-ghost" aria-hidden="true" />
+        <div className="panel panel--fill">
+          <div className="skeleton" ref={fit.ref} />
+        </div>
+      </>
+    )
   }
 
   const { node, path } = level
@@ -182,7 +230,9 @@ export function TreemapTab({ target, totalSize, jumpTo, onJumped }: Props): JSX.
         <Breadcrumbs path={path} onNavigate={navigate} />
       </div>
 
-      <div className={`panel${loading ? ' panel--loading' : ''}`}>
+      {/* panel--fill: takes the height left over and lets the list scroll inside,
+          so the toolbar and breadcrumbs stay visible while drilling. */}
+      <div className={`panel panel--fill${loading ? ' panel--loading' : ''}`} ref={fit.ref}>
         {view === 'list' ? (
           <EntryList
             dirs={dirs}

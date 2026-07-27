@@ -152,6 +152,135 @@ describe('Overview fits one viewport', () => {
   }, 45_000)
 })
 
+/**
+ * Open a Detail sub-tab and wait for its content.
+ *
+ * Same navigation reason as openOverview: the root URL shows the space comparison,
+ * so a disk has to be picked before a Detail tab exists.
+ */
+async function openTab(
+  tab: string,
+  ready: string,
+  width: number,
+  height: number,
+): Promise<import('playwright').Page> {
+  if (!browser) throw new Error('browser not launched')
+  const page = await browser.newPage({ viewport: { width, height } })
+  await page.goto(URL, { waitUntil: 'networkidle' })
+  await page.waitForSelector('.disk', { timeout: 15_000 })
+  await page.click('.disk')
+  // Picking a disk lands on Overview by design, so the Detail page comes first —
+  // the sub-tabs do not exist until it is open.
+  await page.click('.tab:text-is("Detail")')
+  await page.click(`.subtab:text-is("${tab}")`)
+  await page.waitForSelector(ready, { timeout: 15_000 })
+  // Let the fit measurement settle and its page land.
+  await page.waitForTimeout(1200)
+  return page
+}
+
+/*
+ * The list tabs must fit one screen.
+ *
+ * They page against a measured row count rather than a fixed one, because a fixed
+ * page size is either too tall for a laptop or wastes half a desktop. That
+ * measurement is easy to get wrong in ways nothing else catches: an early version
+ * measured the list's own container, whose height depends on the rows in it, and
+ * oscillated between a 21-row and a 6-row page. Another left the Detail User tab
+ * stuck on its skeleton forever, because the measured element does not exist on the
+ * first render and a plain effect only ever saw a null ref.
+ *
+ * So these tests assert the two things that actually matter — the page does not
+ * scroll, and the list settles on one page size — at both extremes of the supported
+ * viewport range.
+ */
+describe('list tabs fit one viewport', () => {
+  const TABS = [
+    { tab: 'TreeMap', ready: '.ent__rows' },
+    { tab: 'Detail User', ready: '.ud__body' },
+    { tab: 'Permission Issues', ready: '.perm__body' },
+  ]
+
+  for (const { tab, ready } of TABS) {
+    for (const [w, h] of [
+      [1440, 700],
+      [1920, 1080],
+    ] as const) {
+      it(`does not scroll the page on ${tab} at ${w}x${h}`, async () => {
+        if (!reachable || !browser) {
+          console.warn(`skipped: ${URL} unreachable`)
+          return
+        }
+
+        const page = await openTab(tab, ready, w, h)
+        const overflow = await page.evaluate(() => {
+          const main = document.querySelector('.main')
+          if (!main) return null
+          return main.scrollHeight - main.clientHeight
+        })
+        await page.close()
+
+        expect(overflow).not.toBeNull()
+        expect(overflow, `${tab} overflows the page by ${overflow}px`).toBeLessThanOrEqual(2)
+      }, 45_000)
+    }
+  }
+
+  it('settles on one page size instead of oscillating', async () => {
+    if (!reachable || !browser) {
+      console.warn(`skipped: ${URL} unreachable`)
+      return
+    }
+
+    const page = await browser.newPage({ viewport: { width: 1600, height: 900 } })
+    const limits: string[] = []
+    // Only /api/detail: the treemap tab renders first and its own (correct, smaller)
+    // limit would otherwise look like an oscillation here.
+    page.on('request', (req) => {
+      const m = /\/api\/detail\/[^?]*\?.*limit=(\d+)/.exec(req.url())
+      if (m?.[1]) limits.push(m[1])
+    })
+
+    await page.goto(URL, { waitUntil: 'networkidle' })
+    await page.waitForSelector('.disk', { timeout: 15_000 })
+    await page.click('.disk')
+    await page.click('.tab:text-is("Detail")')
+    await page.click('.subtab:text-is("Detail User")')
+    await page.waitForSelector('.ud__body', { timeout: 15_000 })
+    await page.waitForTimeout(2000)
+    await page.close()
+
+    // A feedback loop shows up as two different limits for one steady viewport.
+    expect(limits.length).toBeGreaterThan(0)
+    expect(new Set(limits).size, `page size oscillated: ${limits.join(', ')}`).toBe(1)
+  }, 45_000)
+
+  it('asks for more rows on a taller viewport', async () => {
+    if (!reachable || !browser) {
+      console.warn(`skipped: ${URL} unreachable`)
+      return
+    }
+
+    const rowsAt = async (height: number): Promise<number> => {
+      const page = await openTab('Detail User', '.ud__body', 1600, height)
+      const n = await page.evaluate(
+        () => document.querySelectorAll('.ud__list:first-of-type .ud__row').length,
+      )
+      await page.close()
+      return n
+    }
+
+    const short = await rowsAt(700)
+    const tall = await rowsAt(1080)
+
+    // The point of measuring: a fixed page size would return the same count for both.
+    expect(short).toBeGreaterThan(0)
+    expect(tall, `expected more rows at 1080px (${tall}) than at 700px (${short})`).toBeGreaterThan(
+      short,
+    )
+  }, 60_000)
+})
+
 // The three-column shell positions both nav columns with `position: fixed`, so
 // every seam between them is computed arithmetic over CSS variables rather than
 // flex flow. Two bugs came from exactly that and neither was visible to a unit

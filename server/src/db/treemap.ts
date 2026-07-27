@@ -160,6 +160,13 @@ export interface LevelOptions {
   withFiles?: boolean
   /** How many files to skip. */
   fileOffset?: number
+  /**
+   * Rows per page, for each of children and files.
+   *
+   * The client sends this because only the client knows how tall its list box is,
+   * and a page taller than the box would scroll off screen. Clamped to CHILD_LIMIT.
+   */
+  limit?: number
 }
 
 /**
@@ -174,6 +181,9 @@ export function readTreemapLevel(
   opts: LevelOptions = {},
 ): TreemapLevel | null {
   const { childOffset = 0, withFiles = false, fileOffset = 0 } = opts
+  // Clamp rather than trust: a client asking for 100,000 children would build a
+  // page nothing can render.
+  const pageSize = Math.max(1, Math.min(CHILD_LIMIT, opts.limit ?? CHILD_LIMIT))
 
   const id = parentId ?? rootId(db)
   if (id === null) return null
@@ -193,11 +203,11 @@ export function readTreemapLevel(
         ORDER BY d.total_size DESC, n.name ASC
         LIMIT ? OFFSET ?`,
     )
-    .all(id, CHILD_LIMIT + 1, childOffset) as ChildRow[]
+    .all(id, pageSize + 1, childOffset) as ChildRow[]
 
-  const shown = rows.slice(0, CHILD_LIMIT)
+  const shown = rows.slice(0, pageSize)
   const children = shown.map(toNode)
-  const truncated = rows.length > CHILD_LIMIT
+  const truncated = rows.length > pageSize
 
   // Size under this node not covered by the children returned *so far*: the
   // unfetched tail plus this directory's own files. The treemap needs it so the
@@ -208,7 +218,7 @@ export function readTreemapLevel(
   // has_files is exact, so skip the file query entirely when there are none —
   // detail_files has no dir_id index and the skip-scan is not free.
   const files =
-    withFiles && node.has_files === 1 ? readFiles(db, id, fileOffset, FILE_LIMIT) : []
+    withFiles && node.has_files === 1 ? readFiles(db, id, fileOffset, pageSize) : []
 
   return {
     node: toNode(node),

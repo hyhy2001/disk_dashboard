@@ -170,7 +170,13 @@ export function registerApi(app: FastifyInstance, config: Config): void {
   // drills by passing the id of the node it wants to open.
   app.get<{
     Params: { target: string }
-    Querystring: { parent?: string; childOffset?: string; fileOffset?: string; files?: string }
+    Querystring: {
+      parent?: string
+      childOffset?: string
+      fileOffset?: string
+      files?: string
+      limit?: string
+    }
   }>(
     '/api/treemap/:target',
     async (request, reply): Promise<ApiResponse<TreemapLevel>> => {
@@ -207,11 +213,16 @@ export function registerApi(app: FastifyInstance, config: Config): void {
         return fail(reply, 404, `no report found for target '${target}'`)
       }
 
+      // sizeParam drops an unusable value rather than failing: a bad limit is a
+      // display preference, and defaulting it is friendlier than a 400.
+      const limit = sizeParam(request.query.limit)
+
       const level = readTreemapLevel(db, parent, {
         childOffset: childOffset ?? 0,
         // Files cost an extra skip-scan, so the client opts in.
         withFiles: request.query.files === '1',
         fileOffset: fileOffset ?? 0,
+        ...(limit !== undefined ? { limit } : {}),
       })
       if (!level) {
         return fail(reply, 404, 'directory not found in this report')
