@@ -967,9 +967,10 @@ body {
   stroke-linecap: round;
 }
 
+/* Stroke colour is set per-marker so each dot matches its series; a stroke here
+   would win over the presentation attribute and flatten them to one colour. */
 .chart__dot {
   fill: var(--bg-base);
-  stroke: var(--accent);
   stroke-width: 2;
 }
 
@@ -980,10 +981,53 @@ body {
   opacity: 0.5;
 }
 
-.chart__cross line {
+/* ---------- crosshair, pills and tooltip ---------- */
+
+.chart__cross-line {
   stroke: var(--text-faint);
-  stroke-dasharray: 3 3;
+  stroke-dasharray: 4 4;
   stroke-width: 1;
+}
+
+/* Small amber-outlined chips reading the axis under the crosshair. */
+.chart__pill rect {
+  fill: var(--bg-raised);
+  stroke: color-mix(in srgb, var(--amber-400) 70%, transparent);
+  stroke-width: 1;
+}
+
+.chart__pill text {
+  fill: var(--amber-400);
+  font-size: 10px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+}
+
+/* Tooltip box: every series at the hovered scan. Only the direct child rect is
+   the panel — the nested rects are the per-series colour swatches, which set
+   their own fill. */
+.chart__tip > rect {
+  fill: var(--bg-raised);
+  stroke: var(--border-strong);
+  stroke-width: 1;
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.35));
+}
+
+.chart__tip-title {
+  fill: var(--text);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.chart__tip-row {
+  fill: var(--text-muted);
+  font-size: 11px;
+}
+
+.chart__tip-val {
+  fill: var(--text);
+  font-size: 11px;
+  font-family: var(--font-mono);
 }
 
 .chart__legend {
@@ -1004,18 +1048,6 @@ body {
   gap: 5px;
 }
 
-.chart__key-val {
-  font-family: var(--font-mono);
-  color: var(--text);
-  /* Reserve width so hovering across points does not jiggle the legend. */
-  min-width: 66px;
-}
-
-.chart__key-date {
-  margin-left: auto;
-  font-family: var(--font-mono);
-  color: var(--text-faint);
-}
 
 /* ---------- donut interaction ---------- */
 

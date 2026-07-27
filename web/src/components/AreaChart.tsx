@@ -62,6 +62,8 @@ const SERIES = [
 export function AreaChart({ points }: Props): JSX.Element {
   // Index of the hovered point, driving the crosshair.
   const [hover, setHover] = useState<number | null>(null)
+  /** Raw pointer y in viewBox units, for the free-moving horizontal crosshair. */
+  const [cursorY, setCursorY] = useState<number | null>(null)
   const [box, size] = useSize<HTMLDivElement>()
   // The panel and the fullscreen modal both mount this chart, so the gradient
   // needs an id unique per instance or one would reference the other's def.
@@ -105,14 +107,40 @@ export function AreaChart({ points }: Props): JSX.Element {
   const labelEvery = Math.max(1, Math.ceil(points.length / 8))
   const active = hover !== null ? points[hover] : undefined
 
-  /** Nearest data index for a pointer position, in viewBox units. */
+  /**
+   * Track the nearest data index and the raw pointer y.
+   *
+   * The vertical crosshair snaps to a data point, but the horizontal one follows
+   * the cursor freely — that is what makes it a readout of "what value is my
+   * cursor at", which is how legacy behaves.
+   */
   const pick = (e: React.MouseEvent<SVGSVGElement>): void => {
     const rect = e.currentTarget.getBoundingClientRect()
     const vx = ((e.clientX - rect.left) / rect.width) * width
+    const vy = ((e.clientY - rect.top) / rect.height) * height
     const ratio = (vx - PAD_L) / plotW
-    const i = Math.round(ratio * (points.length - 1))
-    setHover(i >= 0 && i < points.length ? i : null)
+    const raw = Math.round(ratio * (points.length - 1))
+    // Clamp rather than clear: the y-axis gutter on the right is inside the svg,
+    // so dropping the crosshair there would make it flicker off whenever the
+    // pointer drifts past the last data point.
+    setHover(Math.min(points.length - 1, Math.max(0, raw)))
+    setCursorY(vy >= PAD_T && vy <= PAD_T + plotH ? vy : null)
   }
+
+  /** Value under the horizontal crosshair, inverting the y scale. */
+  const valueAtCursor = cursorY === null ? null : ((PAD_T + plotH - cursorY) / plotH) * maxY
+
+  // Tooltip box placement: flip to the left of the crosshair when it would run
+  // past the right edge, so it never leaves the plot.
+  const TIP_W = 168
+  const tipH = 20 + SERIES.length * 16
+  const tipX =
+    hover === null
+      ? 0
+      : x(hover) + 12 + TIP_W > width - PAD_R
+        ? x(hover) - 12 - TIP_W
+        : x(hover) + 12
+  const tipY = Math.min(Math.max(PAD_T, (cursorY ?? PAD_T) - tipH / 2), PAD_T + plotH - tipH)
 
   return (
     <>
@@ -175,10 +203,94 @@ export function AreaChart({ points }: Props): JSX.Element {
         />
 
         {hover !== null && active && (
-          <g className="chart__cross" pointerEvents="none">
-            <line x1={x(hover)} y1={PAD_T} x2={x(hover)} y2={PAD_T + plotH} />
-            <circle cx={x(hover)} cy={y(active.usedSize)} r={3.5} className="chart__dot" />
-            <circle cx={x(hover)} cy={y(active.scannedSize)} r={3} className="chart__dot" />
+          <g pointerEvents="none">
+            {/* Vertical line, snapped to the hovered scan. */}
+            <line
+              className="chart__cross-line"
+              x1={x(hover)}
+              y1={PAD_T}
+              x2={x(hover)}
+              y2={PAD_T + plotH}
+            />
+            {/* One marker per series, so the crosshair shows where each line sits
+                at this scan rather than only the Used value. */}
+            {SERIES.map((s) => (
+              <circle
+                key={s.key}
+                cx={x(hover)}
+                cy={y(active[s.key])}
+                r={3.5}
+                className="chart__dot"
+                stroke={s.color}
+              />
+            ))}
+
+            {/* Date pill below the x axis. */}
+            <g className="chart__pill">
+              <rect
+                x={x(hover) - 34}
+                y={PAD_T + plotH + 4}
+                width={68}
+                height={17}
+                rx={4}
+              />
+              <text x={x(hover)} y={PAD_T + plotH + 16} textAnchor="middle">
+                {formatScanDate(active.date)}
+              </text>
+            </g>
+
+            {/* Horizontal line following the cursor, with the value it points at
+                on the y axis — this answers "how much is this height?" for any
+                position, not just at a data point. */}
+            {cursorY !== null && valueAtCursor !== null && (
+              <>
+                <line
+                  className="chart__cross-line"
+                  x1={PAD_L}
+                  y1={cursorY}
+                  x2={width - PAD_R}
+                  y2={cursorY}
+                />
+                <g className="chart__pill">
+                  <rect x={width - PAD_R + 4} y={cursorY - 9} width={PAD_R - 8} height={18} rx={4} />
+                  <text x={width - PAD_R + 8} y={cursorY + 4}>
+                    {formatSize(valueAtCursor)}
+                  </text>
+                </g>
+              </>
+            )}
+
+            {/* Tooltip box listing every series at the hovered scan, as legacy's
+                index-mode tooltip did. */}
+            <g className="chart__tip">
+              <rect x={tipX} y={tipY} width={TIP_W} height={tipH} rx={6} />
+              <text className="chart__tip-title" x={tipX + 10} y={tipY + 15}>
+                {formatScanDate(active.date)}
+              </text>
+              {SERIES.map((s, i) => (
+                <g key={s.key}>
+                  <rect
+                    x={tipX + 10}
+                    y={tipY + 24 + i * 16}
+                    width={8}
+                    height={8}
+                    rx={2}
+                    fill={s.color}
+                  />
+                  <text className="chart__tip-row" x={tipX + 24} y={tipY + 32 + i * 16}>
+                    {s.label}
+                  </text>
+                  <text
+                    className="chart__tip-val"
+                    x={tipX + TIP_W - 10}
+                    y={tipY + 32 + i * 16}
+                    textAnchor="end"
+                  >
+                    {formatSize(active[s.key])}
+                  </text>
+                </g>
+              ))}
+            </g>
           </g>
         )}
 
@@ -209,10 +321,8 @@ export function AreaChart({ points }: Props): JSX.Element {
               />
             </svg>
             {s.label}
-            {active && <span className="chart__key-val">{formatSize(active[s.key])}</span>}
           </span>
         ))}
-        {active && <span className="chart__key-date">{formatScanDate(active.date)}</span>}
       </div>
     </>
   )

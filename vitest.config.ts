@@ -10,6 +10,7 @@ export default defineConfig({
     environment: 'node',
     include: ['{server,web,shared}/**/*.test.{ts,tsx}'],
     environmentMatchGlobs: [['**/*.test.tsx', 'jsdom']],
+    setupFiles: ['./web/src/test-setup.ts'],
     // Report a clear failure rather than hanging if a DB handle is left open.
     testTimeout: 20_000,
   },
