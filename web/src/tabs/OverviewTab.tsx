@@ -147,7 +147,10 @@ export function OverviewTab({ overview }: Props): JSX.Element {
           slug="timeline"
           onClose={() => setExpanded(null)}
         >
-          <AreaChart points={shownHistory} height={340} />
+          {/* Sized by CSS in the modal, which gives it a taller box. */}
+          <div className="canvas canvas--modal">
+            <AreaChart points={shownHistory} />
+          </div>
         </ChartModal>
       )}
       {expanded === 'teams' && (
@@ -172,7 +175,9 @@ export function OverviewTab({ overview }: Props): JSX.Element {
           onClose={() => setExpanded(null)}
         >
           {/* More room means more bars are worth showing. */}
-          <BarChart rows={shownUsers} limit={30} logScale={logScale} />
+          <div className="canvas canvas--modal">
+            <BarChart rows={shownUsers} limit={30} logScale={logScale} />
+          </div>
         </ChartModal>
       )}
     </>

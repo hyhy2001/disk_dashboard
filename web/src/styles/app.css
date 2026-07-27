@@ -855,6 +855,17 @@ body {
 }
 
 
+.donut__total {
+  fill: var(--text);
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+.donut__caption {
+  fill: var(--text-muted);
+  font-weight: 500;
+}
+
 .donut__slice {
   transition: opacity var(--duration-fast) var(--ease-out);
 }
@@ -886,7 +897,8 @@ body {
   display: flex;
   align-items: center;
   gap: 7px;
-  font-size: 12px;
+  font-size: var(--chart-font);
+  font-weight: 500;
   min-width: 0;
 }
 
@@ -910,12 +922,20 @@ body {
   flex: 0 0 auto;
 }
 
-/* Fills the canvas box it is given and shrinks with it, rather than growing to
-   its intrinsic aspect ratio and pushing the page past one screen. */
-.chart {
-  width: 100%;
+/* The measured box a chart draws into. Charts set their viewBox to this box's
+   real pixel size, so 12px of text is 12px on screen; scaling a fixed viewBox
+   instead renders the same declared size differently in every panel, which is
+   what made these frames look mismatched. */
+.chartbox {
   flex: 1 1 auto;
   min-height: 0;
+  min-width: 0;
+  display: flex;
+}
+
+.chart {
+  width: 100%;
+  height: 100%;
   overflow: visible;
 }
 
@@ -924,9 +944,18 @@ body {
   stroke-width: 1;
 }
 
+/* Legacy sets every chart tick, axis label and legend entry to 12px weight 500 —
+   one size across all three charts. Mixing sizes is what made these frames look
+   uneven. Kept as a token so a future chart cannot drift. */
 .chart__axis {
-  fill: var(--text-faint);
-  font-size: 9px;
+  fill: var(--text-muted);
+  font-size: var(--chart-font);
+  font-weight: 500;
+  font-family: var(--font-sans);
+}
+
+/* Byte figures line up column-wise when they are monospaced. */
+.chart__axis--mono {
   font-family: var(--font-mono);
 }
 
@@ -963,7 +992,8 @@ body {
   gap: 12px;
   flex-wrap: wrap;
   margin-top: 6px;
-  font-size: 11px;
+  font-size: var(--chart-font);
+  font-weight: 500;
   color: var(--text-muted);
   flex: 0 0 auto;
 }
@@ -1758,21 +1788,16 @@ body {
   overflow: auto;
 }
 
-/* The fullscreen view exists to give a chart room, so the compact canvas
-   heights must not apply inside it. */
+/* The fullscreen view exists to give a chart room, so it gets a tall fixed box
+   rather than the compact viewport-fitted heights. */
 .modal__body .canvas,
-.modal__body .canvas--tall {
-  height: auto;
+.modal__body .canvas--tall,
+.canvas--modal {
+  height: min(62vh, 520px);
 }
 
-.modal__body .chart {
-  height: auto;
-}
-
-.modal__body .donut__svg {
-  height: auto;
-  width: 280px;
-  max-width: 100%;
+.modal__body .donut {
+  height: min(62vh, 520px);
 }
 
 .modal__tools {

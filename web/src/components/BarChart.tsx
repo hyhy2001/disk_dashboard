@@ -9,6 +9,7 @@
 
 import type { UsageRow } from '../../../shared/api.js'
 import { formatSize } from '../lib/format.js'
+import { useSize } from '../lib/useSize.js'
 
 interface Props {
   rows: UsageRow[]
@@ -17,29 +18,48 @@ interface Props {
   logScale?: boolean
 }
 
-const ROW_H = 22
+const ROW_H = 24
 /** Legacy caps bars at 32px so labels never collide; rows here are tighter. */
-const BAR_H = 12
-const LABEL_W = 108
-const VALUE_W = 66
-const WIDTH = 460
+const BAR_H = 13
+/** Wide enough for a 16-character username at the 12px chart font. */
+const LABEL_W = 122
+const VALUE_W = 74
+const WIDTH = 500
 
 /** Smallest value a log axis can plot; log(0) is -Infinity. */
 const LOG_FLOOR = 1
 
+/** Below this a row cannot hold a 12px label without crowding. */
+const MIN_ROW_H = 18
+
 export function BarChart({ rows, limit = 10, logScale = false }: Props): JSX.Element {
-  const data = [...rows]
-    .filter((r) => r.used > 0)
-    .sort((a, b) => b.used - a.used)
-    .slice(0, limit)
+  const [box, size] = useSize<HTMLDivElement>()
+
+  const ranked = [...rows].filter((r) => r.used > 0).sort((a, b) => b.used - a.used)
+
+  // The viewBox is the box's real pixel size, so text renders at its declared
+  // size instead of being scaled along with the drawing.
+  const width = size?.width && size.width > 0 ? size.width : WIDTH
+  const avail = size?.height ?? 0
+
+  // Drop the smallest consumers rather than shrink the text below legibility:
+  // eight readable rows beat ten unreadable ones, and since rows are ranked, the
+  // ones cut are the least interesting.
+  const fits = avail > 0 ? Math.max(3, Math.floor(avail / MIN_ROW_H)) : limit
+  const data = ranked.slice(0, Math.min(limit, fits))
 
   if (data.length === 0) {
     return <p className="empty">No users to chart.</p>
   }
 
   const max = data[0]?.used ?? 1
-  const trackW = WIDTH - LABEL_W - VALUE_W
-  const height = data.length * ROW_H
+  const trackW = Math.max(60, width - LABEL_W - VALUE_W)
+  // Floor the row height so rows*rowH never exceeds the box; otherwise
+  // preserveAspectRatio scales the drawing down and shrinks the text with it.
+  const rowH =
+    avail > 0 ? Math.max(MIN_ROW_H, Math.min(ROW_H, Math.floor(avail / data.length))) : ROW_H
+  const barH = Math.max(8, Math.min(BAR_H, rowH - 9))
+  const height = data.length * rowH
 
   /**
    * Bar width as a fraction of the track. On a log axis a zero would vanish
@@ -55,64 +75,51 @@ export function BarChart({ rows, limit = 10, logScale = false }: Props): JSX.Ele
   }
 
   return (
-    <svg
-      className="chart"
-      viewBox={`0 0 ${WIDTH} ${height}`}
-      // Fit inside the canvas box rather than overflowing it: the chart is
-      // allowed to shrink so all three panels stay within one screen.
-      preserveAspectRatio="xMidYMid meet"
-      role="img"
-      aria-label={`Top ${data.length} users by disk usage${logScale ? ', logarithmic scale' : ''}`}
-    >
-      {data.map((r, i) => {
-        const y = i * ROW_H
-        const w = Math.max(2, widthFor(r.used))
-        const mid = y + BAR_H / 2 + 4
-        return (
-          <g key={r.name}>
-            {/* Every name renders. Chart.js autoSkip would drop every other
-                label when narrow, showing 10 bars but 5 names. */}
-            <text
-              className="chart__axis"
-              x={LABEL_W - 8}
-              y={mid}
-              textAnchor="end"
-              fill="var(--text-muted)"
-              fontSize="11"
-            >
-              {r.name.length > 16 ? `${r.name.slice(0, 15)}…` : r.name}
-            </text>
-            <rect
-              x={LABEL_W}
-              y={y + 2}
-              width={trackW}
-              height={BAR_H}
-              rx={4}
-              fill="var(--bg-hover)"
-            />
-            <rect
-              className="chart__bar"
-              x={LABEL_W}
-              y={y + 2}
-              width={w}
-              height={BAR_H}
-              rx={4}
-              fill="var(--sky-400)"
-            >
-              <title>{`${r.name}: ${formatSize(r.used)}`}</title>
-            </rect>
-            <text
-              className="chart__axis"
-              x={LABEL_W + trackW + 8}
-              y={mid}
-              fill="var(--text-muted)"
-              fontSize="11"
-            >
-              {formatSize(r.used)}
-            </text>
-          </g>
-        )
-      })}
-    </svg>
+    <div className="chartbox" ref={box}>
+      <svg
+        className="chart"
+        viewBox={`0 0 ${width} ${height}`}
+        preserveAspectRatio="xMinYMin meet"
+        role="img"
+        aria-label={`Top ${data.length} users by disk usage${logScale ? ', logarithmic scale' : ''}`}
+      >
+        {data.map((r, i) => {
+          const y = i * rowH
+          const w = Math.max(2, widthFor(r.used))
+          const mid = y + barH / 2 + 5
+          return (
+            <g key={r.name}>
+              {/* Every name renders. Chart.js autoSkip would drop every other
+                  label when narrow, showing 10 bars but 5 names. */}
+              <text className="chart__axis" x={LABEL_W - 8} y={mid} textAnchor="end">
+                {r.name.length > 16 ? `${r.name.slice(0, 15)}…` : r.name}
+              </text>
+              <rect
+                x={LABEL_W}
+                y={y + 2}
+                width={trackW}
+                height={barH}
+                rx={4}
+                fill="var(--bg-hover)"
+              />
+              <rect
+                className="chart__bar"
+                x={LABEL_W}
+                y={y + 2}
+                width={w}
+                height={barH}
+                rx={4}
+                fill="var(--sky-400)"
+              >
+                <title>{`${r.name}: ${formatSize(r.used)}`}</title>
+              </rect>
+              <text className="chart__axis chart__axis--mono" x={LABEL_W + trackW + 8} y={mid}>
+                {formatSize(r.used)}
+              </text>
+            </g>
+          )
+        })}
+      </svg>
+    </div>
   )
 }

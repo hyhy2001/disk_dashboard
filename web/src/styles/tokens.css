@@ -38,6 +38,10 @@
   --space-6: 24px;
   --space-8: 32px;
 
+  /* Every tick, axis label and legend entry in every chart. Legacy uses one
+     size (12px / weight 500) throughout; a single token keeps it that way. */
+  --chart-font: 12px;
+
   --font-sans: 'Fira Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   --font-mono: 'Fira Code', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
 

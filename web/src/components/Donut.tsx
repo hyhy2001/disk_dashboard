@@ -150,24 +150,24 @@ export function Donut({
             return el
           })}
         </g>
-        {/* Legacy's two-line centre: the figure, then what it counts. */}
+        {/* Legacy's two-line centre: bold 22px figure, 12px caption. Sizes are in
+            viewBox units and `size` is the viewBox, so they scale with the ring
+            and stay proportionate at any rendered size. */}
         <text
+          className="donut__total"
           x={size / 2}
-          y={size / 2 - 6}
+          y={size / 2 - 5}
           textAnchor="middle"
-          fill="var(--text)"
-          fontSize={size >= 240 ? 24 : 17}
-          fontFamily="var(--font-mono)"
-          fontWeight="600"
+          fontSize={size * 0.15}
         >
           {formatSize(total)}
         </text>
         <text
+          className="donut__caption"
           x={size / 2}
-          y={size / 2 + 13}
+          y={size / 2 + 14}
           textAnchor="middle"
-          fill="var(--text-muted)"
-          fontSize={size >= 240 ? 13 : 11}
+          fontSize={size * 0.082}
         >
           used
         </text>

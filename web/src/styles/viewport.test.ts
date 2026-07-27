@@ -74,6 +74,45 @@ describe('Overview fits one viewport', () => {
     }, 45_000)
   }
 
+  it('renders chart text at the same size in every panel', async () => {
+    if (!reachable || !browser) {
+      console.warn(`skipped: ${URL} unreachable`)
+      return
+    }
+
+    const page = await browser.newPage({ viewport: { width: 1440, height: 768 } })
+    await page.goto(URL, { waitUntil: 'networkidle' })
+    await page.waitForSelector('svg.chart text', { timeout: 15_000 })
+    // Let ResizeObserver deliver the first measurement.
+    await page.waitForTimeout(600)
+
+    const sizes = await page.evaluate(() => {
+      const out: { panel: string; rendered: number }[] = []
+      for (const svg of document.querySelectorAll('svg.chart')) {
+        const vb = (svg as SVGSVGElement).viewBox.baseVal
+        const box = svg.getBoundingClientRect()
+        const text = svg.querySelector('text')
+        if (!text || vb.width === 0 || box.width === 0) continue
+        // A scaled viewBox scales its text too, so the on-screen size is the
+        // declared size times the scale factor.
+        const declared = parseFloat(getComputedStyle(text).fontSize)
+        out.push({
+          panel: svg.closest('.panel')?.querySelector('.panel__title')?.textContent ?? '?',
+          rendered: Math.round(declared * (box.width / vb.width) * 10) / 10,
+        })
+      }
+      return out
+    })
+    await page.close()
+
+    expect(sizes.length).toBeGreaterThan(1)
+    // Legacy uses one size across all charts; two panels rendering the same
+    // declared size differently is the bug this guards.
+    const distinct = [...new Set(sizes.map((s) => s.rendered))]
+    expect(distinct, `mismatched chart text: ${JSON.stringify(sizes)}`).toHaveLength(1)
+    expect(distinct[0]).toBeCloseTo(12, 0)
+  }, 45_000)
+
   it('keeps all three chart panels visible in the viewport', async () => {
     if (!reachable || !browser) {
       console.warn(`skipped: ${URL} unreachable`)

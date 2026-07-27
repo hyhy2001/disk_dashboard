@@ -15,23 +15,20 @@
 import { useId, useState } from 'react'
 import type { HistoryPoint } from '../../../shared/api.js'
 import { formatScanDate, formatSize } from '../lib/format.js'
+import { useSize } from '../lib/useSize.js'
 
 interface Props {
   points: HistoryPoint[]
-  /**
-   * Height of the plot in viewBox units. Only affects the internal coordinate
-   * system — CSS decides the rendered size — so this is about the aspect ratio,
-   * not the pixel height.
-   */
-  height?: number
 }
 
+/** Fallback until the box has been measured. */
 const WIDTH = 560
+const HEIGHT = 200
 const PAD_L = 14
 /** Legacy pins the y axis on the right at a fixed 90px. */
-const PAD_R = 78
+const PAD_R = 84
 const PAD_T = 12
-const PAD_B = 26
+const PAD_B = 28
 
 // Legacy's exact strokes: solid amber for Used, translucent dashed amber for the
 // scan result, translucent dashed slate for Total.
@@ -62,9 +59,10 @@ const SERIES = [
   },
 ] as const
 
-export function AreaChart({ points, height = 190 }: Props): JSX.Element {
+export function AreaChart({ points }: Props): JSX.Element {
   // Index of the hovered point, driving the crosshair.
   const [hover, setHover] = useState<number | null>(null)
+  const [box, size] = useSize<HTMLDivElement>()
   // The panel and the fullscreen modal both mount this chart, so the gradient
   // needs an id unique per instance or one would reference the other's def.
   const gradId = `used-fill-${useId().replace(/:/g, '')}`
@@ -84,7 +82,12 @@ export function AreaChart({ points, height = 190 }: Props): JSX.Element {
     )
   }
 
-  const plotW = WIDTH - PAD_L - PAD_R
+  // viewBox in real pixels, so declared font sizes render at that size instead of
+  // being scaled with the drawing.
+  const width = size?.width && size.width > 0 ? size.width : WIDTH
+  const height = size?.height && size.height > 0 ? size.height : HEIGHT
+
+  const plotW = width - PAD_L - PAD_R
   const plotH = height - PAD_T - PAD_B
   const maxY = Math.max(...points.map((p) => Math.max(p.totalSize, p.usedSize)), 1)
 
@@ -105,7 +108,7 @@ export function AreaChart({ points, height = 190 }: Props): JSX.Element {
   /** Nearest data index for a pointer position, in viewBox units. */
   const pick = (e: React.MouseEvent<SVGSVGElement>): void => {
     const rect = e.currentTarget.getBoundingClientRect()
-    const vx = ((e.clientX - rect.left) / rect.width) * WIDTH
+    const vx = ((e.clientX - rect.left) / rect.width) * width
     const ratio = (vx - PAD_L) / plotW
     const i = Math.round(ratio * (points.length - 1))
     setHover(i >= 0 && i < points.length ? i : null)
@@ -113,10 +116,13 @@ export function AreaChart({ points, height = 190 }: Props): JSX.Element {
 
   return (
     <>
+      {/* The measured box holds only the svg — the legend below it is normal flow
+          content and must not count toward the plot's height. */}
+      <div className="chartbox" ref={box}>
       <svg
         className="chart"
-        viewBox={`0 0 ${WIDTH} ${height}`}
-        preserveAspectRatio="xMidYMid meet"
+        viewBox={`0 0 ${width} ${height}`}
+        preserveAspectRatio="xMinYMin meet"
         role="img"
         aria-label={`Capacity across ${points.length} scans`}
         onMouseMove={pick}
@@ -136,9 +142,9 @@ export function AreaChart({ points, height = 190 }: Props): JSX.Element {
           const gy = PAD_T + plotH - t * plotH
           return (
             <g key={t}>
-              <line className="chart__grid" x1={PAD_L} y1={gy} x2={WIDTH - PAD_R} y2={gy} />
+              <line className="chart__grid" x1={PAD_L} y1={gy} x2={width - PAD_R} y2={gy} />
               {/* Axis labels on the right, as legacy positioned them. */}
-              <text className="chart__axis" x={WIDTH - PAD_R + 8} y={gy + 3}>
+              <text className="chart__axis chart__axis--mono" x={width - PAD_R + 8} y={gy + 3}>
                 {formatSize(maxY * t)}
               </text>
             </g>
@@ -164,7 +170,7 @@ export function AreaChart({ points, height = 190 }: Props): JSX.Element {
           className="chart__ref"
           x1={PAD_L}
           y1={y(latest.usedSize)}
-          x2={WIDTH - PAD_R}
+          x2={width - PAD_R}
           y2={y(latest.usedSize)}
         />
 
@@ -186,6 +192,7 @@ export function AreaChart({ points, height = 190 }: Props): JSX.Element {
           </g>
         ))}
       </svg>
+      </div>
 
       <div className="chart__legend">
         {SERIES.map((s) => (
