@@ -36,8 +36,17 @@ import type {
 /** Rows per page. Legacy used 500; the same value keeps scroll depth familiar. */
 export const PAGE_SIZE = 500
 
-/** Hard cap on a client-supplied page size, so one request cannot ask for 1M rows. */
-export const MAX_PAGE_SIZE = 5000
+/**
+ * Cap on a client-supplied page size, matching legacy's `get_int('limit', 500, 1, 50000)`.
+ *
+ * The ceiling exists for exports, not for the UI, which never asks for more than
+ * PAGE_SIZE. Measured on a 1.5M-file report: 50,000 file rows cost 322ms and 7.6 MB
+ * of JSON. That is a poor page but a good export chunk — it turns one user's 1.4M
+ * files into 29 requests instead of 290, and the row cost is sublinear (500 rows
+ * 23ms, 50,000 rows 322ms) because the per-request overhead dominates at small
+ * sizes.
+ */
+export const MAX_PAGE_SIZE = 50_000
 
 /**
  * Keyset position in the dirs ordering. `(size DESC, id ASC)` needs both parts:

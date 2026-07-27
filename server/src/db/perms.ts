@@ -15,7 +15,12 @@ import type { PermIssue, PermPage } from '../../../shared/api.js'
 /** Items per page. Legacy showed 100 and the list is dense, so keep it. */
 export const PERM_PAGE = 100
 
-export const MAX_PERM_PAGE = 1000
+/**
+ * Cap on a client-supplied page size, matching legacy's
+ * `get_int('limit', 100, 1, 5000)`. Only the export path asks for more than
+ * PERM_PAGE; 5000 is what legacy's exporter fetches per chunk.
+ */
+export const MAX_PERM_PAGE = 5000
 
 /**
  * Users with no team mapping arrive as an empty string from duscan. Legacy

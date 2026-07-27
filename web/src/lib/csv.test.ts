@@ -63,6 +63,19 @@ describe('safeName', () => {
   })
 })
 
+/**
+ * Neutralise the download side effects and return the click spy.
+ *
+ * jsdom has no download machinery, and a real object URL would leak between cases.
+ */
+function stubDownload(): ReturnType<typeof vi.fn> {
+  const clicked = vi.fn()
+  vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:x')
+  vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
+  vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(clicked)
+  return clicked
+}
+
 /** Build a fetcher that serves `pages` in order. */
 function pager(pages: Row[][]): (cursor: string | undefined) => Promise<{
   rows: Row[]
@@ -79,10 +92,8 @@ function pager(pages: Row[][]): (cursor: string | undefined) => Promise<{
 
 describe('exportCsv (blob fallback)', () => {
   it('walks every page and reports the row count', async () => {
-    const clicked = vi.fn()
-    const created = vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:x')
-    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
-    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(clicked)
+    const clicked = stubDownload()
+    const created = vi.mocked(URL.createObjectURL)
 
     const result = await exportCsv({
       filename: 'perms_Test',
@@ -93,16 +104,20 @@ describe('exportCsv (blob fallback)', () => {
       ]),
     })
 
-    expect(result).toEqual({ kind: 'downloaded', rows: 2, filename: 'perms_Test.csv' })
+    expect(result).toEqual({
+      kind: 'downloaded',
+      rows: 2,
+      filename: 'perms_Test.csv',
+      files: 1,
+      truncated: false,
+    })
     expect(clicked).toHaveBeenCalledOnce()
     expect(created).toHaveBeenCalledOnce()
     vi.restoreAllMocks()
   })
 
   it('reports progress as pages land', async () => {
-    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:x')
-    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
-    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+    stubDownload()
 
     const seen: number[] = []
     await exportCsv({
@@ -116,10 +131,23 @@ describe('exportCsv (blob fallback)', () => {
     vi.restoreAllMocks()
   })
 
-  it('stops at maxRows instead of draining every page', async () => {
-    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:x')
-    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
-    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+  it('exports every page when no cap is set', async () => {
+    stubDownload()
+
+    // The default must be "export everything": a silently short file looks
+    // complete, which is worse than a slow export.
+    const result = await exportCsv({
+      filename: 'x',
+      headers: ['a'],
+      fetchPage: pager([[['1'], ['2']], [['3']], [['4']]]),
+    })
+
+    expect(result).toMatchObject({ rows: 4, truncated: false })
+    vi.restoreAllMocks()
+  })
+
+  it('stops at maxRows and says so when one is set', async () => {
+    stubDownload()
 
     const result = await exportCsv({
       filename: 'x',
@@ -128,17 +156,86 @@ describe('exportCsv (blob fallback)', () => {
       maxRows: 2,
     })
 
-    expect(result).toMatchObject({ rows: 2 })
+    expect(result).toMatchObject({ rows: 2, truncated: true })
     vi.restoreAllMocks()
   })
 
   it('handles an empty result without failing', async () => {
-    vi.spyOn(URL, 'createObjectURL').mockReturnValue('blob:x')
-    vi.spyOn(URL, 'revokeObjectURL').mockImplementation(() => undefined)
-    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => undefined)
+    stubDownload()
 
     const result = await exportCsv({ filename: 'x', headers: ['a'], fetchPage: pager([[]]) })
-    expect(result).toMatchObject({ rows: 0 })
+    expect(result).toMatchObject({ rows: 0, files: 1 })
+    vi.restoreAllMocks()
+  })
+})
+
+describe('exportCsv splitting', () => {
+  it('keeps one file when the row count fits a chunk', async () => {
+    const clicked = stubDownload()
+
+    const result = await exportCsv({
+      filename: 'files_root',
+      headers: ['Path'],
+      chunkRows: 10,
+      fetchPage: pager([[['a'], ['b']]]),
+    })
+
+    expect(result).toMatchObject({ files: 1, filename: 'files_root.csv' })
+    expect(clicked).toHaveBeenCalledOnce()
+    vi.restoreAllMocks()
+  })
+
+  it('splits into parts past the chunk size', async () => {
+    const clicked = stubDownload()
+
+    // Excel stops at 1,048,576 rows, so a bigger CSV loses its tail on open.
+    // Legacy split at 500,000; the mechanism is what matters here, not the number.
+    const result = await exportCsv({
+      filename: 'files_root',
+      headers: ['Path'],
+      chunkRows: 2,
+      fetchPage: pager([[['a'], ['b'], ['c']], [['d'], ['e']]]),
+    })
+
+    expect(result).toMatchObject({ kind: 'downloaded', rows: 5, files: 3 })
+    expect(clicked).toHaveBeenCalledTimes(3)
+    vi.restoreAllMocks()
+  })
+
+  it('repeats the header in every part and puts each row in exactly one', async () => {
+    // Intercept at the Blob constructor: jsdom's Blob has no text(), so the parts
+    // are inspected through what they were built from.
+    const texts: string[] = []
+    const RealBlob = globalThis.Blob
+    vi.stubGlobal(
+      'Blob',
+      class extends RealBlob {
+        constructor(parts: BlobPart[], opts?: BlobPropertyBag) {
+          super(parts, opts)
+          texts.push(parts.map(String).join(''))
+        }
+      },
+    )
+    stubDownload()
+
+    await exportCsv({
+      filename: 'x',
+      headers: ['Path'],
+      chunkRows: 2,
+      // Distinctive values: single letters would collide with the header text.
+      fetchPage: pager([[['/one'], ['/two'], ['/three'], ['/four']]]),
+    })
+
+    expect(texts).toHaveLength(2)
+    // A part without its own header row is not a usable CSV on its own.
+    for (const t of texts) expect(t).toContain('Path')
+    expect(texts[0]).toContain('/one')
+    expect(texts[0]).toContain('/two')
+    expect(texts[1]).toContain('/three')
+    expect(texts[1]).toContain('/four')
+    // No row may be duplicated across parts.
+    expect(texts[1]).not.toContain('/one')
+    vi.unstubAllGlobals()
     vi.restoreAllMocks()
   })
 })

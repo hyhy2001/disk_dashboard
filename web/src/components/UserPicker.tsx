@@ -9,8 +9,11 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { DetailUser } from '../../../shared/api.js'
 import { formatCount, formatSize } from '../lib/format.js'
 
-/** Options rendered at once, extended by scrolling. */
-const WINDOW = 40
+/**
+ * Options rendered at once, extended by scrolling. Legacy's DROPDOWN_PAGE was 30;
+ * this matches, so the initial list is the same depth.
+ */
+const WINDOW = 30
 
 interface Props {
   users: DetailUser[]

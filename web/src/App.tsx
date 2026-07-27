@@ -11,7 +11,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { HealthInfo, Overview, TargetGroup } from '../../shared/api.js'
-import { fetchGroups, fetchHealth, fetchOverview } from './lib/api.js'
+import { clearApiCache, fetchGroups, fetchHealth, fetchOverview } from './lib/api.js'
 import { NoTargets } from './components/NoTargets.js'
 import { ColumnResizer } from './components/ColumnResizer.js'
 import { DiskColumn } from './components/DiskColumn.js'
@@ -328,7 +328,12 @@ export function App(): JSX.Element {
                   <SyncPill
                     target={route.disk}
                     refreshing={loading}
-                    onStale={() => setReloadKey((k) => k + 1)}
+                    onStale={() => {
+                      // Every cached response describes the report file that was
+                      // just replaced, so the cache goes with it.
+                      clearApiCache()
+                      setReloadKey((k) => k + 1)
+                    }}
                   />
                 )
               ) : activeGroup ? (

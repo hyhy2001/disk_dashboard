@@ -34,16 +34,32 @@ export interface ExportOptions {
   /** Called with the running row count so the caller can drive a progress toast. */
   onProgress?: (rows: number) => void
   /**
-   * Stop after this many rows. A guard against an export that would never end;
-   * the caller decides what "too big" means.
+   * Rows per output file on the fallback path.
+   *
+   * Spreadsheets stop at 1,048,576 rows, so a bigger export has to be split or it
+   * silently loses the tail when opened. Legacy split at 500,000 and so do we. The
+   * streaming path does not need this: a .csv.gz is not opened in Excel directly.
+   */
+  chunkRows?: number
+
+  /**
+   * Absolute ceiling, as a runaway guard only.
+   *
+   * Left undefined by default: truncating an export is worse than a slow one,
+   * because a short file looks complete. Set it only where an unbounded walk would
+   * genuinely never end.
    */
   maxRows?: number
 }
 
 export type ExportResult =
-  | { kind: 'streamed'; rows: number; filename: string }
-  | { kind: 'downloaded'; rows: number; filename: string }
+  | { kind: 'streamed'; rows: number; filename: string; truncated: boolean }
+  /** `files` is >1 when the row count forced a split. */
+  | { kind: 'downloaded'; rows: number; filename: string; files: number; truncated: boolean }
   | { kind: 'cancelled' }
+
+/** Legacy's split point, and the reason for it: Excel's row ceiling. */
+export const DEFAULT_CHUNK_ROWS = 500_000
 
 /**
  * Quote a CSV cell.
@@ -149,7 +165,12 @@ async function streamExport(opts: ExportOptions): Promise<ExportResult> {
 
     await writer.close()
     await piped
-    return { kind: 'streamed', rows, filename: name }
+    return {
+      kind: 'streamed',
+      rows,
+      filename: name,
+      truncated: opts.maxRows !== undefined && rows >= opts.maxRows,
+    }
   } catch (err) {
     // Abort so the partial file is not left looking complete.
     await writer.abort().catch(() => undefined)
@@ -157,30 +178,11 @@ async function streamExport(opts: ExportOptions): Promise<ExportResult> {
   }
 }
 
-/** Accumulate everything, then hand the browser a Blob to download. */
-async function blobExport(opts: ExportOptions): Promise<ExportResult> {
-  const parts: string[] = [csvLine(opts.headers)]
-  let rows = 0
-  let cursor: string | undefined
-
-  for (;;) {
-    const page = await opts.fetchPage(cursor)
-    for (const row of page.rows) {
-      parts.push(csvLine(row))
-      rows += 1
-      if (opts.maxRows !== undefined && rows >= opts.maxRows) break
-    }
-    opts.onProgress?.(rows)
-
-    if (page.nextCursor === null) break
-    if (opts.maxRows !== undefined && rows >= opts.maxRows) break
-    cursor = page.nextCursor
-  }
-
+/** Trigger a browser download for one Blob. */
+function download(name: string, body: string[]): void {
   // A BOM so Excel opens UTF-8 paths correctly instead of mangling non-ASCII.
-  const blob = new Blob(['﻿', ...parts], { type: 'text/csv;charset=utf-8' })
+  const blob = new Blob(['﻿', ...body], { type: 'text/csv;charset=utf-8' })
   const url = URL.createObjectURL(blob)
-  const name = `${opts.filename}.csv`
 
   const a = document.createElement('a')
   a.href = url
@@ -189,8 +191,83 @@ async function blobExport(opts: ExportOptions): Promise<ExportResult> {
   // Revoking immediately can cancel the download in some browsers; one tick is
   // enough for the click to have been processed.
   setTimeout(() => URL.revokeObjectURL(url), 0)
+}
 
-  return { kind: 'downloaded', rows, filename: name }
+/**
+ * Accumulate rows and hand the browser one or more Blobs.
+ *
+ * Used where CompressionStream and the save picker are unavailable — Firefox and
+ * Safari today. Two consequences follow from having to buffer:
+ *
+ *   - Output is split every `chunkRows` rows into `_part1.csv`, `_part2.csv`, …
+ *     Legacy did the same, because a single CSV past Excel's 1,048,576-row limit
+ *     silently loses its tail when opened.
+ *   - Each part is released as soon as it is written, so peak memory is one part
+ *     rather than the whole export.
+ *
+ * Legacy zipped the parts with JSZip. Emitting them as separate downloads avoids a
+ * dependency for a fallback path; the tradeoff is several save prompts instead of
+ * one archive.
+ */
+async function blobExport(opts: ExportOptions): Promise<ExportResult> {
+  const chunkRows = opts.chunkRows ?? DEFAULT_CHUNK_ROWS
+  const header = csvLine(opts.headers)
+
+  let body: string[] = [header]
+  let rowsInPart = 0
+  let rows = 0
+  let part = 0
+  let cursor: string | undefined
+  const pending: { name: string; body: string[] }[] = []
+
+  /** Close the current part, holding it until we know whether it is the only one. */
+  const flush = (): void => {
+    if (rowsInPart === 0) return
+    part += 1
+    pending.push({ name: `part${part}`, body })
+    body = [header]
+    rowsInPart = 0
+  }
+
+  outer: for (;;) {
+    const page = await opts.fetchPage(cursor)
+
+    for (const row of page.rows) {
+      body.push(csvLine(row))
+      rows += 1
+      rowsInPart += 1
+      if (rowsInPart >= chunkRows) flush()
+      if (opts.maxRows !== undefined && rows >= opts.maxRows) {
+        opts.onProgress?.(rows)
+        break outer
+      }
+    }
+    opts.onProgress?.(rows)
+
+    if (page.nextCursor === null) break
+    cursor = page.nextCursor
+  }
+
+  flush()
+
+  // Name only once the count is known: a lone file should not be called _part1.
+  if (pending.length === 0) {
+    download(`${opts.filename}.csv`, [header])
+    return { kind: 'downloaded', rows: 0, filename: `${opts.filename}.csv`, files: 1, truncated: false }
+  }
+
+  const single = pending.length === 1
+  for (const p of pending) {
+    download(single ? `${opts.filename}.csv` : `${opts.filename}_${p.name}.csv`, p.body)
+  }
+
+  return {
+    kind: 'downloaded',
+    rows,
+    filename: single ? `${opts.filename}.csv` : `${opts.filename}_part1..${pending.length}.csv`,
+    files: pending.length,
+    truncated: opts.maxRows !== undefined && rows >= opts.maxRows,
+  }
 }
 
 /** Export rows as CSV, streaming when the browser supports it. */

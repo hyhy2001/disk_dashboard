@@ -22,8 +22,12 @@ import type {
 } from '../../../shared/api.js'
 
 /**
- * Children returned per page. The treemap view cannot usefully render more
- * rectangles than this, and the list view pages with "Load more".
+ * Children returned per page.
+ *
+ * Legacy paged at 20 per "Load more"; 60 is chosen instead because this view also
+ * renders the treemap rectangles, and 20 tiles is too few to read proportions from.
+ * The tradeoff is a longer list page, which is cheap — the query is an index range
+ * scan over one parent's children.
  */
 export const CHILD_LIMIT = 60
 

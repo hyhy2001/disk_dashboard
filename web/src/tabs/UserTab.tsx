@@ -171,17 +171,22 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
     setApplied(EMPTY_FORM)
   }, [])
 
+  const filterBadge = activeCount(applied)
+  const selectedMeta = useMemo(() => users.find((u) => u.name === user), [users, user])
+
   const runExport = useCallback(
     (kind: 'dirs' | 'files') => {
       if (!user) return
       setExporting(true)
-      exportUserList(target, user, kind, toQuery(applied)).finally(() => setExporting(false))
+      // The picker already knows the user's unfiltered row count, so the progress
+      // bar gets a denominator without a counting pass.
+      const expected = kind === 'dirs' ? selectedMeta?.dirs : selectedMeta?.files
+      exportUserList(target, user, kind, toQuery(applied), expected).finally(() =>
+        setExporting(false),
+      )
     },
-    [target, user, applied],
+    [target, user, applied, selectedMeta],
   )
-
-  const filterBadge = activeCount(applied)
-  const selectedMeta = useMemo(() => users.find((u) => u.name === user), [users, user])
 
   if (error) {
     return (

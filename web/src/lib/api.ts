@@ -16,23 +16,74 @@ import type {
   UserDetail,
 } from '../../../shared/api.js'
 
-async function get<T>(path: string, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(path, {
-    headers: { Accept: 'application/json' },
-    ...(signal ? { signal } : {}),
-  })
+/**
+ * Cache of resolved GETs, and of GETs still in flight, keyed by URL.
+ *
+ * Two distinct wins, both taken from legacy's treemap cache:
+ *
+ *   - Re-fetch avoidance. Drilling into a directory and back out asks for a level
+ *     that was already loaded. Report data is immutable between scans, so the
+ *     answer cannot have changed.
+ *   - In-flight dedup. Two components asking for the same URL in the same tick
+ *     share one request instead of racing.
+ *
+ * Only endpoints passed `cache: true` participate. Anything reporting live state —
+ * /api/status above all — must not, or the pill would never notice a rescan.
+ */
+const cache = new Map<string, unknown>()
+const inflight = new Map<string, Promise<unknown>>()
 
-  let body: ApiResponse<T>
-  try {
-    body = (await res.json()) as ApiResponse<T>
-  } catch {
-    // A non-JSON body means the request never reached a route handler (proxy
-    // down, HTML error page); surface the status rather than a parse error.
-    throw new Error(`${path} returned ${res.status} ${res.statusText}`)
+/**
+ * Drop cached responses. Called when a rescan is detected, since the report file
+ * behind every one of them has been replaced.
+ */
+export function clearApiCache(): void {
+  cache.clear()
+  inflight.clear()
+}
+
+async function get<T>(path: string, signal?: AbortSignal, cacheable = false): Promise<T> {
+  if (cacheable) {
+    const hit = cache.get(path)
+    if (hit !== undefined) return hit as T
+    const pending = inflight.get(path)
+    if (pending) return pending as Promise<T>
   }
 
-  if (body.status === 'error') throw new Error(body.message)
-  return body.data
+  const run = async (): Promise<T> => {
+    const res = await fetch(path, {
+      headers: { Accept: 'application/json' },
+      ...(signal ? { signal } : {}),
+    })
+
+    let body: ApiResponse<T>
+    try {
+      body = (await res.json()) as ApiResponse<T>
+    } catch {
+      // A non-JSON body means the request never reached a route handler (proxy
+      // down, HTML error page); surface the status rather than a parse error.
+      throw new Error(`${path} returned ${res.status} ${res.statusText}`)
+    }
+
+    if (body.status === 'error') throw new Error(body.message)
+    return body.data
+  }
+
+  if (!cacheable) return run()
+
+  const promise = run()
+    .then((data) => {
+      cache.set(path, data)
+      return data
+    })
+    .finally(() => {
+      // Clear regardless of outcome: a failed request must not be remembered as
+      // in-flight forever, and a retry should actually retry.
+      inflight.delete(path)
+    })
+
+  inflight.set(path, promise)
+  return promise
 }
 
 export function fetchTargets(): Promise<Target[]> {
@@ -68,13 +119,18 @@ export function fetchTreemap(target: string, q: TreemapQuery): Promise<TreemapLe
   if (q.fileOffset) params.set('fileOffset', String(q.fileOffset))
 
   const qs = params.toString()
+  // Cached: drilling in and back out re-requests a level already loaded, and a
+  // report's tree cannot change without the file being replaced.
   return get<TreemapLevel>(
     `/api/treemap/${encodeURIComponent(target)}${qs ? `?${qs}` : ''}`,
+    undefined,
+    true,
   )
 }
 
 export function fetchUsers(target: string): Promise<DetailUser[]> {
-  return get<DetailUser[]>(`/api/users/${encodeURIComponent(target)}`)
+  // Cached: the picker refetches this on every visit to the Detail User tab.
+  return get<DetailUser[]>(`/api/users/${encodeURIComponent(target)}`, undefined, true)
 }
 
 /**
@@ -134,7 +190,8 @@ export function fetchPermissions(
 }
 
 export function fetchHistory(target: string, signal?: AbortSignal): Promise<HistorySeries> {
-  return get<HistorySeries>(`/api/history/${encodeURIComponent(target)}`, signal)
+  // Cached: the whole series is one payload and the tab re-mounts on every visit.
+  return get<HistorySeries>(`/api/history/${encodeURIComponent(target)}`, signal, true)
 }
 
 export function fetchSearch(
@@ -147,6 +204,10 @@ export function fetchSearch(
   return get<SearchResult>(withParams(base, { q: query, ...(kind ? { kind } : {}) }), signal)
 }
 
+/**
+ * Report freshness. Never cached — this is the one endpoint whose whole purpose is
+ * to report change, so a cached answer would freeze the sync pill permanently.
+ */
 export function fetchStatus(target: string, signal?: AbortSignal): Promise<ScanStatus> {
   return get<ScanStatus>(`/api/status/${encodeURIComponent(target)}`, signal)
 }

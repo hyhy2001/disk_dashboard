@@ -9,66 +9,70 @@ import { fetchPermissions, fetchUserDetail, type DetailQuery, type PermQuery } f
 import { closeProgress, failure, info, startProgress, success, updateProgress } from './toast.js'
 import { formatCount } from './format.js'
 
-/** Rows per fetched page during an export. Larger than the UI page: no one reads these. */
-const EXPORT_PAGE = 5000
-
 /**
- * Cap on exported rows.
+ * Rows per fetched page during an export, per list. Legacy's values.
  *
- * A user with 20M files would otherwise produce a multi-GB CSV and a download that
- * never ends. The cap is high enough that no realistic analysis hits it, and the
- * toast says when it was applied so a truncated file is never mistaken for a
- * complete one.
+ * Far larger than the UI page because nobody reads these rows — the only thing that
+ * matters is total wall time, and per-request overhead dominates at small sizes.
+ * Measured on a 1.5M-file report: 500 file rows cost 23ms, 50,000 cost 322ms. So a
+ * user's 1.4M files take 29 requests at ~322ms rather than 2,900 at ~23ms.
+ *
+ * Files get the bigger page because there are always more of them than directories.
  */
-const MAX_ROWS = 2_000_000
+const EXPORT_PAGE = { dirs: 20_000, files: 50_000 } as const
 
-function reportOutcome(
-  label: string,
-  result: Awaited<ReturnType<typeof exportCsv>>,
-  capped: boolean,
-): void {
+/** Permission issues are a smaller list and the endpoint caps at 5000. */
+const PERM_EXPORT_PAGE = 5000
+
+function reportOutcome(label: string, result: Awaited<ReturnType<typeof exportCsv>>): void {
   if (result.kind === 'cancelled') {
     info('Export cancelled', 'The save dialog was closed.')
     return
   }
 
-  const detail = `${formatCount(result.rows)} rows → ${result.filename}`
-  if (capped) {
-    // A cap is not a failure, but it changes what the file means.
-    success(`${label} exported (truncated)`, `${detail}. Stopped at the ${formatCount(MAX_ROWS)} row limit.`)
-  } else {
-    success(`${label} exported`, detail)
-  }
+  // A split is worth saying out loud: the viewer is about to get several files and
+  // needs to know none of them is the whole thing.
+  const files = result.kind === 'downloaded' && result.files > 1 ? ` in ${result.files} parts` : ''
+  success(`${label} exported`, `${formatCount(result.rows)} rows → ${result.filename}${files}`)
 }
 
-/** Export one user's directory or file list, honouring the active filters. */
+/**
+ * Export one user's directory or file list, honouring the active filters.
+ *
+ * `expectedRows` is the user's unfiltered count from the picker. It drives the
+ * progress bar, which is the only way to show real progress: counting the filtered
+ * rows first would mean walking the whole range twice. With a filter active the
+ * estimate runs high, so the bar is a floor on progress rather than an exact
+ * fraction — the row count beside it is always the truth.
+ */
 export async function exportUserList(
   target: string,
   user: string,
   kind: 'dirs' | 'files',
   filter: DetailQuery,
+  expectedRows?: number,
 ): Promise<void> {
   const label = kind === 'dirs' ? 'Directories' : 'Files'
   const toastId = startProgress(`Exporting ${label.toLowerCase()}`, `${user} on ${target}`)
-  let rows = 0
+  const total = expectedRows && expectedRows > 0 ? expectedRows : 0
 
   try {
     const result = await exportCsv({
       filename: `${kind}_${safeName(user)}_${fileStamp()}`,
       headers: kind === 'dirs' ? ['Path', 'Bytes', 'Files'] : ['Path', 'Bytes', 'Extension'],
-      maxRows: MAX_ROWS,
       onProgress: (n) => {
-        rows = n
-        // No total is known up front — counting first would double the work — so
-        // the bar is driven against the cap and the label carries the real number.
-        updateProgress(toastId, Math.min(1, n / MAX_ROWS), `${formatCount(n)} rows`)
+        updateProgress(
+          toastId,
+          total > 0 ? Math.min(1, n / total) : 0,
+          total > 0 ? `${formatCount(n)} / ${formatCount(total)} rows` : `${formatCount(n)} rows`,
+        )
       },
       fetchPage: async (cursor) => {
         const page = await fetchUserDetail(target, user, {
           ...filter,
-          limit: EXPORT_PAGE,
-          // Only advance the list being exported; the other one is fetched at its
-          // first page and ignored.
+          limit: EXPORT_PAGE[kind],
+          // Only advance the list being exported; the other one comes back at its
+          // first page and is ignored.
           ...(kind === 'dirs'
             ? cursor !== undefined
               ? { dirCursor: cursor }
@@ -91,7 +95,7 @@ export async function exportUserList(
       },
     })
 
-    reportOutcome(label, result, rows >= MAX_ROWS)
+    reportOutcome(label, result)
   } catch (err) {
     failure('Export failed', err instanceof Error ? err.message : String(err))
   } finally {
@@ -112,29 +116,35 @@ export async function exportPermissions(
 ): Promise<void> {
   const label = scope === 'all' ? 'All permission issues' : 'Filtered permission issues'
   const toastId = startProgress('Exporting permission issues', target)
-  let rows = 0
 
   // "All" means every row in the report, so the filter is dropped rather than
   // partially applied — a half-filtered export would be indistinguishable from a
   // full one once saved.
   const effective: PermQuery = scope === 'all' ? {} : filter
 
+  // This endpoint returns the filtered total with every page, so the first page
+  // gives an exact denominator for the bar.
+  let total = 0
+
   try {
     const result = await exportCsv({
       filename: `permissions_${safeName(target)}_${fileStamp()}`,
       headers: ['User', 'Path', 'Type', 'Error'],
-      maxRows: MAX_ROWS,
       onProgress: (n) => {
-        rows = n
-        updateProgress(toastId, Math.min(1, n / MAX_ROWS), `${formatCount(n)} rows`)
+        updateProgress(
+          toastId,
+          total > 0 ? Math.min(1, n / total) : 0,
+          total > 0 ? `${formatCount(n)} / ${formatCount(total)} rows` : `${formatCount(n)} rows`,
+        )
       },
       fetchPage: async (cursor) => {
         const offset = cursor === undefined ? 0 : Number(cursor)
         const page = await fetchPermissions(target, {
           ...effective,
           offset,
-          limit: 1000,
+          limit: PERM_EXPORT_PAGE,
         })
+        total = page.total
         return {
           rows: page.rows.map((r): Row => [r.user, r.path, r.itemType, r.error]),
           nextCursor: page.hasMore ? String(offset + page.rows.length) : null,
@@ -142,7 +152,7 @@ export async function exportPermissions(
       },
     })
 
-    reportOutcome(label, result, rows >= MAX_ROWS)
+    reportOutcome(label, result)
   } catch (err) {
     failure('Export failed', err instanceof Error ? err.message : String(err))
   } finally {
