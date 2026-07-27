@@ -15,14 +15,26 @@ import { TreemapTab } from './tabs/TreemapTab.js'
 
 type Theme = 'dark' | 'light'
 
-type TabId = 'overview' | 'treemap'
+// Two top-level pages, as in the legacy dashboard: Overview is the charts view,
+// Detail holds the per-directory and per-user tabs.
+type PageId = 'overview' | 'detail'
 
-const LIVE_TABS: { id: TabId; label: string }[] = [
+/** Sub-tabs of the Detail page. Only 'treemap' is implemented so far. */
+type DetailTabId = 'treemap'
+
+const PAGES: { id: PageId; label: string }[] = [
   { id: 'overview', label: 'Overview' },
-  { id: 'treemap', label: 'Treemap' },
+  { id: 'detail', label: 'Detail' },
 ]
 
-const PLANNED_TABS = ['History', 'User detail', 'Permissions', 'Inodes'] as const
+const LIVE_DETAIL_TABS: { id: DetailTabId; label: string }[] = [
+  { id: 'treemap', label: 'TreeMap' },
+]
+
+// Rendered disabled rather than hidden so the information architecture is
+// visible from the start. Inodes needs duscan to emit an inode table first.
+const PLANNED_DETAIL_TABS = ['History', 'Detail User', 'Permission Issues', 'Inodes'] as const
+
 const THEME_KEY = 'duscan-theme'
 
 function useTheme(): [Theme, () => void] {
@@ -54,7 +66,8 @@ export function App(): JSX.Element {
   const [selected, setSelected] = useState<string | null>(null)
   const [overview, setOverview] = useState<Overview | null>(null)
   const [health, setHealth] = useState<HealthInfo | null>(null)
-  const [tab, setTab] = useState<TabId>('overview')
+  const [page, setPage] = useState<PageId>('overview')
+  const [detailTab, setDetailTab] = useState<DetailTabId>('treemap')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -125,31 +138,17 @@ export function App(): JSX.Element {
           <span className="brand__sub">duscan</span>
         </div>
 
-        <nav className="tabs" role="tablist" aria-label="Views">
-          {LIVE_TABS.map((t) => (
+        <nav className="tabs" role="tablist" aria-label="Pages">
+          {PAGES.map((p) => (
             <button
               type="button"
               className="tab"
               role="tab"
-              key={t.id}
-              aria-selected={tab === t.id}
-              onClick={() => setTab(t.id)}
+              key={p.id}
+              aria-selected={page === p.id}
+              onClick={() => setPage(p.id)}
             >
-              {t.label}
-            </button>
-          ))}
-          {PLANNED_TABS.map((name) => (
-            <button
-              type="button"
-              className="tab"
-              role="tab"
-              key={name}
-              aria-selected={false}
-              disabled
-              title="Not implemented yet"
-            >
-              {name}
-              <span className="tab__soon">soon</span>
+              {p.label}
             </button>
           ))}
         </nav>
@@ -202,10 +201,40 @@ export function App(): JSX.Element {
             </>
           ) : !overview || !selected ? (
             <NoTargets health={health} />
-          ) : tab === 'overview' ? (
+          ) : page === 'overview' ? (
             <OverviewTab overview={overview} />
           ) : (
-            <TreemapTab target={selected} totalSize={overview.target.totalSize} />
+            <>
+              <nav className="subtabs" role="tablist" aria-label="Detail views">
+                {LIVE_DETAIL_TABS.map((t) => (
+                  <button
+                    type="button"
+                    className="subtab"
+                    role="tab"
+                    key={t.id}
+                    aria-selected={detailTab === t.id}
+                    onClick={() => setDetailTab(t.id)}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+                {PLANNED_DETAIL_TABS.map((name) => (
+                  <button
+                    type="button"
+                    className="subtab"
+                    role="tab"
+                    key={name}
+                    aria-selected={false}
+                    disabled
+                    title="Not implemented yet"
+                  >
+                    {name}
+                    <span className="tab__soon">soon</span>
+                  </button>
+                ))}
+              </nav>
+              <TreemapTab target={selected} totalSize={overview.target.totalSize} />
+            </>
           )}
         </main>
       </div>
