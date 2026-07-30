@@ -1,10 +1,12 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+import { resolve } from 'node:path'
 
-// The dev server owns the page and proxies /api to Fastify, so the client can
-// always use same-origin relative URLs — no CORS, no base-URL config.
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: { '@': resolve(__dirname, 'src') },
+  },
   server: {
     port: 5311,
     proxy: {

@@ -98,8 +98,8 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
 
   if (targets.length === 0) {
     return (
-      <div className="state">
-        <p className="state__title">No disks in {spaceName}</p>
+      <div className="flex items-center justify-center p-8">
+        <p className="text-sm font-semibold">No disks in {spaceName}</p>
         <p>Add targets to this space in teams.json, or scan one to make it appear.</p>
       </div>
     )
@@ -107,31 +107,38 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
 
   return (
     <>
-      <div className="cmp__bands">
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-border/30">
         {bands.map((b) => (
-          <div className={`cmp__band cmp__band--${b.id}`} key={b.id} data-tooltip={b.hint}>
-            <span className="cmp__band-num">{b.count}</span>
-            <span className="cmp__band-label">{b.label}</span>
+          <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] ${
+            b.id === 'critical' ? 'bg-rose-500/10 text-rose-400' :
+            b.id === 'warning' ? 'bg-amber-500/10 text-amber-400' :
+            b.id === 'healthy' ? 'bg-emerald-500/10 text-emerald-400' :
+            'bg-muted/50 text-muted-foreground'
+          }`} key={b.id} data-tooltip={b.hint}>
+            <span className="font-bold tabular-nums">{b.count}</span>
+            <span className="opacity-70">{b.label}</span>
           </div>
         ))}
-        <div className="cmp__band cmp__band--total">
-          <span className="cmp__band-num">{formatCount(targets.length)}</span>
-          <span className="cmp__band-label">Disks</span>
+        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] bg-muted/50 text-muted-foreground">
+          <span className="font-bold tabular-nums">{formatCount(targets.length)}</span>
+          <span className="opacity-70">Disks</span>
         </div>
       </div>
 
-      <section className="panel">
-        <header className="panel__head">
-          <h2 className="panel__title">{spaceName} — capacity by disk</h2>
-          <span className="panel__note">
+      <section className="m-3 rounded-lg border border-border bg-surface/50 shadow-sm">
+        <header className="flex items-center gap-2 border-b border-border/40 px-3 py-2">
+          <h2 className="text-sm font-semibold flex-1">{spaceName} — capacity by disk</h2>
+          <span className="text-[10px] text-muted-foreground tabular-nums">
             {formatSize(spaceUsed)} of {formatSize(spaceTotal)} used ·{' '}
             {formatSize(spaceScanned)} attributed
           </span>
-          <div className="cmp__modes" role="group" aria-label="Chart mode">
+          <div className="flex rounded-sm border border-border overflow-hidden" role="group" aria-label="Chart mode">
             {MODES.map((m) => (
               <button
                 type="button"
-                className="cmp__mode"
+                className={`px-2 py-1 text-[10px] font-medium transition-colors ${
+                  mode === m.id ? 'bg-muted text-foreground' : 'bg-transparent text-muted-foreground hover:text-foreground'
+                }`}
                 key={m.id}
                 aria-pressed={mode === m.id}
                 onClick={() => setAndSave(m.id)}
@@ -143,45 +150,46 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
           </div>
         </header>
 
-        <ul className="cmp__rows">
+        <ul className="divide-y divide-border/30">
           {rows.map((t) => {
             const cap = t.capacity
             const pct = usedPercent(t)
             const scannedW = cap ? widthFor(t, cap.scanned) : 0
-            // Cumulative, then subtract: keeps the stack honest in log mode.
             const usedW = cap ? widthFor(t, cap.used) : 0
             const totalW = cap ? widthFor(t, cap.total) : 0
 
             return (
-              <li className="cmp__row" key={t.name}>
-                <button type="button" className="cmp__name" onClick={() => onSelect(t.name)}>
+              <li className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors" key={t.name}>
+                <button type="button" className="text-sm font-semibold truncate hover:text-emerald-400 transition-colors min-w-[100px]" onClick={() => onSelect(t.name)}>
                   {t.name}
                 </button>
 
-                <div className="cmp__track">
+                <div className="flex-1 h-4 relative rounded-full overflow-hidden bg-muted/50">
                   {cap ? (
                     <>
-                      {/* Capacity outline, so a small disk on a shared axis still
-                          shows how much of *itself* is used. */}
-                      <span className="cmp__cap" style={{ width: `${totalW}%` }} />
+                      <span className="absolute inset-0 rounded-full border border-border/40" style={{}} />
                       <span
-                        className="cmp__seg cmp__seg--unscanned"
+                        className="absolute inset-y-0 left-0 rounded-full bg-border/30"
+                        style={{ width: `${totalW}%` }}
+                      />
+                      <span
+                        className="absolute inset-y-0 left-0 rounded-full bg-amber-400/40"
                         style={{ width: `${usedW}%` }}
                         data-tooltip={`${formatSize(cap.used - cap.scanned)} used but not attributed to any user`}
                       />
                       <span
-                        className="cmp__seg cmp__seg--scanned"
+                        className="absolute inset-y-0 left-0 rounded-full bg-emerald-500/60"
                         style={{ width: `${scannedW}%` }}
                         data-tooltip={`${formatSize(cap.scanned)} attributed by the scan`}
                       />
                     </>
                   ) : (
-                    <span className="cmp__unknown">capacity unknown</span>
+                    <span className="text-[10px] text-muted-foreground px-2 leading-4">capacity unknown</span>
                   )}
                 </div>
 
-                <span className="cmp__pct">{pct === null ? '—' : `${pct.toFixed(0)}%`}</span>
-                <span className="cmp__size">
+                <span className="text-xs tabular-nums font-medium w-12 text-right">{pct === null ? '—' : `${pct.toFixed(0)}%`}</span>
+                <span className="text-[11px] text-muted-foreground tabular-nums w-32 text-right shrink-0">
                   {cap ? `${formatSize(cap.used)} / ${formatSize(cap.total)}` : formatSize(t.totalSize)}
                 </span>
               </li>
@@ -190,21 +198,21 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
         </ul>
 
         {unknown > 0 && (
-          <p className="panel__note">
+          <p className="text-[10px] text-muted-foreground px-4 py-2 border-t border-border/20">
             {unknown} disk{unknown === 1 ? '' : 's'} report no filesystem capacity and are shown
             without a bar.
           </p>
         )}
 
-        <div className="chart__legend">
-          <span className="chart__key">
-            <span className="legend__swatch legend__swatch--scanned" /> Attributed to users
+        <div className="flex items-center gap-3 px-4 py-2 border-t border-border/30 text-[10px] text-muted-foreground">
+          <span className="flex items-center gap-1">
+            <span className="size-2 rounded-sm bg-emerald-500/60" /> Attributed to users
           </span>
-          <span className="chart__key">
-            <span className="legend__swatch legend__swatch--unscanned" /> Used, unattributed
+          <span className="flex items-center gap-1">
+            <span className="size-2 rounded-sm bg-amber-400/40" /> Used, unattributed
           </span>
-          <span className="chart__key">
-            <span className="legend__swatch legend__swatch--cap" /> Capacity
+          <span className="flex items-center gap-1">
+            <span className="size-2 rounded-sm bg-border/30" /> Capacity
           </span>
         </div>
       </section>

@@ -8,11 +8,11 @@
 // deliberate — the whole series is one row per scan per user, already in memory, so
 // a round trip per range change would add latency for no benefit.
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { HistorySeries } from '../../../shared/api.js'
 import { fetchHistory } from '../lib/api.js'
 import { formatCount, formatSize } from '../lib/format.js'
-import { loadFilters, saveFilters } from '../lib/prefs.js'
+import { loadFilters, saveFilters, KEYS } from '../lib/prefs.js'
 import { TrendChart } from '../components/TrendChart.js'
 
 interface Props {
@@ -61,6 +61,7 @@ export function HistoryTab({ target }: Props): JSX.Element {
   const [logScale, setLogScale] = useState(saved.logScale)
   const [userQuery, setUserQuery] = useState('')
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const seededRef = useRef(false)
 
   useEffect(() => {
     const controller = new AbortController()
@@ -115,12 +116,17 @@ export function HistoryTab({ target }: Props): JSX.Element {
       .sort((a, b) => b.current - a.current)
   }, [series, dateSet])
 
-  // Seed the selection once data arrives, so the chart is never empty on arrival.
+  // Seed the selection once on very first data load. Skip if user has saved prefs
+  // (even empty — they explicitly cleared), so a reload respects their choice.
   useEffect(() => {
-    if (!series || selected.length > 0) return
+    if (seededRef.current) return
+    if (!series) return
+    seededRef.current = true
+    const hasSaved = localStorage.getItem(KEYS.filters) !== null
+    if (hasSaved) return
     const top = ranked.slice(0, 3).map((r) => r.name)
     if (top.length > 0) setSelected(top)
-  }, [series, ranked, selected.length])
+  }, [series, ranked])
 
   const toggle = useCallback((name: string) => {
     setSelected((cur) => {
@@ -149,21 +155,21 @@ export function HistoryTab({ target }: Props): JSX.Element {
 
   if (error) {
     return (
-      <div className="state state--error">
-        <p className="state__title">Could not load history</p>
+      <div className="flex items-center justify-center p-8">
+        <p className="text-sm font-semibold">Could not load history</p>
         <p>{error}</p>
       </div>
     )
   }
 
   if (!series) {
-    return <div className="skeleton" style={{ height: '420px' }} />
+    return <div className="h-32 w-full rounded-lg border border-border/50 bg-surface/50 animate-pulse" style={{ minHeight: '420px' }} />
   }
 
   if (series.snapshots.length === 0) {
     return (
-      <div className="state">
-        <p className="state__title">No history yet</p>
+      <div className="flex items-center justify-center p-8">
+        <p className="text-sm font-semibold">No history yet</p>
         <p>History appears once this target has been scanned at least twice.</p>
       </div>
     )
@@ -171,17 +177,16 @@ export function HistoryTab({ target }: Props): JSX.Element {
 
   return (
     <>
-      <div className="hist__range panel">
-        <div className="hist__presets" role="group" aria-label="Time range">
+      <div className="flex items-center gap-2 border-b border-border/30 bg-surface/30 px-3 py-2 shrink-0">
+        <div className="flex rounded-sm border border-border overflow-hidden" role="group" aria-label="Time range">
           {PRESETS.map((p) => (
             <button
               type="button"
-              className="hist__preset"
+              className={`px-2 py-1 text-[11px] font-medium transition-colors ${rangeDays === p.days && dateStart === '' && dateEnd === '' ? 'bg-muted text-foreground' : 'bg-transparent text-muted-foreground hover:text-foreground'}`}
               key={p.label}
               aria-pressed={rangeDays === p.days && dateStart === '' && dateEnd === ''}
               onClick={() => {
                 setRangeDays(p.days)
-                // A preset replaces an explicit range rather than combining with it.
                 setDateStart('')
                 setDateEnd('')
               }}
@@ -191,10 +196,10 @@ export function HistoryTab({ target }: Props): JSX.Element {
           ))}
         </div>
 
-        <div className="hist__dates">
+        <div className="flex items-center gap-1">
           <input
             type="date"
-            className="hist__date"
+            className="h-7 rounded-sm border border-border bg-transparent px-2 text-[11px] w-28"
             aria-label="Range start"
             value={dateStart}
             onChange={(e) => setDateStart(e.target.value)}
@@ -202,66 +207,67 @@ export function HistoryTab({ target }: Props): JSX.Element {
           <span aria-hidden="true">→</span>
           <input
             type="date"
-            className="hist__date"
+            className="h-7 rounded-sm border border-border bg-transparent px-2 text-[11px] w-28"
             aria-label="Range end"
             value={dateEnd}
             onChange={(e) => setDateEnd(e.target.value)}
           />
         </div>
 
-        <span className="hist__count">
+        <span className="text-[10px] text-muted-foreground tabular-nums">
           {formatCount(dates.length)} of {formatCount(series.snapshots.length)} scans
         </span>
       </div>
 
-      <div className="hist__main">
+      <div className="flex flex-1 overflow-hidden relative">
         <button
           type="button"
-          className="filter-badge"
+          className={`inline-flex items-center gap-1 px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground transition-all duration-200 absolute top-2 left-2 z-10 ${filtersOpen ? 'opacity-0 pointer-events-none' : ''}`}
           aria-expanded={filtersOpen}
           onClick={() => setFiltersOpen((v) => !v)}
         >
           Users ({selected.length})
         </button>
 
-        <aside className={`hist__users panel${filtersOpen ? ' hist__users--open' : ''}`}>
-          <header className="panel__head">
-            <h2 className="panel__title">Users</h2>
-            <span className="panel__note">
+        <aside className={`w-56 shrink-0 border-r border-border bg-surface/30 flex flex-col transition-all duration-200 ${filtersOpen ? '' : '-translate-x-full w-0 border-r-0 overflow-hidden'}`}>
+          <header className="flex items-center gap-2 border-b border-border/40 px-3 py-2 shrink-0">
+            <h2 className="text-sm font-semibold flex-1">Users</h2>
+            <span className="text-[10px] text-muted-foreground">
               {selected.length} / {MAX_SELECTED}
             </span>
           </header>
 
           <input
             type="search"
-            className="sidebar__search"
+            className="h-7 w-full rounded-sm border border-border bg-background px-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             placeholder="Search user…"
             aria-label="Search users"
             value={userQuery}
             onChange={(e) => setUserQuery(e.target.value)}
           />
 
-          <ul className="hist__chips">
-            {shownUsers.length === 0 && <li className="empty">No user matches.</li>}
+          <ul className="overflow-auto max-h-[500px] space-y-0.5">
+            {shownUsers.length === 0 && <li className="text-xs text-muted-foreground p-4 text-center">No user matches.</li>}
             {shownUsers.map((r) => {
               const on = selected.includes(r.name)
               return (
                 <li key={r.name}>
                   <button
                     type="button"
-                    className={`hist__chip${on ? ' hist__chip--on' : ''}`}
+                    className={`flex items-center gap-1 w-full px-2 py-1 text-[11px] rounded-sm transition-colors text-left ${on ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
                     aria-pressed={on}
                     onClick={() => toggle(r.name)}
                     disabled={!on && selected.length >= MAX_SELECTED}
                     data-tooltip={`${formatSize(r.current)} now · ${r.delta >= 0 ? '+' : ''}${formatSize(Math.abs(r.delta))} over the window`}
                   >
-                    <span className="hist__mark" aria-hidden="true">
+                    <span className="w-3 text-[10px] shrink-0" aria-hidden="true">
                       {on ? '✓' : ''}
                     </span>
-                    <span className="hist__name">{r.name}</span>
-                    {/* Growth is the signal, so it is shown even unselected. */}
+                    <span className="flex-1 truncate">{r.name}</span>
                     <span
-                      className={`hist__delta${r.delta > 0 ? ' hist__delta--up' : r.delta < 0 ? ' hist__delta--down' : ''}`}
+                      className={`tabular-nums text-[10px] ${
+                        r.delta > 0 ? 'text-rose-400' : r.delta < 0 ? 'text-emerald-400' : 'text-muted-foreground'
+                      }`}
                     >
                       {r.delta === 0
                         ? '—'
@@ -273,26 +279,26 @@ export function HistoryTab({ target }: Props): JSX.Element {
             })}
           </ul>
 
-          <div className="hist__actions">
+          <div className="flex gap-1 pt-1">
             <button
               type="button"
-              className="btn"
+              className="inline-flex items-center rounded-sm border border-border bg-transparent px-3 py-1.5 text-xs hover:bg-muted transition-colors"
               onClick={() => setSelected(ranked.slice(0, MAX_SELECTED).map((r) => r.name))}
             >
               Top {MAX_SELECTED}
             </button>
-            <button type="button" className="btn" onClick={() => setSelected([])}>
+            <button type="button" className="inline-flex items-center rounded-sm border border-border bg-transparent px-3 py-1.5 text-xs hover:bg-muted transition-colors" onClick={() => setSelected([])}>
               Clear
             </button>
           </div>
         </aside>
 
-        <section className="panel hist__chart">
-          <header className="panel__head">
-            <h2 className="panel__title">Usage over time</h2>
+        <section className="flex flex-1 flex-col min-w-0">
+          <header className="flex items-center gap-2 border-b border-border px-3 py-2 shrink-0">
+            <h2 className="text-sm font-semibold flex-1">Usage over time</h2>
             <button
               type="button"
-              className="btn btn--sm"
+              className="inline-flex items-center rounded-sm border border-border bg-transparent px-2 py-1 text-[10px] hover:bg-muted transition-colors"
               aria-pressed={logScale}
               onClick={() => setLogScale((v) => !v)}
               data-tooltip="Log scale keeps small accounts readable beside large ones"
@@ -301,7 +307,7 @@ export function HistoryTab({ target }: Props): JSX.Element {
             </button>
           </header>
 
-          <div className="canvas canvas--tall">
+          <div className="p-3 flex-1 min-h-[200px] flex flex-col">
             <TrendChart trends={trends} dates={dates} logScale={logScale} />
           </div>
         </section>

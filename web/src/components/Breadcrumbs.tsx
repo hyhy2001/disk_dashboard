@@ -20,28 +20,28 @@ export function Breadcrumbs({ path, onNavigate }: Props): JSX.Element {
     : path
 
   return (
-    <nav className="crumbs" aria-label="Directory path">
+    <nav className="flex items-center gap-0.5 text-[11px] text-muted-foreground min-w-0 flex-1 flex-wrap" aria-label="Directory path">
       {shown.map((c, i) => {
         const last = i === shown.length - 1
         if (!c) {
           return (
-            <span className="crumbs__gap" key="gap" title={`${path.length - HEAD - TAIL} more levels`}>
+            <span className="px-1" key="gap" title={`${path.length - HEAD - TAIL} more levels`}>
               …
             </span>
           )
         }
         return (
-          <span className="crumbs__item" key={c.id}>
+          <span className="flex items-center gap-0.5" key={c.id}>
             {last ? (
-              <span className="crumbs__current" aria-current="page">
-                {c.name}
+              <span className="text-foreground font-medium" aria-current="page">
+                {c.name === '/' ? '' : c.name}
               </span>
             ) : (
-              <button type="button" className="crumbs__link" onClick={() => onNavigate(c.id)}>
-                {c.name}
+              <button type="button" className="hover:text-foreground transition-colors" onClick={() => onNavigate(c.id)}>
+                {c.name === '/' ? '' : c.name}
               </button>
             )}
-            {!last && <span className="crumbs__sep">/</span>}
+            {!last && <span className="text-muted-foreground/50">/</span>}
           </span>
         )
       })}

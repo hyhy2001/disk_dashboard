@@ -45,23 +45,24 @@ export function Modal({ title, onClose, children, footer }: Props): JSX.Element 
   }, [onClose])
 
   return (
-    <div className="modal" onClick={onClose}>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      onClick={onClose}
+    >
       <div
-        className="modal__panel glass"
+        className="glass rounded-lg shadow-md w-[500px] max-w-[90vw] max-h-[85vh] flex flex-col"
         role="dialog"
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
         ref={panelRef}
-        // Without this a click anywhere inside would bubble to the backdrop and
-        // close the dialog the user is using.
         onClick={(e) => e.stopPropagation()}
       >
-        <header className="modal__head">
-          <h2 className="modal__title">{title}</h2>
+        <header className="flex items-center gap-2 px-4 py-3 border-b border-border">
+          <h2 className="text-sm font-semibold flex-1">{title}</h2>
           <button
             type="button"
-            className="icon-btn icon-btn--sm"
+            className="inline-flex items-center justify-center size-6 rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
             onClick={onClose}
             aria-label="Close"
           >
@@ -69,9 +70,9 @@ export function Modal({ title, onClose, children, footer }: Props): JSX.Element 
           </button>
         </header>
 
-        <div className="modal__body">{children}</div>
+        <div className="flex-1 overflow-auto p-4">{children}</div>
 
-        {footer && <footer className="modal__foot">{footer}</footer>}
+        {footer && <footer className="px-4 py-2 border-t border-border text-[10px] text-muted-foreground">{footer}</footer>}
       </div>
     </div>
   )

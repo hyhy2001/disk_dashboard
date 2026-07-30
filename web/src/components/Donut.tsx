@@ -140,9 +140,7 @@ export function Donut({
     <div className="donut">
       <svg
         className="donut__svg"
-        // No fixed width/height: `size` sets the coordinate system and the ring's
-        // proportions, while CSS decides how large it actually renders. That lets
-        // the donut shrink to fit a short viewport instead of overflowing.
+        style={{ width: size, maxWidth: '100%', maxHeight: size }}
         viewBox={`0 0 ${size} ${size}`}
         role="img"
         aria-label={`Usage split across ${slices.length} groups, total ${formatSize(total)}`}

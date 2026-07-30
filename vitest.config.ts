@@ -1,4 +1,5 @@
 import react from '@vitejs/plugin-react'
+import { resolve } from 'node:path'
 import { defineConfig } from 'vitest/config'
 
 // Most tests are plain Node — SQLite queries and pure layout maths — so `node` is
@@ -6,6 +7,9 @@ import { defineConfig } from 'vitest/config'
 // viewport tests drive a real browser through playwright, which also runs in node.
 export default defineConfig({
   plugins: [react()],
+  resolve: {
+    alias: { '@': resolve(__dirname, 'web/src') },
+  },
   test: {
     environment: 'node',
     include: ['{server,web,shared}/**/*.test.{ts,tsx}'],

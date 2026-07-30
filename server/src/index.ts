@@ -1,15 +1,22 @@
 // Fastify entry point.
 //
-// NOTE: this server has no authentication. It exposes filesystem usage and
-// usernames, so it binds 127.0.0.1 by default — put it behind a reverse proxy
-// that handles auth before setting DASHBOARD_HOST to a public interface.
+// NOTE: this server has no authentication on the report-reading endpoints.
+// It exposes filesystem usage and usernames, so it binds 127.0.0.1 by default
+// — put it behind a reverse proxy that handles auth before setting
+// DASHBOARD_HOST to a public interface.
+//
+// Admin endpoints (under /api/admin/) use cookie-based sessions backed by a
+// separate admin.db with scrypt-hashed passwords.
 
 import Fastify from 'fastify'
 import fastifyStatic from '@fastify/static'
+import fastifyCookie from '@fastify/cookie'
 import { existsSync } from 'node:fs'
 import { loadConfig } from './config.js'
 import { registerApi } from './routes/api.js'
+import { registerAdmin } from './routes/admin.js'
 import { closeAll } from './db/reports.js'
+import { closeAdminDb } from './db/admin.js'
 
 const config = loadConfig()
 
@@ -17,7 +24,10 @@ const app = Fastify({
   logger: { level: process.env.DASHBOARD_LOG_LEVEL ?? 'info' },
 })
 
+await app.register(fastifyCookie, { secret: process.env.DASHBOARD_COOKIE_SECRET || undefined })
+
 registerApi(app, config)
+registerAdmin(app)
 
 // In dev the Vite server owns the assets and proxies /api here, so a missing
 // webDir is normal rather than an error.
@@ -36,6 +46,7 @@ async function shutdown(signal: string): Promise<void> {
   app.log.info(`received ${signal}, shutting down`)
   await app.close()
   closeAll()
+  closeAdminDb()
   process.exit(0)
 }
 

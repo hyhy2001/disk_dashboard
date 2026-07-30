@@ -28,13 +28,12 @@ export function ScrollTop({ targetRef }: Props): JSX.Element | null {
   return (
     <button
       type="button"
-      className="fab glass"
+      className="fixed bottom-6 right-6 z-50 size-10 flex items-center justify-center rounded-full glass shadow-md text-sm hover:opacity-80 transition-opacity"
       title="Back to the top"
       aria-label="Back to the top"
       onClick={() =>
         targetRef.current?.scrollTo({
           top: 0,
-          // Honour the OS setting rather than always animating.
           behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
             ? 'auto'
             : 'smooth',

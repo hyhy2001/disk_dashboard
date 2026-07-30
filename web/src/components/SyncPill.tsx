@@ -4,10 +4,6 @@
 // button in the sense of triggering work — it reports whether the data on screen
 // matches the report on disk, and refetches when it does not.
 //
-// That distinction is deliberate and visible in the labels: "Up to date", not
-// "Synced". Claiming to have synced something would imply the dashboard controls
-// when scans happen, and it does not.
-//
 // Polling is by stamp comparison: the endpoint is a stat() plus a small read, so a
 // short interval is cheap, and the client only refetches its actual data when the
 // stamp moves.
@@ -16,17 +12,12 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ScanStatus } from '../../../shared/api.js'
 import { fetchStatus } from '../lib/api.js'
 import { formatTimestamp } from '../lib/format.js'
+import { cn } from '@/lib/utils.js'
+import { RotateCw, RefreshCw } from 'lucide-react'
 
 /** Poll interval. Matches legacy's 3s while a scan is running. */
 const POLL_MS = 3000
 
-/**
- * Stage labels, from duscan's scan_status.json.
- *
- * An unknown stage falls back to a generic label rather than showing the raw
- * value: duscan may add stages, and a viewer should see "Working" rather than an
- * internal identifier.
- */
 const STAGE_LABEL: Record<string, string> = {
   scan: 'Scanning files',
   report: 'Building report',
@@ -39,24 +30,22 @@ const STAGE_LABEL: Record<string, string> = {
 
 interface Props {
   target: string
-  /** Called when the report on disk has changed, so the caller can refetch. */
   onStale: () => void
-  /** Whether a data refetch is currently running. */
   refreshing: boolean
 }
 
 export function SyncPill({ target, onStale, refreshing }: Props): JSX.Element {
   const [status, setStatus] = useState<ScanStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
-  /** Stamp the currently displayed data was loaded at. */
   const knownStamp = useRef<string | null>(null)
   const [stale, setStale] = useState(false)
+  const wasRunningRef = useRef(false)
 
-  // A target switch means the previous stamp describes a different file.
   useEffect(() => {
     knownStamp.current = null
     setStale(false)
     setStatus(null)
+    wasRunningRef.current = false
   }, [target])
 
   const poll = useCallback(
@@ -67,18 +56,23 @@ export function SyncPill({ target, onStale, refreshing }: Props): JSX.Element {
         setError(null)
 
         if (knownStamp.current === null) {
-          // First observation: adopt it as the baseline rather than declaring the
-          // freshly loaded data stale.
           knownStamp.current = next.stamp
         } else if (next.stamp !== knownStamp.current) {
           setStale(true)
         }
+
+        // Auto-refresh when a scan finishes (was running → now not running)
+        if (wasRunningRef.current && !next.running && knownStamp.current !== next.stamp) {
+          setStale(true)
+          onStale()
+        }
+        wasRunningRef.current = next.running === true
       } catch (err) {
         if (signal?.aborted) return
         setError(err instanceof Error ? err.message : String(err))
       }
     },
-    [target],
+    [target, onStale],
   )
 
   useEffect(() => {
@@ -86,12 +80,10 @@ export function SyncPill({ target, onStale, refreshing }: Props): JSX.Element {
     void poll(controller.signal)
 
     const id = setInterval(() => {
-      // Polling a hidden tab wastes requests on data nobody is looking at; the
-      // visibility handler below catches up on return.
       if (!document.hidden) void poll(controller.signal)
     }, POLL_MS)
 
-    const onVisible = (): void => {
+    const onVisible = () => {
       if (!document.hidden) void poll(controller.signal)
     }
     document.addEventListener('visibilitychange', onVisible)
@@ -104,7 +96,6 @@ export function SyncPill({ target, onStale, refreshing }: Props): JSX.Element {
   }, [poll])
 
   const refresh = useCallback(() => {
-    // Adopt the observed stamp now: the refetch that follows will read this file.
     if (status) knownStamp.current = status.stamp
     setStale(false)
     onStale()
@@ -113,49 +104,50 @@ export function SyncPill({ target, onStale, refreshing }: Props): JSX.Element {
   const running = status?.running === true
   const failed = status?.stage === 'error'
 
-  const state = error
-    ? 'error'
-    : running
-      ? 'scanning'
-      : failed
-        ? 'error'
-        : stale
-          ? 'stale'
-          : 'idle'
-
-  const label = error
-    ? 'Status unavailable'
-    : running
-      ? (status?.stage ? STAGE_LABEL[status.stage] : undefined) ?? 'Working'
-      : failed
-        ? status?.message ?? 'Scan failed'
-        : stale
-          ? 'New report available'
-          : 'Up to date'
-
   return (
-    <div className={`sync sync--${state}`}>
-      <span className={`sync__dot sync__dot--${state}`} aria-hidden="true" />
+    <div className="flex items-center gap-2 text-[11px]">
+      {/* Dot */}
+      <span className={cn(
+        'inline-block size-1.5 rounded-full shrink-0',
+        error ? 'bg-rose-500' : running ? 'bg-amber-400 animate-pulse' : failed ? 'bg-rose-500' : stale ? 'bg-amber-400' : 'bg-emerald-500',
+      )} />
 
-      <div className="sync__text">
-        <span className="sync__label">{label}</span>
-        <span className="sync__time">
-          {status?.scanTimestamp ? `Scanned ${formatTimestamp(status.scanTimestamp)}` : '—'}
+      {/* Text */}
+      <div className="flex items-center gap-1.5 min-w-0">
+        <span className={cn(
+          'font-medium truncate',
+          error ? 'text-rose-400' : running ? 'text-amber-400' : failed ? 'text-rose-400' : stale ? 'text-amber-400' : 'text-muted-foreground',
+        )}>
+          {error
+            ? 'Status unavailable'
+            : running
+              ? (status?.stage ? STAGE_LABEL[status.stage] : undefined) ?? 'Working'
+              : failed
+                ? status?.message ?? 'Scan failed'
+                : stale
+                  ? 'New report available'
+                  : 'Up to date'}
+        </span>
+        {running && <RotateCw className="size-3 animate-spin text-amber-400/70" />}
+        <span className="text-muted-foreground/50 hidden sm:inline">
+          {status?.scanTimestamp ? formatTimestamp(status.scanTimestamp) : '—'}
         </span>
       </div>
 
+      {/* Action */}
       <button
-        type="button"
-        className={`btn btn--sm${stale ? ' btn--primary' : ''}`}
         onClick={refresh}
         disabled={refreshing}
-        data-tooltip={
+        className={cn(
+          'inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-[10px] font-medium transition-colors',
           stale
-            ? 'The report on disk changed — load the new data'
-            : 'Re-read the report from disk'
-        }
+            ? 'bg-amber-400/15 text-amber-400 hover:bg-amber-400/25'
+            : 'text-muted-foreground/60 hover:text-foreground hover:bg-white/[0.04]',
+        )}
+        title={stale ? 'New report available — click to reload' : 'Re-read report'}
       >
-        {refreshing ? 'Loading…' : stale ? 'Reload' : 'Refresh'}
+        <RefreshCw className={cn('size-3', refreshing && 'animate-spin')} />
+        {refreshing ? '' : stale ? 'Reload' : ''}
       </button>
     </div>
   )

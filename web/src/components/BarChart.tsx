@@ -24,7 +24,6 @@ const BAR_H = 13
 /** Wide enough for a 16-character username at the 12px chart font. */
 const LABEL_W = 122
 const VALUE_W = 74
-const WIDTH = 500
 
 /** Smallest value a log axis can plot; log(0) is -Infinity. */
 const LOG_FLOOR = 1
@@ -37,10 +36,13 @@ export function BarChart({ rows, limit = 10, logScale = false }: Props): JSX.Ele
 
   const ranked = [...rows].filter((r) => r.used > 0).sort((a, b) => b.used - a.used)
 
-  // The viewBox is the box's real pixel size, so text renders at its declared
-  // size instead of being scaled along with the drawing.
-  const width = size?.width && size.width > 0 ? size.width : WIDTH
-  const avail = size?.height ?? 0
+  // Wait for measurement so the viewBox matches real pixels exactly.
+  if (!size || size.width === 0 || size.height === 0) {
+    return <div ref={box} className="chartbox h-full min-h-[200px]" />
+  }
+
+  const width = size.width
+  const avail = size.height
 
   // Drop the smallest consumers rather than shrink the text below legibility:
   // eight readable rows beat ten unreadable ones, and since rows are ranked, the
@@ -49,7 +51,7 @@ export function BarChart({ rows, limit = 10, logScale = false }: Props): JSX.Ele
   const data = ranked.slice(0, Math.min(limit, fits))
 
   if (data.length === 0) {
-    return <p className="empty">No users to chart.</p>
+    return <div ref={box} className="chartbox"><p className="empty">No users to chart.</p></div>
   }
 
   const max = data[0]?.used ?? 1

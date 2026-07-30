@@ -45,10 +45,10 @@ export function SettingsMenu({
   }, [open])
 
   return (
-    <div className="settings" ref={wrapRef}>
+    <div className="relative" ref={wrapRef}>
       <button
         type="button"
-        className="icon-btn icon-btn--sm"
+            className="inline-flex items-center justify-center size-6 rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => setOpen((v) => !v)}
@@ -58,43 +58,43 @@ export function SettingsMenu({
       </button>
 
       {open && (
-        <div className="settings__menu glass" role="menu">
+        <div className="absolute bottom-full left-0 mb-1 z-30 glass rounded-sm shadow-md py-1 min-w-[180px]" role="menu">
           <button
             type="button"
-            className="settings__item"
+            className="flex items-center gap-2 w-full px-3 py-1.5 text-xs hover:bg-muted transition-colors text-left"
             role="menuitem"
             onClick={() => {
               onToggleTheme()
               setOpen(false)
             }}
           >
-            <span>{theme === 'dark' ? '☀' : '☾'}</span>
+            <span className="w-4 text-center">{theme === 'dark' ? '☀' : '☾'}</span>
             {theme === 'dark' ? 'Light theme' : 'Dark theme'}
           </button>
 
           <button
             type="button"
-            className="settings__item"
+            className="flex items-center gap-2 w-full px-3 py-1.5 text-xs hover:bg-muted transition-colors text-left"
             role="menuitem"
             onClick={() => {
               onToggleCollapsed()
               setOpen(false)
             }}
           >
-            <span>{collapsed ? '▶' : '◀'}</span>
+            <span className="w-4 text-center">{collapsed ? '▶' : '◀'}</span>
             {collapsed ? 'Expand spaces' : 'Collapse spaces'}
           </button>
 
           <button
             type="button"
-            className="settings__item"
+            className="flex items-center gap-2 w-full px-3 py-1.5 text-xs hover:bg-muted transition-colors text-left"
             role="menuitem"
             onClick={() => {
               setAbout(true)
               setOpen(false)
             }}
           >
-            <span>i</span>
+            <span className="w-4 text-center">i</span>
             About this dashboard
           </button>
         </div>
@@ -106,33 +106,33 @@ export function SettingsMenu({
           onClose={() => setAbout(false)}
           footer={<span>Press Esc to close</span>}
         >
-          <p>
-            Reads duscan <code>report.db</code> files directly. Nothing is written back — the
+          <p className="text-xs text-muted-foreground mb-4">
+            Reads duscan <code className="rounded-sm bg-muted px-1.5 py-0.5 text-[11px]">report.db</code> files directly. Nothing is written back — the
             dashboard cannot start a scan or modify a report.
           </p>
 
           {health ? (
-            <dl className="about__grid">
-              <dt>Reports directory</dt>
+            <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
+              <dt className="text-muted-foreground">Reports directory</dt>
               <dd>
-                <code>{health.reportsDir}</code>
+                <code className="rounded-sm bg-muted px-1.5 py-0.5 text-[11px]">{health.reportsDir}</code>
                 {!health.reportsDirExists && ' — does not exist'}
               </dd>
 
-              <dt>Targets found</dt>
+              <dt className="text-muted-foreground">Targets found</dt>
               <dd>{health.targetsFound}</dd>
 
-              <dt>Space config</dt>
+              <dt className="text-muted-foreground">Space config</dt>
               <dd>
                 {health.groupConfigLoaded
                   ? 'teams.json loaded'
                   : 'no teams.json — every target is in one space'}
               </dd>
 
-              <dt>SQLite</dt>
+              <dt className="text-muted-foreground">SQLite</dt>
               <dd>
                 {health.sqliteVersion}
-                {health.trigramAvailable ? ' · trigram available' : ''}
+                {health.trigramAvailable && ' · trigram available'}
               </dd>
             </dl>
           ) : (

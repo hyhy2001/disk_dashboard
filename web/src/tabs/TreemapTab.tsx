@@ -82,7 +82,6 @@ export function TreemapTab({ target, totalSize }: Props): JSX.Element {
     setExtraDirs([])
     fetchTreemap(target, {
       parent: openId,
-      withFiles: view === 'list',
       ...(pageSize !== undefined ? { limit: pageSize } : {}),
     })
       .then((data) => {
@@ -126,11 +125,11 @@ export function TreemapTab({ target, totalSize }: Props): JSX.Element {
 
   if (error) {
     return (
-      <div className="state state--error">
-        <p className="state__title">Could not load this directory</p>
+      <div className="flex items-center justify-center p-8">
+        <p className="text-sm font-semibold">Could not load this directory</p>
         <p>{error}</p>
         {openId !== null && (
-          <button type="button" className="btn" onClick={() => setOpenId(null)}>
+          <button type="button" className="inline-flex items-center rounded-sm border border-border bg-transparent px-3 py-1.5 text-xs hover:bg-muted transition-colors" onClick={() => setOpenId(null)}>
             Back to root
           </button>
         )}
@@ -151,10 +150,10 @@ export function TreemapTab({ target, totalSize }: Props): JSX.Element {
   if (!level) {
     return (
       <>
-        <div className="tm__toolbar tm__toolbar--ghost" aria-hidden="true" />
-        <div className="panel tm__crumb-ghost" aria-hidden="true" />
-        <div className="panel panel--fill">
-          <div className="skeleton" ref={fit.ref} />
+        <div aria-hidden="true" className="flex items-center gap-2 px-3 py-2 opacity-0" />
+        <div aria-hidden="true" className="flex items-center gap-2 px-3 py-1.5 opacity-0" />
+        <div className="flex flex-1 flex-col min-h-0">
+          <div className="h-32 w-full rounded-lg border border-border/50 bg-surface/50 animate-pulse" ref={fit.ref} />
         </div>
       </>
     )
@@ -166,11 +165,11 @@ export function TreemapTab({ target, totalSize }: Props): JSX.Element {
 
   return (
     <>
-      <div className="tm__toolbar">
-        <div className="tm__nav">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border/30 bg-surface/30 shrink-0">
+        <div className="flex gap-1">
           <button
             type="button"
-            className="btn"
+            className="inline-flex items-center rounded-sm border border-border bg-transparent px-3 py-1.5 text-xs hover:bg-muted transition-colors"
             onClick={() => parent && navigate(parent.id)}
             disabled={!parent}
             title="Back to parent directory"
@@ -179,7 +178,7 @@ export function TreemapTab({ target, totalSize }: Props): JSX.Element {
           </button>
           <button
             type="button"
-            className="btn"
+            className="inline-flex items-center rounded-sm border border-border bg-transparent px-3 py-1.5 text-xs hover:bg-muted transition-colors"
             onClick={() => setOpenId(null)}
             disabled={path.length <= 1}
             title="Jump to the scan root"
@@ -188,15 +187,17 @@ export function TreemapTab({ target, totalSize }: Props): JSX.Element {
           </button>
         </div>
 
-        <span className="tm__meta">
+        <span className="text-[11px] text-muted-foreground tabular-nums">
           {formatCount(node.dirCount)} dirs · {formatCount(node.fileCount)} files ·{' '}
           {formatSize(node.size)}
         </span>
 
-        <div className="tm__views" role="group" aria-label="View mode">
+        <div className="flex-1" />
+
+        <div className="flex rounded-sm border border-border overflow-hidden" role="group" aria-label="View mode">
           <button
             type="button"
-            className="tm__view"
+            className={`px-2.5 py-1 text-[11px] transition-colors ${view === 'list' ? 'bg-muted text-foreground' : 'bg-transparent text-muted-foreground hover:text-foreground'}`}
             aria-pressed={view === 'list'}
             onClick={() => setView('list')}
           >
@@ -204,7 +205,7 @@ export function TreemapTab({ target, totalSize }: Props): JSX.Element {
           </button>
           <button
             type="button"
-            className="tm__view"
+            className={`px-2.5 py-1 text-[11px] transition-colors ${view === 'treemap' ? 'bg-muted text-foreground' : 'bg-transparent text-muted-foreground hover:text-foreground'}`}
             aria-pressed={view === 'treemap'}
             onClick={() => setView('treemap')}
           >
@@ -213,32 +214,28 @@ export function TreemapTab({ target, totalSize }: Props): JSX.Element {
         </div>
       </div>
 
-      {/* Search sits beside the breadcrumb because the two are one control: a hit
-          moves you somewhere in the tree, and the breadcrumb is what says where you
-          landed. Legacy paired them the same way. */}
-      <div className="panel tm__locate">
+      <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border/20 bg-surface/20 shrink-0">
         <Breadcrumbs path={path} onNavigate={navigate} />
         <TreeSearch target={target} onOpen={setOpenId} />
       </div>
 
-      {/* panel--fill: takes the height left over and lets the list scroll inside,
-          so the toolbar and breadcrumbs stay visible while drilling. */}
-      <div className={`panel panel--fill${loading ? ' panel--loading' : ''}`} ref={fit.ref}>
+      <div className={`flex flex-1 flex-col min-h-0${loading ? ' opacity-50 pointer-events-none' : ''}`} ref={fit.ref}>
         {view === 'list' ? (
           <EntryList
             dirs={dirs}
-            files={level.files}
             totalSize={totalSize}
             onOpen={open}
             onLoadMore={level.truncated ? loadMore : undefined}
             loadingMore={loadingMore}
             shownCount={dirs.length}
             totalCount={level.childTotal}
+            fileCount={level.fileTotal}
+            filesRemainder={level.remainder}
           />
         ) : (
           <>
             <Treemap level={level} onOpen={open} />
-            <p className="treemap__hint">
+            <p className="text-center text-[10px] text-muted-foreground p-2">
               Click a tile to drill in. Tiles without subdirectories are not clickable.
               {level.truncated && ' Smaller entries are grouped — switch to List to page through them.'}
             </p>

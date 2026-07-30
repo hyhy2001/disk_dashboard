@@ -1,71 +1,69 @@
-// Find a directory or file by name and jump the TreeMap to it.
-//
-// Lives inside the TreeMap tab, beside the breadcrumb, because that is the only
-// thing it controls: a hit sets the open directory, and the breadcrumb is what
-// reports where you landed. Legacy paired them the same way.
-//
-// An earlier version of this sat in the page header, which was wrong three ways: it
-// stayed visible on tabs it does not affect, so picking a hit silently switched tab;
-// it spent scarce header height on a per-tab control, which is part of what pushed
-// Overview past one screen; and it separated the query from the breadcrumb that
-// answers it.
-//
-// Queries are debounced and the in-flight request is aborted when the query moves
-// on, so typing does not queue a request per character.
-
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { SearchHit } from '../../../shared/api.js'
 import { fetchSearch } from '../lib/api.js'
 import { formatSize } from '../lib/format.js'
 
-/** Shortest query the server accepts. */
 const MIN_CHARS = 2
-
 const DEBOUNCE_MS = 220
+const PAGE_SIZE = 10
 
 interface Props {
   target: string
-  /** Open a directory in the treemap. */
   onOpen: (id: number) => void
 }
 
 export function TreeSearch({ target, onOpen }: Props): JSX.Element {
   const [query, setQuery] = useState('')
-  const [hits, setHits] = useState<SearchHit[] | null>(null)
-  const [busy, setBusy] = useState(false)
+  const [allHits, setAllHits] = useState<SearchHit[]>([])
+  const [hasMore, setHasMore] = useState(false)
+  const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [open, setOpen] = useState(false)
+  const [showCount, setShowCount] = useState(PAGE_SIZE)
   const wrapRef = useRef<HTMLDivElement>(null)
+  const sentinelRef = useRef<HTMLDivElement>(null)
+  const popupRef = useRef<HTMLDivElement>(null)
+  const [popupPos, setPopupPos] = useState<{ top: number; left: number; width: number } | null>(null)
 
-  // A new target invalidates every id in the result list.
   useEffect(() => {
     setQuery('')
-    setHits(null)
+    setAllHits([])
+    setHasMore(false)
+    setError(null)
   }, [target])
 
+  // Debounced fresh search — single fetch, all results at once.
   useEffect(() => {
     const trimmed = query.trim()
     if (trimmed.length < MIN_CHARS) {
-      setHits(null)
+      setAllHits([])
+      setHasMore(false)
       setError(null)
-      setBusy(false)
+      setLoading(false)
+      setShowCount(PAGE_SIZE)
       return
     }
 
     const controller = new AbortController()
     const timer = setTimeout(() => {
-      setBusy(true)
+      setLoading(true)
       setError(null)
+      setAllHits([])
+      setHasMore(false)
+      setShowCount(PAGE_SIZE)
       fetchSearch(target, trimmed, undefined, controller.signal)
         .then((res) => {
-          setHits(res.hits)
-          setBusy(false)
+          if (controller.signal.aborted) return
+          setAllHits(res.hits)
+          setHasMore(res.hasMore)
+          setLoading(false)
         })
         .catch((err: unknown) => {
           if (controller.signal.aborted) return
           setError(err instanceof Error ? err.message : String(err))
-          setHits(null)
-          setBusy(false)
+          setAllHits([])
+          setHasMore(false)
+          setLoading(false)
         })
     }, DEBOUNCE_MS)
 
@@ -74,6 +72,52 @@ export function TreeSearch({ target, onOpen }: Props): JSX.Element {
       controller.abort()
     }
   }, [target, query])
+
+  // Reveal more items locally (no server fetch).
+  const showMore = useCallback(() => {
+    setShowCount((prev) => Math.min(prev + PAGE_SIZE, allHits.length))
+  }, [allHits.length])
+
+  // IntersectionObserver on the sentinel to reveal more items.
+  useEffect(() => {
+    const el = sentinelRef.current
+    const popup = popupRef.current
+    if (!el || !popup || showCount >= allHits.length) return
+
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) showMore()
+      },
+      { root: popup, rootMargin: '80px' },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [showCount, allHits.length, showMore])
+
+  // Track input position for the fixed dropdown.
+  useEffect(() => {
+    if (!open || !wrapRef.current) {
+      setPopupPos(null)
+      return
+    }
+    const inp = wrapRef.current.querySelector('input')
+    if (!inp) return
+
+    const update = () => {
+      const r = inp.getBoundingClientRect()
+      const gap = 8
+      const maxW = window.innerWidth - r.left - gap
+      const w = Math.min(Math.max(r.width, 320), maxW)
+      setPopupPos({ top: r.bottom + 4, left: r.left, width: w })
+    }
+    update()
+    window.addEventListener('scroll', update, true)
+    window.addEventListener('resize', update)
+    return () => {
+      window.removeEventListener('scroll', update, true)
+      window.removeEventListener('resize', update)
+    }
+  }, [open, allHits, loading])
 
   useEffect(() => {
     if (!open) return
@@ -99,11 +143,13 @@ export function TreeSearch({ target, onOpen }: Props): JSX.Element {
     [onOpen],
   )
 
+  const visible = allHits.slice(0, showCount)
+
   return (
-    <div className="tms" ref={wrapRef}>
+    <div className="relative shrink-0" ref={wrapRef}>
       <input
         type="search"
-        className="tms__field"
+        className="h-6 w-56 rounded-sm border border-border bg-background px-2 text-[11px] placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         placeholder="Find a file or folder…"
         aria-label="Search this disk"
         value={query}
@@ -113,40 +159,50 @@ export function TreeSearch({ target, onOpen }: Props): JSX.Element {
           setOpen(true)
         }}
         onKeyDown={(e) => {
-          // Enter takes the top hit, which is the largest match — the one someone
-          // hunting for space almost always wants.
-          if (e.key === 'Enter' && hits && hits.length > 0) {
-            const first = hits[0]
+          if (e.key === 'Enter' && allHits.length > 0) {
+            const first = allHits[0]
             if (first) pick(first)
           }
         }}
       />
 
-      {open && query.trim().length >= MIN_CHARS && (
-        <div className="tms__panel glass">
+      {open && query.trim().length >= MIN_CHARS && popupPos && (
+        <div
+          ref={popupRef}
+          className="fixed z-50 glass rounded-sm shadow-md overflow-auto"
+          style={{ top: popupPos.top, left: popupPos.left, width: popupPos.width, maxHeight: 320 }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
           {error ? (
-            <p className="tms__msg">{error}</p>
-          ) : busy && hits === null ? (
-            <p className="tms__msg">Searching…</p>
-          ) : hits === null || hits.length === 0 ? (
-            <p className="tms__msg">No match for “{query.trim()}”.</p>
+            <p className="text-[11px] text-muted-foreground p-3">{error}</p>
+          ) : allHits.length === 0 && loading ? (
+            <p className="text-[11px] text-muted-foreground p-3">Searching…</p>
+          ) : allHits.length === 0 ? (
+            <p className="text-[11px] text-muted-foreground p-3">No match for "{query.trim()}".</p>
           ) : (
-            <ul className="tms__list">
-              {hits.map((h) => (
+            <ul className="divide-y divide-border/20">
+              {visible.map((h) => (
                 <li key={`${h.kind}-${h.id}-${h.path}`}>
-                  <button type="button" className="tms__hit" onClick={() => pick(h)}>
-                    <span
-                      className={`tms__kind tms__kind--${h.kind}`}
-                      aria-hidden="true"
-                    >
+                  <button type="button" className="flex items-center gap-2 w-full px-3 py-1.5 text-[11px] hover:bg-muted transition-colors text-left" onClick={() => pick(h)}>
+                    <span className="text-muted-foreground shrink-0" aria-hidden="true">
                       {h.kind === 'dir' ? '▣' : '▤'}
                     </span>
-                    <span className="tms__name">{h.name}</span>
-                    <span className="tms__path">{h.path}</span>
-                    <span className="tms__size">{formatSize(h.size)}</span>
+                    <span className="font-medium truncate">{h.name}</span>
+                    <span className="text-muted-foreground truncate flex-1">{h.path}</span>
+                    <span className="tabular-nums text-muted-foreground shrink-0">{formatSize(h.size)}</span>
                   </button>
                 </li>
               ))}
+              {showCount < allHits.length && (
+                <div ref={sentinelRef} className="flex items-center justify-center py-2 text-[10px] text-muted-foreground">
+                  Scroll for more
+                </div>
+              )}
+              {hasMore && showCount >= allHits.length && (
+                <p className="text-[10px] text-muted-foreground text-center py-2">
+                  Narrow your search for more results
+                </p>
+              )}
             </ul>
           )}
         </div>

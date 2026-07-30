@@ -9,9 +9,18 @@
 // structure and geometry arithmetic.
 
 import { fireEvent, render } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { HistoryPoint } from '../../../shared/api.js'
 import { AreaChart } from './AreaChart.js'
+
+// jsdom has no layout, so useSize never reports a size. Mock it to return
+// a fixed box so the SVG renders predictably.
+vi.mock('../lib/useSize.js', () => ({
+  useSize: () => [
+    { current: document.createElement('div') },
+    { width: 560, height: 200 },
+  ],
+}))
 
 const DAY = 86_400
 

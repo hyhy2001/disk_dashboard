@@ -3,7 +3,8 @@
 
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import Database from 'better-sqlite3'
-import { existsSync } from 'node:fs'
+import { existsSync, statSync } from 'node:fs'
+import { join } from 'node:path'
 import type {
   ApiResponse,
   DetailFilter,
@@ -23,20 +24,22 @@ import type {
 import type { Config } from '../config.js'
 import {
   isSafeTargetName,
-  listTargets,
-  openReport,
+  openTargetReport,
+  diskPath,
+  openReportAt,
   readCapacity,
   readMeta,
+  REPORT_FILE,
 } from '../db/reports.js'
 import { readOverview } from '../db/overview.js'
 import { readTreemapLevel } from '../db/treemap.js'
-import { groupTargets, readMapping } from '../db/groups.js'
+import { getPublicConfig } from '../db/admin.js'
 import { findUid, listUsers, readUserDetail } from '../db/detail.js'
 import { readPermIssues } from '../db/perms.js'
 import { readHistorySeries } from '../db/history.js'
 import { readInodeStats } from '../db/inodes.js'
 import { searchNames } from '../db/search.js'
-import { readScanStatus } from '../db/status.js'
+import { readScanStatusAt } from '../db/status.js'
 
 function ok<T>(data: T): ApiResponse<T> {
   return { status: 'success', data }
@@ -114,26 +117,77 @@ function detailFilterFrom(q: {
 
 export function registerApi(app: FastifyInstance, config: Config): void {
   app.get('/api/health', async (): Promise<ApiResponse<HealthInfo>> => {
+    const adminCfg = getPublicConfig()
+    const diskCount = adminCfg.spaces.reduce((s, sp) => s + sp.disks.length, 0)
     return ok<HealthInfo>({
       ok: true,
       sqliteVersion: sqliteVersion(),
       trigramAvailable: detectTrigram(),
-      reportsDir: config.reportsDir,
-      reportsDirExists: existsSync(config.reportsDir),
-      targetsFound: listTargets(config.reportsDir).length,
-      // Distinguishes "no teams.json" from "teams.json present but unparseable",
-      // which otherwise both show up as a single default group.
-      groupConfigLoaded: readMapping(config.reportsDir) !== null,
+      reportsDir: '(admin DB)',
+      reportsDirExists: true,
+      targetsFound: diskCount,
+      groupConfigLoaded: adminCfg.spaces.length > 0,
+      needsSetup: adminCfg.needsSetup,
     })
   })
 
   app.get('/api/targets', async (): Promise<ApiResponse<Target[]>> => {
-    return ok(listTargets(config.reportsDir))
+    const adminCfg = getPublicConfig()
+    const targets: Target[] = []
+    for (const space of adminCfg.spaces) {
+      for (const disk of space.disks) {
+        const rp = join(disk.path, REPORT_FILE)
+        const info = openReportAt(rp)
+        if (info) {
+          const meta = readMeta(info.db)
+          const cap = readCapacity(info.db)
+          const dbSize = statSync(rp).size
+          info.db.close()
+          targets.push({
+            name: disk.name,
+            scanRoot: meta.scan_root ?? disk.path,
+            scanTimestamp: Number(meta.scan_timestamp ?? 0),
+            totalFiles: Number(meta.total_files ?? 0),
+            totalDirs: Number(meta.total_dirs ?? 0),
+            totalSize: Number(meta.total_size ?? 0),
+            dbSizeBytes: dbSize,
+            capacity: cap ?? null,
+          })
+        }
+      }
+    }
+    return ok(targets)
   })
 
   // Targets arranged into groups for the Team → Disk sidebar.
   app.get('/api/groups', async (): Promise<ApiResponse<TargetGroup[]>> => {
-    return ok(groupTargets(config.reportsDir, listTargets(config.reportsDir)))
+    const adminCfg = getPublicConfig()
+    const groups: TargetGroup[] = []
+    for (const space of adminCfg.spaces) {
+        const members: Target[] = []
+        for (const disk of space.disks) {
+          const rp = join(disk.path, REPORT_FILE)
+          const info = openReportAt(rp)
+          if (info) {
+            const meta = readMeta(info.db)
+            const cap = readCapacity(info.db)
+            const dbSize = statSync(rp).size
+            info.db.close()
+            members.push({
+              name: disk.name,
+              scanRoot: meta.scan_root ?? disk.path,
+              scanTimestamp: Number(meta.scan_timestamp ?? 0),
+              totalFiles: Number(meta.total_files ?? 0),
+              totalDirs: Number(meta.total_dirs ?? 0),
+              totalSize: Number(meta.total_size ?? 0),
+              dbSizeBytes: dbSize,
+              capacity: cap ?? null,
+            })
+          }
+        }
+        if (members.length > 0) groups.push({ name: space.name, targets: members })
+      }
+    return ok(groups)
   })
 
   app.get<{ Params: { target: string } }>(
@@ -144,18 +198,16 @@ export function registerApi(app: FastifyInstance, config: Config): void {
         return fail(reply, 400, 'invalid target name')
       }
 
-      const db = openReport(config.reportsDir, target)
+      const db = openTargetReport(target)
       if (!db) {
         return fail(reply, 404, `no report found for target '${target}'`)
       }
 
-      // listTargets() already stats every report; reuse its row so the summary
-      // numbers in the header match the target picker exactly.
+      // readOverview needs a Target row; build one from meta.
       const meta = readMeta(db)
-      const known = listTargets(config.reportsDir).find((t) => t.name === target)
-      const row: Target = known ?? {
+      const row: Target = {
         name: target,
-        scanRoot: meta.scan_root ?? meta.scan_path ?? '',
+        scanRoot: meta.scan_root ?? '',
         scanTimestamp: Number(meta.scan_timestamp) || 0,
         totalFiles: Number(meta.total_files) || 0,
         totalDirs: Number(meta.total_dirs) || 0,
@@ -210,7 +262,7 @@ export function registerApi(app: FastifyInstance, config: Config): void {
         return fail(reply, 400, 'fileOffset must be a non-negative integer')
       }
 
-      const db = openReport(config.reportsDir, target)
+      const db = openTargetReport(target)
       if (!db) {
         return fail(reply, 404, `no report found for target '${target}'`)
       }
@@ -245,7 +297,7 @@ export function registerApi(app: FastifyInstance, config: Config): void {
     reply: FastifyReply,
   ): { db: import('better-sqlite3').Database } | { err: ApiResponse<never> } => {
     if (!isSafeTargetName(target)) return { err: fail(reply, 400, 'invalid target name') }
-    const db = openReport(config.reportsDir, target)
+    const db = openTargetReport(target)
     if (!db) return { err: fail(reply, 404, `no report found for target '${target}'`) }
     return { db }
   }
@@ -386,7 +438,9 @@ export function registerApi(app: FastifyInstance, config: Config): void {
     async (request, reply): Promise<ApiResponse<ScanStatus>> => {
       const { target } = request.params
       if (!isSafeTargetName(target)) return fail(reply, 400, 'invalid target name')
-      const status = readScanStatus(config.reportsDir, target)
+      const dir = diskPath(target)
+      if (!dir) return fail(reply, 404, `no disk configured for target '${target}'`)
+      const status = readScanStatusAt(join(dir, REPORT_FILE), dir)
       if (!status) return fail(reply, 404, `no report found for target '${target}'`)
       reply.header('cache-control', 'no-store')
       return ok(status)

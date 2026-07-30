@@ -61,38 +61,36 @@ export function ChartModal({ title, slug, onClose, children }: Props): JSX.Eleme
 
   return (
     <div
-      className="modal"
-      // Only a click that starts and ends on the backdrop closes; a drag that
-      // ends outside a chart should not dismiss it.
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
     >
       <div
-        className="modal__panel"
+        className="flex flex-col items-end gap-2"
         role="dialog"
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
         ref={panel}
       >
-        <div className="modal__head">
-          <h2 className="modal__title">{title}</h2>
-          <div className="modal__tools">
-            <button type="button" className="btn btn--sm" onClick={savePng}>
+        <div className="flex items-center justify-between w-full px-4 py-3 border-b border-border bg-surface/80 backdrop-blur-sm rounded-t-lg">
+          <h2 className="text-sm font-semibold">{title}</h2>
+          <div className="flex items-center gap-1">
+            <button type="button" className="inline-flex items-center rounded-sm border border-border bg-transparent px-2 py-1 text-[10px] hover:bg-muted transition-colors" onClick={savePng}>
               Save PNG
             </button>
-            <button type="button" className="icon-btn" onClick={onClose} aria-label="Close">
+            <button type="button"             className="inline-flex items-center justify-center size-6 rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" onClick={onClose} aria-label="Close">
               ✕
             </button>
           </div>
         </div>
-        <div className="modal__body" ref={body}>
+        <div className="bg-card border border-border rounded-md shadow-lg w-[95vw] h-[90vh] max-w-6xl flex flex-col animate-slide-up overflow-hidden" ref={body}>
           {children}
         </div>
-        <div className="modal__foot">
+        <div className="px-4 py-2 text-[10px] text-muted-foreground">
           {saveError ? (
-            <span className="modal__err">{saveError}</span>
+            <span className="text-destructive">{saveError}</span>
           ) : (
             <span>Press Esc to close · Hover for details</span>
           )}

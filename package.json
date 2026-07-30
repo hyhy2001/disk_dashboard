@@ -13,6 +13,7 @@
     "typecheck": "npm run typecheck --workspace=server && npm run typecheck --workspace=web",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "start": "npm run start --workspace=server"
   },
   "devDependencies": {

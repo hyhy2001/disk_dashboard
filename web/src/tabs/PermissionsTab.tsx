@@ -1,12 +1,4 @@
-// Permission Issues tab: paths the scan could not read.
-//
-// The important state to get right is the empty one. A scan run as root produces
-// zero rows, which is the healthy outcome, not a failure — so "no issues found"
-// has to read as good news and be clearly distinct from "this report predates the
-// feature" and from "the request failed".
-//
-// Unreadable paths matter because they are exactly the bytes the Overview reports
-// as unattributed: used minus scanned. This tab is where that gap gets a name.
+// Permission Issues tab — paths the scan could not read.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { PermPage } from '../../../shared/api.js'
@@ -16,23 +8,18 @@ import { exportPermissions } from '../lib/exports.js'
 import { formatCount } from '../lib/format.js'
 import { NumberPager } from '../components/Pager.js'
 import { useFitRows } from '../lib/useFitRows.js'
+import { Button } from '@/components/ui/button.js'
+import { Badge } from '@/components/ui/badge.js'
+import { Input } from '@/components/ui/input.js'
+import { cn } from '@/lib/utils.js'
+import { Filter, File, Folder, Download, Copy } from 'lucide-react'
 
-interface Props {
-  target: string
-}
+interface Props { target: string }
 
-/**
- * One row's height plus its 1px gap, measured in the browser (27 + 1).
- *
- * The page size is derived from the measured list height rather than fixed at
- * legacy's 100: this dashboard holds one screen, and 100 rows is ~2800px of it.
- */
 const ROW_HEIGHT = 28
-
-/** The sentinel the server uses for issues with no owning user. */
 const UNKNOWN = '__unknown__'
 
-const TYPES: { label: string; value: string }[] = [
+const TYPES = [
   { label: 'All', value: '' },
   { label: 'Files', value: 'file' },
   { label: 'Directories', value: 'directory' },
@@ -42,124 +29,70 @@ export function PermissionsTab({ target }: Props): JSX.Element {
   const [data, setData] = useState<PermPage | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
-
   const [page, setPage] = useState(1)
   const [itemType, setItemType] = useState('')
   const [pathQuery, setPathQuery] = useState('')
-  /** Debounced copy of pathQuery — the request follows this, not the keystrokes. */
   const [pathApplied, setPathApplied] = useState('')
   const [users, setUsers] = useState<string[]>([])
   const [userQuery, setUserQuery] = useState('')
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [exporting, setExporting] = useState(false)
 
-  // Page size follows the measured list height, so a page always fits on screen.
-  /*
-   * reserve covers what sits *below* the list inside the panel: the pager (35px) and
-   * the panel's bottom padding. The measurement runs from the list's top edge to the
-   * bottom of the scroll host, so anything underneath has to be subtracted or the
-   * page comes back one screenful too tall.
-   */
   const fit = useFitRows({ rowHeight: ROW_HEIGHT, min: 8, max: 100, reserve: 64 })
   const pageSize = fit.rows
 
-  // Typing a path filter fires a COUNT plus a page query, so it waits for a pause.
-  useEffect(() => {
-    const id = setTimeout(() => setPathApplied(pathQuery), 350)
-    return () => clearTimeout(id)
-  }, [pathQuery])
-
-  // Any filter change invalidates the page number: page 7 of an unfiltered list is
-  // usually past the end of a filtered one. A resize does too — page 7 of 12-row
-  // pages is a different offset from page 7 of 30-row pages.
-  useEffect(() => {
-    setPage(1)
-  }, [itemType, pathApplied, users, pageSize])
+  useEffect(() => { const id = setTimeout(() => setPathApplied(pathQuery), 350); return () => clearTimeout(id) }, [pathQuery])
+  useEffect(() => { setPage(1) }, [itemType, pathApplied, users, pageSize])
 
   useEffect(() => {
-    // Wait for the measurement so the first request already asks for the right size.
     if (!fit.measured) return
-
-    const controller = new AbortController()
-    setLoading(true)
-    setError(null)
-
-    fetchPermissions(
-      target,
-      {
-        offset: (page - 1) * pageSize,
-        limit: pageSize,
-        ...(users.length > 0 ? { users: users.join(',') } : {}),
-        ...(itemType ? { itemType } : {}),
-        ...(pathApplied ? { path: pathApplied } : {}),
-      },
-      controller.signal,
-    )
-      .then((res) => {
-        setData(res)
-        setLoading(false)
-      })
-      .catch((err: unknown) => {
-        if (controller.signal.aborted) return
-        setError(err instanceof Error ? err.message : String(err))
-        setData(null)
-        setLoading(false)
-      })
-
-    return () => controller.abort()
+    const ctrl = new AbortController()
+    setLoading(true); setError(null)
+    fetchPermissions(target, {
+      offset: (page - 1) * pageSize, limit: pageSize,
+      ...(users.length > 0 ? { users: users.join(',') } : {}),
+      ...(itemType ? { itemType } : {}),
+      ...(pathApplied ? { path: pathApplied } : {}),
+    }, ctrl.signal)
+      .then(r => { setData(r); setLoading(false) })
+      .catch((err: unknown) => { if (!ctrl.signal.aborted) { setError(err instanceof Error ? err.message : String(err)); setData(null); setLoading(false) } })
+    return () => ctrl.abort()
   }, [target, page, users, itemType, pathApplied, pageSize, fit.measured])
 
   const toggleUser = useCallback((name: string) => {
-    setUsers((cur) => (cur.includes(name) ? cur.filter((n) => n !== name) : [...cur, name]))
+    setUsers(cur => cur.includes(name) ? cur.filter(n => n !== name) : [...cur, name])
   }, [])
 
-  const runExport = useCallback(
-    (scope: 'filtered' | 'all') => {
-      setExporting(true)
-      exportPermissions(
-        target,
-        {
-          ...(users.length > 0 ? { users: users.join(',') } : {}),
-          ...(itemType ? { itemType } : {}),
-          ...(pathApplied ? { path: pathApplied } : {}),
-        },
-        scope,
-      ).finally(() => setExporting(false))
-    },
-    [target, users, itemType, pathApplied],
-  )
+  const runExport = useCallback((scope: 'filtered' | 'all') => {
+    setExporting(true)
+    exportPermissions(target, {
+      ...(users.length > 0 ? { users: users.join(',') } : {}),
+      ...(itemType ? { itemType } : {}),
+      ...(pathApplied ? { path: pathApplied } : {}),
+    }, scope).finally(() => setExporting(false))
+  }, [target, users, itemType, pathApplied])
 
   const shownUsers = useMemo(() => {
     if (!data) return []
     const q = userQuery.trim().toLowerCase()
     if (!q) return data.userCounts
-    return data.userCounts.filter((u) => u.name.toLowerCase().includes(q))
+    return data.userCounts.filter(u => u.name.toLowerCase().includes(q))
   }, [data, userQuery])
 
-  /**
-   * Pre-list states share one wrapper carrying the measuring ref.
-   *
-   * They cannot be early returns: the first fetch waits on the measurement, and a
-   * measurement needs a mounted box, so returning a bare skeleton would deadlock.
-   */
   if (error || !data || data.userCounts.length === 0) {
     return (
-      <div className="perm__body" ref={fit.ref}>
+      <div ref={fit.ref} className="flex-1 flex items-center justify-center p-8">
         {error ? (
-          <div className="state state--error">
-            <p className="state__title">Could not load permission issues</p>
-            <p>{error}</p>
+          <div className="text-center space-y-2">
+            <p className="text-sm font-semibold text-destructive">Could not load permission issues</p>
+            <p className="text-xs text-muted-foreground">{error}</p>
           </div>
         ) : !data ? (
-          <div className="skeleton" />
+          <div className="h-64 w-full rounded-md bg-muted animate-pulse" />
         ) : (
-          // No rows anywhere in the report, filters aside: the healthy case.
-          <div className="state">
-            <p className="state__title">No permission issues</p>
-            <p>
-              The scan read every path it visited. Nothing on this target was skipped for
-              permissions.
-            </p>
+          <div className="text-center space-y-2 max-w-md">
+            <p className="text-sm font-semibold">No permission issues</p>
+            <p className="text-xs text-muted-foreground">The scan read every path it visited. Nothing on this target was skipped for permissions.</p>
           </div>
         )}
       </div>
@@ -167,185 +100,95 @@ export function PermissionsTab({ target }: Props): JSX.Element {
   }
 
   const pageCount = Math.max(1, Math.ceil(data.total / pageSize))
-  const totalIssues = data.userCounts.reduce((sum, u) => sum + u.count, 0)
-  const namedUsers = data.userCounts.filter((u) => u.name !== UNKNOWN)
+  const totalIssues = data.userCounts.reduce((s, u) => s + u.count, 0)
+  const namedUsers = data.userCounts.filter(u => u.name !== UNKNOWN)
 
   return (
-    <>
-      <div className="perm__summary panel">
-        <div className="perm__stat">
-          <span className="perm__stat-num">{formatCount(totalIssues)}</span>
-          <span className="perm__stat-label">Unreadable paths</span>
-        </div>
-        <div className="perm__stat">
-          <span className="perm__stat-num">{formatCount(namedUsers.length)}</span>
-          <span className="perm__stat-label">Users affected</span>
-        </div>
-        <div className="perm__stat">
-          <span className="perm__stat-num">
-            {formatCount(data.userCounts.find((u) => u.name === UNKNOWN)?.count ?? 0)}
-          </span>
-          <span className="perm__stat-label">No owning user</span>
-        </div>
-
-        <div className="perm__spacer" />
-
-        <button
-          type="button"
-          className="btn"
-          onClick={() => runExport('filtered')}
-          disabled={exporting}
-          data-tooltip="Download the current filtered list as CSV"
-        >
-          Export filtered
-        </button>
-        <button
-          type="button"
-          className="btn"
-          onClick={() => runExport('all')}
-          disabled={exporting}
-          data-tooltip="Download every issue in this report as CSV"
-        >
-          Export all
-        </button>
+    <div className="flex flex-col h-full">
+      {/* ── Summary stats ── */}
+      <div className="flex items-center gap-4 border-b border-border px-4 py-2.5">
+        <div className="text-center"><p className="text-lg font-bold tabular-nums">{formatCount(totalIssues)}</p><p className="text-[10px] text-muted-foreground">Unreadable paths</p></div>
+        <div className="text-center"><p className="text-lg font-bold tabular-nums">{formatCount(namedUsers.length)}</p><p className="text-[10px] text-muted-foreground">Users affected</p></div>
+        <div className="text-center"><p className="text-lg font-bold tabular-nums">{formatCount(data.userCounts.find(u => u.name === UNKNOWN)?.count ?? 0)}</p><p className="text-[10px] text-muted-foreground">No owning user</p></div>
+        <div className="flex-1" />
+        <Button variant="outline" size="sm" onClick={() => runExport('filtered')} disabled={exporting}><Download className="size-3 mr-1" />Filtered</Button>
+        <Button variant="outline" size="sm" onClick={() => runExport('all')} disabled={exporting}><Download className="size-3 mr-1" />All</Button>
       </div>
 
+      {/* ── Error type chips ── */}
       {data.errorCounts.length > 0 && (
-        <div className="perm__errors panel">
-          {data.errorCounts.slice(0, 6).map((e) => (
-            <span className="chip" key={e.error}>
-              {e.error} <strong>{formatCount(e.count)}</strong>
-            </span>
+        <div className="flex flex-wrap gap-1.5 border-b border-border px-4 py-2">
+          {data.errorCounts.slice(0, 6).map(e => (
+            <Badge key={e.error} variant="secondary" className="text-[10px] gap-1">{e.error}<span className="font-bold">{formatCount(e.count)}</span></Badge>
           ))}
         </div>
       )}
 
-      <div className="perm__main">
-        <button
-          type="button"
-          className="filter-badge"
-          aria-expanded={filtersOpen}
-          onClick={() => setFiltersOpen((v) => !v)}
-        >
-          Filters{users.length > 0 || itemType || pathApplied ? ' •' : ''}
-        </button>
-
-        <aside className={`perm__filters panel${filtersOpen ? ' perm__filters--open' : ''}`}>
-          <div className="perm__types" role="group" aria-label="Item type">
-            {TYPES.map((t) => (
-              <button
-                type="button"
-                className="perm__type"
-                key={t.value}
-                aria-pressed={itemType === t.value}
-                onClick={() => setItemType(t.value)}
-              >
+      {/* ── Main: filters + list ── */}
+      <div className="flex flex-1 overflow-hidden">
+        {/* Filters sidebar */}
+        <aside className={cn('w-[220px] shrink-0 border-r border-border overflow-auto p-3 space-y-3', !filtersOpen && 'hidden')}>
+          <div className="flex gap-1" role="group">
+            {TYPES.map(t => (
+              <button key={t.value} onClick={() => setItemType(t.value)}
+                className={cn('flex-1 rounded-sm py-1 text-[10px] font-medium transition-colors',
+                  itemType === t.value ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground')}>
                 {t.label}
               </button>
             ))}
           </div>
-
-          <input
-            type="search"
-            className="sidebar__search"
-            placeholder="Filter by path…"
-            aria-label="Filter by path"
-            value={pathQuery}
-            onChange={(e) => setPathQuery(e.target.value)}
-          />
-
-          <header className="panel__head">
-            <h2 className="panel__title">Users</h2>
-            <span className="panel__note">
-              {users.length === 0 ? 'all' : `${users.length} selected`}
-            </span>
-          </header>
-
-          <input
-            type="search"
-            className="sidebar__search"
-            placeholder="Search user…"
-            aria-label="Search users"
-            value={userQuery}
-            onChange={(e) => setUserQuery(e.target.value)}
-          />
-
-          <ul className="hist__chips">
-            {shownUsers.map((u) => {
+          <Input placeholder="Filter by path…" value={pathQuery} onChange={e => setPathQuery(e.target.value)} className="h-7 text-xs" />
+          <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Users <span className="font-normal">{users.length === 0 ? 'all' : `${users.length} selected`}</span></h3>
+          <Input placeholder="Search user…" value={userQuery} onChange={e => setUserQuery(e.target.value)} className="h-7 text-xs" />
+          <div className="space-y-0.5 max-h-[300px] overflow-auto">
+            {shownUsers.map(u => {
               const on = users.includes(u.name)
               return (
-                <li key={u.name}>
-                  <button
-                    type="button"
-                    className={`hist__chip${on ? ' hist__chip--on' : ''}${u.name === UNKNOWN ? ' hist__chip--dim' : ''}`}
-                    aria-pressed={on}
-                    onClick={() => toggleUser(u.name)}
-                  >
-                    <span className="hist__mark" aria-hidden="true">
-                      {on ? '✓' : ''}
-                    </span>
-                    <span className="hist__name">
-                      {u.name === UNKNOWN ? 'no owning user' : u.name}
-                    </span>
-                    <span className="hist__delta">{formatCount(u.count)}</span>
-                  </button>
-                </li>
+                <button key={u.name} onClick={() => toggleUser(u.name)}
+                  className={cn('flex w-full items-center gap-1.5 rounded-sm px-2 py-1 text-[11px] transition-colors text-left',
+                    on ? 'bg-accent text-accent-foreground' : 'hover:bg-muted text-muted-foreground',
+                    u.name === UNKNOWN && 'italic')}>
+                  <span className="w-3 text-[10px]">{on ? '✓' : ''}</span>
+                  <span className="flex-1 truncate">{u.name === UNKNOWN ? 'no owning user' : u.name}</span>
+                  <span className="tabular-nums text-[10px]">{formatCount(u.count)}</span>
+                </button>
               )
             })}
-          </ul>
-
-          <div className="hist__actions">
-            <button type="button" className="btn" onClick={() => setUsers([])}>
-              Clear
-            </button>
           </div>
+          <Button variant="ghost" size="sm" className="w-full text-[10px]" onClick={() => setUsers([])}>Clear all</Button>
         </aside>
 
-        <section className={`panel perm__list${loading ? ' panel--loading' : ''}`}>
-          <header className="panel__head">
-            <h2 className="panel__title">Issues</h2>
-            <span className="panel__note">
-              {formatCount(data.total)} matching · page {page} of {formatCount(pageCount)}
-            </span>
-          </header>
+        {/* Issue list */}
+        <section className="flex-1 flex flex-col min-w-0">
+          <div className="flex items-center justify-between border-b border-border px-4 py-2">
+            <Button variant="ghost" size="sm" className="text-[10px]" onClick={() => setFiltersOpen(v => !v)}>
+              <Filter className="size-3 mr-1" />Filters{users.length > 0 || itemType || pathApplied ? ' • active' : ''}
+            </Button>
+            <span className="text-[10px] text-muted-foreground">{formatCount(data.total)} matching · page {page} of {formatCount(pageCount)}</span>
+          </div>
 
-          {/* The measured box: whatever height the flex layout leaves it decides how
-              many rows the next request asks for. Wraps the empty state too, so a
-              filter matching nothing does not lose the measurement. */}
-          <div className="perm__body" ref={fit.ref}>
+          <div ref={fit.ref} className="flex-1 overflow-auto">
             {data.rows.length === 0 ? (
-              <p className="empty">No issue matches the current filters.</p>
+              <p className="p-4 text-xs text-muted-foreground">No issue matches the current filters.</p>
             ) : (
-              <ul className="perm__rows">
-              {data.rows.map((r, i) => (
-                <li className="perm__row" key={`${r.path}-${i}`}>
-                  <span
-                    className={`perm__kind perm__kind--${r.itemType === 'directory' ? 'dir' : 'file'}`}
-                    aria-hidden="true"
-                  >
-                    {r.itemType === 'directory' ? '▣' : '▤'}
-                  </span>
-                  <span className={`chip chip--sm${r.user === UNKNOWN ? ' chip--dim' : ''}`}>
-                    {r.user === UNKNOWN ? 'unknown' : r.user}
-                  </span>
-                  <button
-                    type="button"
-                    className="ud__path"
-                    onClick={() => void copyPath(r.path)}
-                    data-tooltip={`${r.path} — click to copy`}
-                  >
-                    {r.path}
-                  </button>
-                  <span className="perm__err">{r.error}</span>
-                </li>
-              ))}
-              </ul>
+              <div className="divide-y divide-border/50">
+                {data.rows.map((r, i) => (
+                  <div key={`${r.path}-${i}`} className="flex items-center gap-2 px-4 py-1.5 hover:bg-muted/30 transition-colors text-xs">
+                    {r.itemType === 'directory' ? <Folder className="size-3 text-muted-foreground shrink-0" /> : <File className="size-3 text-muted-foreground shrink-0" />}
+                    <Badge variant="secondary" className={cn('text-[9px] shrink-0', r.user === UNKNOWN && 'opacity-50')}>{r.user === UNKNOWN ? 'unknown' : r.user}</Badge>
+                    <button onClick={() => void copyPath(r.path)} className="flex-1 truncate text-left font-mono text-[11px] text-muted-foreground hover:text-foreground transition-colors" title={`${r.path} — click to copy`}>
+                      <Copy className="size-2.5 inline mr-1 opacity-0 group-hover:opacity-100" />{r.path}
+                    </button>
+                    <span className="text-[10px] text-muted-foreground shrink-0">{r.error}</span>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
 
           <NumberPager page={page} pageCount={pageCount} onGo={setPage} busy={loading} />
         </section>
       </div>
-    </>
+    </div>
   )
 }

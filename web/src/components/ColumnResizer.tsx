@@ -79,7 +79,8 @@ export function ColumnResizer(): JSX.Element {
 
   return (
     <div
-      className="resizer"
+      className="absolute top-0 bottom-0 z-10 w-1.5 cursor-col-resize hover:bg-accent/50 transition-colors"
+      style={{ left: 'calc(var(--col2-width) - 3px)' }}
       role="separator"
       aria-orientation="vertical"
       aria-label="Resize disk column"
@@ -87,7 +88,6 @@ export function ColumnResizer(): JSX.Element {
       onKeyDown={onKey}
       onPointerDown={(e) => {
         dragging.current = true
-        // Capture so the drag continues even when the pointer outruns the handle.
         e.currentTarget.setPointerCapture(e.pointerId)
         document.body.classList.add('resizing')
       }}

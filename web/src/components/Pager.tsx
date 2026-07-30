@@ -26,12 +26,12 @@ export function StepPager({
   if (!hasPrev && !hasNext) return null
 
   return (
-    <nav className="pager" aria-label="Pagination">
-      <button type="button" className="pager__btn" onClick={onPrev} disabled={!hasPrev || busy}>
+    <nav className="flex items-center justify-center gap-3 border-t border-border/30 py-2.5" aria-label="Pagination">
+      <button type="button" className="inline-flex items-center gap-1 rounded-sm border border-border bg-transparent px-2.5 py-1 text-xs hover:bg-muted transition-colors disabled:opacity-30" onClick={onPrev} disabled={!hasPrev || busy}>
         ← Prev
       </button>
-      <span className="pager__label">Page {page}</span>
-      <button type="button" className="pager__btn" onClick={onNext} disabled={!hasNext || busy}>
+      <span className="text-[11px] text-muted-foreground tabular-nums">Page {page}</span>
+      <button type="button" className="inline-flex items-center gap-1 rounded-sm border border-border bg-transparent px-2.5 py-1 text-xs hover:bg-muted transition-colors disabled:opacity-30" onClick={onNext} disabled={!hasNext || busy}>
         Next →
       </button>
     </nav>
@@ -80,10 +80,10 @@ export function NumberPager({ page, pageCount, onGo, busy = false }: NumberProps
   if (pageCount <= 1) return null
 
   return (
-    <nav className="pager" aria-label="Pagination">
+    <nav className="flex items-center justify-center gap-1 border-t border-border py-2" aria-label="Pagination">
       <button
         type="button"
-        className="pager__btn"
+        className="inline-flex size-7 items-center justify-center rounded-sm text-xs hover:bg-muted transition-colors disabled:opacity-30"
         onClick={() => onGo(page - 1)}
         disabled={page <= 1 || busy}
         aria-label="Previous page"
@@ -93,13 +93,13 @@ export function NumberPager({ page, pageCount, onGo, busy = false }: NumberProps
 
       {pageWindow(page, pageCount).map((p, i) =>
         p === '…' ? (
-          <span className="pager__gap" key={`gap${i}`} aria-hidden="true">
+          <span className="inline-flex size-7 items-center justify-center text-xs text-muted-foreground" key={`gap${i}`} aria-hidden="true">
             …
           </span>
         ) : (
           <button
             type="button"
-            className="pager__num"
+            className="inline-flex size-7 items-center justify-center rounded-sm text-xs hover:bg-muted transition-colors disabled:opacity-30 aria-current:bg-muted aria-current:text-foreground text-muted-foreground"
             key={p}
             aria-current={p === page ? 'page' : undefined}
             onClick={() => onGo(p)}
@@ -112,7 +112,7 @@ export function NumberPager({ page, pageCount, onGo, busy = false }: NumberProps
 
       <button
         type="button"
-        className="pager__btn"
+        className="inline-flex size-7 items-center justify-center rounded-sm text-xs hover:bg-muted transition-colors disabled:opacity-30"
         onClick={() => onGo(page + 1)}
         disabled={page >= pageCount || busy}
         aria-label="Next page"

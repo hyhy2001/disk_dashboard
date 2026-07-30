@@ -40,16 +40,16 @@ interface Props {
 
 export function SizeInput({ id, label, value, onChange, onSubmit }: Props): JSX.Element {
   return (
-    <div className="sizeinput">
-      <label className="taginput__label" htmlFor={id}>
+    <div className="flex items-center gap-1.5">
+      <label className="text-[10px] text-muted-foreground shrink-0" htmlFor={id}>
         {label}
       </label>
-      <div className="sizeinput__row">
+      <div className="flex items-center gap-0.5">
         <input
           id={id}
           type="number"
           min="0"
-          className="taginput__field"
+          className="h-6 w-20 rounded-sm border border-border bg-background px-2 text-[11px] placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           placeholder="0"
           value={value.amount}
           onChange={(e) => onChange({ ...value, amount: e.target.value })}
@@ -61,7 +61,7 @@ export function SizeInput({ id, label, value, onChange, onSubmit }: Props): JSX.
           }}
         />
         <select
-          className="select select--sm"
+          className="h-6 rounded-sm border border-border bg-background px-1.5 text-[10px] text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
           aria-label={`${label} unit`}
           value={value.unit}
           onChange={(e) => onChange({ ...value, unit: e.target.value })}

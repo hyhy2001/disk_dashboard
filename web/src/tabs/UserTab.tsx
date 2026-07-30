@@ -9,7 +9,7 @@
 // user's whole slice of detail_files, which is not something to fire on every
 // character.
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { DetailUser, UserDetail } from '../../../shared/api.js'
 import { fetchUserDetail, fetchUsers, type DetailQuery } from '../lib/api.js'
 import { formatCount, formatPercent, formatSize } from '../lib/format.js'
@@ -65,18 +65,6 @@ function activeCount(form: FormState): number {
  */
 const ROW_HEIGHT = 26
 
-/** Extension chip colours, keyed by the extensions that actually dominate scans. */
-const EXT_CLASS: Record<string, string> = {
-  log: 'ext--log',
-  gz: 'ext--gz',
-  zip: 'ext--gz',
-  csv: 'ext--csv',
-  json: 'ext--csv',
-  txt: 'ext--txt',
-  bin: 'ext--bin',
-  so: 'ext--bin',
-}
-
 export function UserTab({ target, initialUser }: Props): JSX.Element {
   const [users, setUsers] = useState<DetailUser[]>([])
   const [user, setUser] = useState<string | null>(initialUser)
@@ -84,6 +72,7 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
+  const filterRef = useRef<HTMLDivElement>(null)
 
   // Draft is what the form shows; `applied` is what the request uses. Separating
   // them is what makes Apply mean something.
@@ -214,10 +203,20 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
     [target, user, applied, selectedMeta],
   )
 
+  // Close filter dropdown when clicking outside.
+  useEffect(() => {
+    if (!showFilters) return
+    const onDown = (e: MouseEvent): void => {
+      if (filterRef.current && !filterRef.current.contains(e.target as Node)) setShowFilters(false)
+    }
+    document.addEventListener('mousedown', onDown)
+    return () => document.removeEventListener('mousedown', onDown)
+  }, [showFilters])
+
   if (error) {
     return (
-      <div className="state state--error">
-        <p className="state__title">Could not load this user</p>
+      <div className="flex items-center justify-center p-8">
+        <p className="text-sm font-semibold">Could not load this user</p>
         <p>{error}</p>
       </div>
     )
@@ -225,8 +224,8 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
 
   if (users.length === 0) {
     return (
-      <div className="state">
-        <p className="state__title">No per-user detail</p>
+      <div className="flex items-center justify-center p-8">
+        <p className="text-sm font-semibold">No per-user detail</p>
         <p>This report has no user breakdown. Run a scan with detail reporting enabled.</p>
       </div>
     )
@@ -234,8 +233,8 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
 
   return (
     <>
-      <div className="ud__toolbar panel">
-        <span className="ud__count">{formatCount(users.length)} users</span>
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border/30 bg-surface/30">
+        <span className="text-xs tabular-nums text-muted-foreground shrink-0">{formatCount(users.length)} users</span>
 
         <UserPicker users={users} selected={user} onSelect={setUser} />
 
@@ -246,140 +245,147 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
           value={draft.query}
           onChange={(query) => setDraft((d) => ({ ...d, query }))}
           onSubmit={apply}
+          className="flex-1 min-w-0"
         />
 
-        <button
-          type="button"
-          className="btn"
-          aria-expanded={showFilters}
-          onClick={() => setShowFilters((v) => !v)}
-        >
-          Filters
-          {filterBadge > 0 && <span className="btn__badge">{filterBadge}</span>}
+        <div className="relative" ref={filterRef}>
+          <button
+            type="button"
+            className="inline-flex items-center rounded-sm border border-border bg-transparent px-3 py-1.5 text-xs hover:bg-muted transition-colors"
+            aria-expanded={showFilters}
+            onClick={() => setShowFilters((v) => !v)}
+          >
+            Filters
+            {filterBadge > 0 && <span className="inline-flex items-center justify-center size-4 rounded-full bg-primary text-[9px] text-primary-foreground ml-1">{filterBadge}</span>}
+          </button>
+
+          {showFilters && (
+            <div className="absolute top-full left-0 mt-1 z-20 glass rounded-sm shadow-md p-3 space-y-3 w-64" onMouseDown={(e) => e.stopPropagation()}>
+              <TagInput
+                id="ud-ext"
+                label="File extension"
+                placeholder="e.g. csv, log"
+                value={draft.ext}
+                onChange={(ext) => setDraft((d) => ({ ...d, ext }))}
+                onSubmit={apply}
+              />
+              <SizeInput
+                id="ud-min"
+                label="Minimum size"
+                value={draft.min}
+                onChange={(min) => setDraft((d) => ({ ...d, min }))}
+                onSubmit={apply}
+              />
+              <SizeInput
+                id="ud-max"
+                label="Maximum size"
+                value={draft.max}
+                onChange={(max) => setDraft((d) => ({ ...d, max }))}
+                onSubmit={apply}
+              />
+              <button type="button" className="inline-flex items-center rounded-sm border border-border bg-transparent px-3 py-1.5 text-xs hover:bg-muted transition-colors w-full justify-center" onClick={reset}>
+                Reset
+              </button>
+            </div>
+          )}
+        </div>
+
+        <button type="button" className="inline-flex items-center rounded-sm bg-primary text-primary-foreground px-3 py-1.5 text-xs hover:opacity-90 transition-colors font-medium" onClick={apply} tabIndex={showFilters ? -1 : undefined}>
+          Apply
         </button>
 
-        <div className="ud__spacer" />
+        <div className="flex-1" />
 
         <button
           type="button"
-          className="btn"
+          className="inline-flex items-center rounded-sm border border-border bg-transparent px-3 py-1.5 text-xs hover:bg-muted transition-colors"
           onClick={() => runExport('dirs')}
           disabled={exporting || !user || detail?.dirsSuppressed}
           data-tooltip="Export the filtered directory list as CSV"
+          tabIndex={showFilters ? -1 : undefined}
         >
           Export dirs
         </button>
         <button
           type="button"
-          className="btn"
+          className="inline-flex items-center rounded-sm border border-border bg-transparent px-3 py-1.5 text-xs hover:bg-muted transition-colors"
           onClick={() => runExport('files')}
           disabled={exporting || !user}
           data-tooltip="Export the filtered file list as CSV"
+          tabIndex={showFilters ? -1 : undefined}
         >
           Export files
         </button>
       </div>
 
-      {showFilters && (
-        <div className="ud__filters panel">
-          <TagInput
-            id="ud-ext"
-            label="File extension"
-            placeholder="e.g. csv, log"
-            value={draft.ext}
-            onChange={(ext) => setDraft((d) => ({ ...d, ext }))}
-            onSubmit={apply}
-          />
-          <SizeInput
-            id="ud-min"
-            label="Minimum size"
-            value={draft.min}
-            onChange={(min) => setDraft((d) => ({ ...d, min }))}
-            onSubmit={apply}
-          />
-          <SizeInput
-            id="ud-max"
-            label="Maximum size"
-            value={draft.max}
-            onChange={(max) => setDraft((d) => ({ ...d, max }))}
-            onSubmit={apply}
-          />
-          <div className="ud__filter-actions">
-            <button type="button" className="btn btn--primary" onClick={apply}>
-              Apply
-            </button>
-            <button type="button" className="btn" onClick={reset}>
-              Reset
-            </button>
-          </div>
-        </div>
-      )}
-
       {/* Always mounted, and the box useFitRows measures. It has to exist before the
           first fetch, because the fetch waits on the measurement to know its page
           size — measuring the rendered list instead would deadlock. */}
-      <div className="ud__body" ref={fit.ref}>
+      <div className="flex flex-1 flex-col overflow-hidden" ref={fit.ref}>
         {!user ? (
-          <div className="state">
-            <p className="state__title">Select a user</p>
+          <div className="flex items-center justify-center p-8">
+            <p className="text-sm font-semibold">Select a user</p>
             <p>Choose an account above to see its largest directories and files.</p>
           </div>
         ) : selectedMeta && !selectedMeta.hasDetail ? (
-          <div className="state">
-            <p className="state__title">{user}</p>
+          <div className="flex items-center justify-center p-8">
+            <p className="text-sm font-semibold">{user}</p>
             <p>
               Total usage <strong>{formatSize(selectedMeta.used)}</strong>. This account has no
               per-directory breakdown in the report.
             </p>
           </div>
         ) : !detail ? (
-          <div className="skeleton" />
+          <div className="h-32 w-full rounded-lg border border-border/50 bg-surface/50 animate-pulse" />
         ) : (
-          <div className={`ud__grid${loading ? ' ud__grid--loading' : ''}`}>
-            <section className="panel">
-            <header className="panel__head">
-              <h2 className="panel__title">Top directories</h2>
-              <span className="panel__note">
-                {formatSize(detail.userTotal)} total for {user}
+          <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
+            <section className="rounded-lg border border-border bg-surface/50 shadow-sm flex flex-col min-h-0">
+            <header className="flex items-center gap-2 border-b border-border/40 px-3 py-2 shrink-0">
+              <h2 className="text-sm font-semibold flex-1">Top directories</h2>
+              <span className="text-[10px] text-muted-foreground">
+                {formatCount(detail.dirs.total ?? selectedMeta?.dirs ?? 0)} dirs, {formatSize(detail.userTotal)} total for {user}
               </span>
             </header>
 
+            <div className="flex-1 min-h-0 overflow-auto">
             {detail.dirsSuppressed ? (
-              <p className="empty">
+              <p className="text-xs text-muted-foreground p-4 text-center">
                 Directory sizes cover every extension, so they are hidden while an extension
                 filter is active. Clear it to see them.
               </p>
             ) : detail.dirs.rows.length === 0 ? (
-              <p className="empty">No directory matched the current filter.</p>
+              <p className="text-xs text-muted-foreground p-4 text-center">No directory matched the current filter.</p>
             ) : (
-              <ul className="ud__list">
+              <ul className="divide-y divide-border/30 text-sm">
                 {detail.dirs.rows.map((d) => {
                   const share = detail.userTotal > 0 ? d.used / detail.userTotal : 0
+                  const barColor = share > 0.7 ? 'bg-rose-500' : share > 0.4 ? 'bg-amber-400' : 'bg-emerald-500'
                   return (
-                    <li className="ud__row" key={`${d.id}-${d.path}`}>
+                    <li className="flex items-center gap-2 px-3 py-2 min-h-[34px] hover:bg-white/[0.03] transition-colors" key={`${d.id}-${d.path}`}>
+                      <span className="rounded-sm bg-muted/50 px-1.5 text-[11px] font-mono text-muted-foreground shrink-0 w-10 text-center truncate leading-tight">
+                        ▸
+                      </span>
                       <button
                         type="button"
-                        className="ud__path"
+                        className="flex-1 truncate text-left font-mono text-[11px] text-muted-foreground hover:text-foreground transition-colors"
                         onClick={() => void copyPath(d.path)}
                         data-tooltip={`${d.path} — click to copy`}
                       >
                         {d.path}
                       </button>
-                      <span className="ud__bar">
-                        <span
-                          className={`ud__fill ${share > 0.7 ? 'fill--hot' : share > 0.4 ? 'fill--warm' : 'fill--cool'}`}
-                          style={{ width: `${Math.min(100, share * 100)}%` }}
-                        />
+                      <span className="h-1.5 w-12 rounded-full bg-muted overflow-hidden shrink-0">
+                        <span className={`block h-full rounded-full ${barColor}`} style={{ width: `${Math.min(100, share * 100)}%` }} />
                       </span>
-                      <span className="ud__pct">
+                      <span className="text-right tabular-nums text-[11px] text-muted-foreground w-12 shrink-0">
                         {formatPercent(d.used, detail.userTotal)}
                       </span>
-                      <span className="ud__size">{formatSize(d.used)}</span>
+                      <span className="text-right tabular-nums text-[11px] font-medium shrink-0 w-16">{formatSize(d.used)}</span>
                     </li>
                   )
                 })}
               </ul>
             )}
+            </div>
 
             <StepPager
               page={dirStack.length}
@@ -395,48 +401,48 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
             />
           </section>
 
-          <section className="panel">
-            <header className="panel__head">
-              <h2 className="panel__title">Top files</h2>
-              <span className="panel__note">
-                {formatSize(detail.files.pageTotal)} on this page
+          <section className="rounded-lg border border-border bg-surface/50 shadow-sm flex flex-col min-h-0">
+            <header className="flex items-center gap-2 border-b border-border/40 px-3 py-2 shrink-0">
+              <h2 className="text-sm font-semibold flex-1">Top files</h2>
+              <span className="text-[10px] text-muted-foreground">
+                {formatCount(detail.files.total ?? selectedMeta?.files ?? 0)} files, {formatSize(detail.files.pageTotal)} on this page
               </span>
             </header>
 
+            <div className="flex-1 min-h-0 overflow-auto">
             {detail.files.rows.length === 0 ? (
-              <p className="empty">No file matched the current filter.</p>
+              <p className="text-xs text-muted-foreground p-4 text-center">No file matched the current filter.</p>
             ) : (
-              <ul className="ud__list">
+              <ul className="divide-y divide-border/30 text-sm">
                 {detail.files.rows.map((f) => {
-                  // Share of the page, not of the user: a page of files is what is
-                  // on screen, and the user total would make every bar invisible.
                   const share =
                     detail.files.pageTotal > 0 ? f.size / detail.files.pageTotal : 0
                   return (
-                    <li className="ud__row" key={f.path}>
-                      <span className={`ext ${EXT_CLASS[f.ext.toLowerCase()] ?? 'ext--other'}`}>
+                    <li className="flex items-center gap-2 px-3 py-2 min-h-[34px] hover:bg-white/[0.03] transition-colors" key={f.path}>
+                      <span className="rounded-sm bg-muted/50 px-1.5 text-[11px] font-mono text-muted-foreground shrink-0 w-14 text-center truncate leading-tight">
                         {f.ext || '—'}
                       </span>
                       <button
                         type="button"
-                        className="ud__path"
+                        className="flex-1 truncate text-left font-mono text-[11px] text-muted-foreground hover:text-foreground transition-colors"
                         onClick={() => void copyPath(f.path)}
                         data-tooltip={`${f.path} — click to copy`}
                       >
                         {f.path}
                       </button>
-                      <span className="ud__bar">
-                        <span
-                          className="ud__fill fill--cool"
-                          style={{ width: `${Math.min(100, share * 100)}%` }}
-                        />
+                      <span className="h-1.5 w-12 rounded-full bg-muted overflow-hidden shrink-0">
+                        <span className="block h-full rounded-full bg-emerald-500/60" style={{ width: `${Math.min(100, share * 100)}%` }} />
                       </span>
-                      <span className="ud__size">{formatSize(f.size)}</span>
+                      <span className="text-right tabular-nums text-[11px] text-muted-foreground w-12 shrink-0">
+                        {share > 0.01 ? `${(share * 100).toFixed(1)}%` : '<0.1%'}
+                      </span>
+                      <span className="text-right tabular-nums text-[11px] font-medium shrink-0 w-16">{formatSize(f.size)}</span>
                     </li>
                   )
                 })}
               </ul>
             )}
+            </div>
 
             <StepPager
               page={fileStack.length}

@@ -24,13 +24,13 @@ interface Props {
 
 export function RangePicker({ value, onChange, available }: Props): JSX.Element {
   return (
-    <div className="segmented" role="group" aria-label="Time range">
+    <div className="flex rounded-sm border border-border overflow-hidden" role="group" aria-label="Time range">
       {RANGES.map((r) => {
         const enabled = available(r.value)
         return (
           <button
             type="button"
-            className="segmented__btn"
+            className={`min-w-[30px] px-1.5 py-1 text-[10px] font-medium text-center transition-colors ${value === r.value ? 'bg-muted text-foreground' : 'bg-transparent text-muted-foreground hover:text-foreground'} ${!enabled ? 'opacity-30 cursor-not-allowed' : ''}`}
             key={String(r.value)}
             aria-pressed={value === r.value}
             disabled={!enabled}

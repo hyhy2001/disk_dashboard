@@ -24,21 +24,21 @@ export function GroupList({ groups, selected, onSelect }: Props): JSX.Element {
         return (
           <button
             type="button"
-            className="group"
+            className="flex items-center gap-2 w-full px-3 py-2 text-left text-sm hover:bg-white/[0.04] transition-colors aria-current:bg-active aria-current:text-foreground text-muted-foreground"
             key={g.name}
             aria-current={g.name === selected}
             onClick={() => onSelect(g.name)}
           >
-            <span className="group__icon" aria-hidden="true">
+            <span aria-hidden="true" className="text-muted-foreground shrink-0">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <polygon points="12 2 2 7 12 12 22 7 12 2" />
                 <polyline points="2 17 12 22 22 17" />
                 <polyline points="2 12 12 17 22 12" />
               </svg>
             </span>
-            <span className="group__body">
-              <span className="group__name">{g.name}</span>
-              <span className="group__meta">
+            <span className="flex flex-col min-w-0">
+              <span className="truncate font-medium">{g.name}</span>
+              <span className="text-[10px] text-muted-foreground tabular-nums">
                 {g.targets.length} disk{g.targets.length === 1 ? '' : 's'} · {formatSize(size)}
               </span>
             </span>

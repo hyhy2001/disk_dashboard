@@ -68,26 +68,26 @@ export function UserPicker({ users, selected, onSelect }: Props): JSX.Element {
   const visible = filtered.slice(0, shown)
 
   return (
-    <div className="picker" ref={wrapRef}>
+    <div className="relative shrink-0" ref={wrapRef}>
       <button
         type="button"
-        className="picker__btn"
+        className="inline-flex items-center gap-1 rounded-sm border border-border bg-transparent px-2.5 py-1.5 text-xs hover:bg-muted transition-colors min-w-[100px]"
         aria-expanded={open}
         aria-haspopup="listbox"
         onClick={() => setOpen((v) => !v)}
       >
-        <span className="picker__value">{selected ?? 'Select user…'}</span>
-        <span className="picker__caret" aria-hidden="true">
+        <span className="flex-1 truncate">{selected ?? 'Select user…'}</span>
+        <span className="text-muted-foreground text-[10px]" aria-hidden="true">
           ▾
         </span>
       </button>
 
       {open && (
-        <div className="picker__panel glass">
+        <div className="absolute top-full left-0 mt-1 z-30 glass rounded-sm shadow-md w-[300px] max-h-80 flex flex-col">
           <input
             ref={searchRef}
             type="search"
-            className="picker__search"
+            className="h-7 rounded-sm border border-border bg-background px-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring mx-2 mt-2"
             placeholder="Search user..."
             aria-label="Search users"
             value={query}
@@ -95,25 +95,23 @@ export function UserPicker({ users, selected, onSelect }: Props): JSX.Element {
           />
 
           <ul
-            className="picker__list"
+            className="flex-1 overflow-auto divide-y divide-border/20 mt-1"
             role="listbox"
             aria-label="Users"
             onScroll={(e) => {
               const el = e.currentTarget
-              // Extend the window shortly before the bottom, so the list does not
-              // visibly stall at the edge.
               if (el.scrollTop + el.clientHeight >= el.scrollHeight - 40) {
                 setShown((n) => (n < filtered.length ? n + WINDOW : n))
               }
             }}
           >
-            {visible.length === 0 && <li className="picker__empty">No user matches.</li>}
+            {visible.length === 0 && <li className="text-[11px] text-muted-foreground p-3 text-center">No user matches.</li>}
 
             {visible.map((u) => (
               <li key={u.name}>
                 <button
                   type="button"
-                  className="picker__opt"
+                  className="flex items-center gap-2 w-full px-3 py-1.5 text-[11px] hover:bg-muted transition-colors text-left aria-selected:bg-accent"
                   role="option"
                   aria-selected={u.name === selected}
                   onClick={() => {
@@ -121,11 +119,9 @@ export function UserPicker({ users, selected, onSelect }: Props): JSX.Element {
                     setOpen(false)
                   }}
                 >
-                  <span className="picker__name">{u.name}</span>
-                  <span className="picker__meta">
+                  <span className="flex-1 font-medium truncate">{u.name}</span>
+                  <span className="text-muted-foreground tabular-nums shrink-0">
                     {formatSize(u.used)} · {formatCount(u.files)} files
-                    {/* Flagged rather than hidden: the account is real and its
-                        total is meaningful even with no per-file breakdown. */}
                     {!u.hasDetail && ' · no breakdown'}
                   </span>
                 </button>
@@ -133,7 +129,7 @@ export function UserPicker({ users, selected, onSelect }: Props): JSX.Element {
             ))}
 
             {shown < filtered.length && (
-              <li className="picker__more">
+              <li className="text-[10px] text-muted-foreground p-2 text-center">
                 Showing {formatCount(shown)} of {formatCount(filtered.length)} — scroll for more
               </li>
             )}

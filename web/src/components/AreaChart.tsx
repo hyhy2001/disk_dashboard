@@ -21,9 +21,7 @@ interface Props {
   points: HistoryPoint[]
 }
 
-/** Fallback until the box has been measured. */
-const WIDTH = 560
-const HEIGHT = 200
+/** Layout constants for the plot box inside the SVG. */
 const PAD_L = 14
 /** Legacy pins the y axis on the right at a fixed 90px. */
 const PAD_R = 84
@@ -60,34 +58,35 @@ const SERIES = [
 ] as const
 
 export function AreaChart({ points }: Props): JSX.Element {
-  // Index of the hovered point, driving the crosshair.
   const [hover, setHover] = useState<number | null>(null)
-  /** Raw pointer y in viewBox units, for the free-moving horizontal crosshair. */
   const [cursorY, setCursorY] = useState<number | null>(null)
   const [box, size] = useSize<HTMLDivElement>()
-  // The panel and the fullscreen modal both mount this chart, so the gradient
-  // needs an id unique per instance or one would reference the other's def.
   const gradId = `used-fill-${useId().replace(/:/g, '')}`
   const light = document.documentElement.dataset.theme === 'light'
 
+  const measured = size && size.width > 0 && size.height > 0
+
   if (points.length === 0) {
-    return <p className="empty">No history yet — the timeline needs at least one scan.</p>
+    return <div ref={box} className="chartbox"><p className="empty">No history yet — the timeline needs at least one scan.</p></div>
   }
 
   if (points.length === 1) {
     const only = points[0] as HistoryPoint
     return (
-      <p className="empty">
+      <div ref={box} className="chartbox"><p className="empty">
         Only one snapshot so far ({formatScanDate(only.date)}: {formatSize(only.usedSize)} used,{' '}
         {formatSize(only.scannedSize)} scanned). The trend appears after the next scan.
-      </p>
+      </p></div>
     )
   }
 
-  // viewBox in real pixels, so declared font sizes render at that size instead of
-  // being scaled with the drawing.
-  const width = size?.width && size.width > 0 ? size.width : WIDTH
-  const height = size?.height && size.height > 0 ? size.height : HEIGHT
+  // Wait for useSize measurement so viewBox matches real pixels — no reflow.
+  if (!measured) {
+    return <div ref={box} className="chartbox h-full min-h-[200px]" />
+  }
+
+  const width = size.width
+  const height = size.height
 
   const plotW = width - PAD_L - PAD_R
   const plotH = height - PAD_T - PAD_B

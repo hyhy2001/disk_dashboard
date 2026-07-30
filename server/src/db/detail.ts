@@ -163,7 +163,7 @@ function buildFilter(filter: DetailFilter, pathExpr: string, extColumn: string |
       .map((e) => e.trim().replace(/^\./, '').toLowerCase())
       .filter((e) => e.length > 0)
     if (exts.length > 0) {
-      parts.push(`LOWER(${extColumn}) IN (${exts.map(() => '?').join(', ')})`)
+      parts.push(`${extColumn} IN (${exts.map(() => '?').join(', ')})`)
       params.push(...exts)
     }
   }
@@ -184,6 +184,8 @@ export interface PageOptions {
   cursor?: string
   limit?: number
   filter?: DetailFilter
+  /** Pre-computed total from detail_users, used when there's no filter (avoids COUNT). */
+  totalHint?: number
 }
 
 function clampLimit(limit: number | undefined): number {
@@ -231,11 +233,25 @@ export function readUserDirs(
   const page = hasMore ? rows.slice(0, limit) : rows
   const last = page[page.length - 1]
 
+  const hasFilter =
+    (opts.filter?.query ?? []).some((t) => t.trim().length > 0) ||
+    (opts.filter?.minSize !== undefined && opts.filter.minSize > 0) ||
+    (opts.filter?.maxSize !== undefined && opts.filter.maxSize > 0)
+
+  const total = hasFilter
+    ? (
+        db
+          .prepare(`SELECT COUNT(*) AS cnt FROM detail_dirs WHERE uid = ?${filter.sql}`)
+          .get(uid, ...filter.params) as { cnt: number }
+      ).cnt
+    : (opts.totalHint ?? 0)
+
   return {
     rows: page.map((r) => ({ id: r.id, path: r.path, used: r.size, files: r.files })),
     nextCursor: hasMore && last ? encodeCursor({ size: last.size, id: last.id }) : null,
     hasMore,
     pageTotal: page.reduce((sum, r) => sum + r.size, 0),
+    total,
   }
 }
 
@@ -292,6 +308,28 @@ export function readUserFiles(
   const page = hasMore ? rows.slice(0, limit) : rows
   const last = page[page.length - 1]
 
+  const hasExtFilter = (opts.filter?.ext ?? []).some((e) => e.trim().length > 0)
+  const hasOtherFilter =
+    (opts.filter?.query ?? []).some((t) => t.trim().length > 0) ||
+    (opts.filter?.minSize !== undefined && opts.filter.minSize > 0) ||
+    (opts.filter?.maxSize !== undefined && opts.filter.maxSize > 0)
+
+  // COUNT(*) over an ext filter is as slow as the main query (ext not in index),
+  // so skip it and use the pre-computed total from detail_users. Path/size filters
+  // are cheap because uid is indexed, so count them.
+  const total = hasOtherFilter && !hasExtFilter
+    ? (
+        db
+          .prepare(
+            `SELECT COUNT(*) AS cnt
+               FROM detail_files f
+               JOIN detail_dirs d ON d.id = f.dir_id AND d.uid = f.uid
+              WHERE f.uid = ?${filter.sql}`,
+          )
+          .get(uid, ...filter.params) as { cnt: number }
+      ).cnt
+    : (opts.totalHint ?? 0)
+
   return {
     rows: page.map((r) => ({
       // Avoid '//name' when the file sits directly in the root.
@@ -305,6 +343,7 @@ export function readUserFiles(
         : null,
     hasMore,
     pageTotal: page.reduce((sum, r) => sum + r.size, 0),
+    total,
   }
 }
 
@@ -333,8 +372,10 @@ export function readUserDetail(
   const filter = opts.filter ?? {}
   const dirsSuppressed = (filter.ext ?? []).some((e) => e.trim().length > 0)
 
-  const totals = db.prepare('SELECT total_size FROM detail_users WHERE uid = ?').get(uid) as
-    | { total_size: number }
+  const totals = db
+    .prepare('SELECT total_size, total_dirs, total_files FROM detail_users WHERE uid = ?')
+    .get(uid) as
+    | { total_size: number; total_dirs: number; total_files: number }
     | undefined
 
   const empty: Page<UserDir> = { rows: [], nextCursor: null, hasMore: false, pageTotal: 0 }
@@ -348,11 +389,13 @@ export function readUserDetail(
           ...(opts.dirCursor !== undefined ? { cursor: opts.dirCursor } : {}),
           ...(opts.limit !== undefined ? { limit: opts.limit } : {}),
           filter,
+          totalHint: totals?.total_dirs ?? 0,
         }),
     files: readUserFiles(db, uid, {
       ...(opts.fileCursor !== undefined ? { cursor: opts.fileCursor } : {}),
       ...(opts.limit !== undefined ? { limit: opts.limit } : {}),
       filter,
+      totalHint: totals?.total_files ?? 0,
     }),
     dirsSuppressed,
   }

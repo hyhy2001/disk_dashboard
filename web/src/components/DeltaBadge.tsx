@@ -18,18 +18,19 @@ export function DeltaBadge({ points }: Props): JSX.Element | null {
   const prev = points.length > 1 ? (points[points.length - 2] as HistoryPoint) : undefined
 
   if (!prev) {
-    return <span className="delta__now">{formatSize(latest.usedSize)}</span>
+    return <span className="text-sm font-semibold tabular-nums">{formatSize(latest.usedSize)}</span>
   }
 
   const diff = latest.usedSize - prev.usedSize
   const pct = prev.usedSize > 0 ? (diff / prev.usedSize) * 100 : 0
-  // A delta of exactly zero gets neither arrow nor colour.
   const dir = diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat'
 
   return (
-    <span className="delta">
-      <span className="delta__now">{formatSize(latest.usedSize)}</span>
-      <span className={`delta__badge delta__badge--${dir}`}>
+    <span className="flex items-center gap-2">
+      <span className="text-sm font-semibold tabular-nums">{formatSize(latest.usedSize)}</span>
+      <span className={`inline-flex items-center gap-0.5 rounded-sm px-1.5 py-0.5 text-[10px] font-medium ${
+        dir === 'up' ? 'bg-rose-500/15 text-rose-400' : dir === 'down' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-muted text-muted-foreground'
+      }`}>
         {dir === 'up' ? '▲' : dir === 'down' ? '▼' : '='} {formatSize(Math.abs(diff))}
         {prev.usedSize > 0 && ` (${diff >= 0 ? '+' : '−'}${Math.abs(pct).toFixed(2)}%)`}
       </span>

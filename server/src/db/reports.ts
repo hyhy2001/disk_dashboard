@@ -12,8 +12,9 @@
 
 import Database from 'better-sqlite3'
 import { existsSync, readdirSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, basename, dirname } from 'node:path'
 import type { Capacity, Target } from '../../../shared/api.js'
+import { adminDb } from './admin.js'
 
 export const REPORT_FILE = 'report.db'
 
@@ -33,6 +34,23 @@ function stampOf(path: string): string {
 /** Absolute path to a target's report.db (not checked for existence). */
 export function reportPath(reportsDir: string, target: string): string {
   return join(reportsDir, target, REPORT_FILE)
+}
+
+/**
+ * Try to open a report.db at an explicit path (may be outside reportsDir).
+ * Returns the DB handle + the target name (derived from the parent dir), or
+ * null if the file doesn't exist.
+ */
+export function openReportAt(path: string): { db: Database.Database; name: string } | null {
+  if (!existsSync(path)) return null
+  try {
+    const db = new Database(path, { readonly: true })
+    db.pragma('journal_mode = OFF')
+    const name = statSync(path).isDirectory() ? 'unknown' : basename(dirname(path))
+    return { db, name }
+  } catch {
+    return null
+  }
 }
 
 /**
@@ -160,4 +178,33 @@ export function listTargets(reportsDir: string): Target[] {
 
   out.sort((a, b) => b.scanTimestamp - a.scanTimestamp)
   return out
+}
+
+// ---------------------------------------------------------------------------
+// Admin DB disk resolution — replaces hardcoded reportsDir
+// ---------------------------------------------------------------------------
+
+/** Look up a disk's path from the admin DB by name. Returns null if unknown. */
+export function diskPath(name: string): string | null {
+  try {
+    const db = adminDb()
+    const row = db.prepare('SELECT path FROM disks WHERE name = ?').get(name) as { path: string } | undefined
+    return row?.path ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Open a target's report.db by name, resolving the path from the admin DB.
+ * Returns null if the disk is unknown or the report doesn't exist.
+ */
+export function openTargetReport(name: string): Database.Database | null {
+  const path = diskPath(name)
+  if (!path) return null
+  const rp = join(path, REPORT_FILE)
+  if (!existsSync(rp)) return null
+  // Reuse openReportAt so the cache/close logic stays in one place
+  const opened = openReportAt(rp)
+  return opened?.db ?? null
 }

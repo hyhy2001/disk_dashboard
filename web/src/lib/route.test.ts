@@ -1,123 +1,105 @@
-// Hash route parsing.
+// Path route parsing.
 //
 // Routes come from the address bar, so every input is untrusted: hand-edited
-// hashes, links from an older build, names containing slashes. None of those may
-// throw, because a bad hash on boot would mean a blank page.
+// paths, links from an older build, names containing slashes. None of those may
+// throw, because a bad path on boot would mean a blank page.
 
 import { describe, expect, it } from 'vitest'
-import { buildHash, DEFAULT_ROUTE, DETAIL_TABS, parseHash } from './route.js'
+import { buildPath, DEFAULT_ROUTE, DETAIL_TABS, parsePath } from './route.js'
 
-describe('parseHash', () => {
-  it('treats an empty hash as the default route', () => {
-    expect(parseHash('')).toEqual(DEFAULT_ROUTE)
-    expect(parseHash('#')).toEqual(DEFAULT_ROUTE)
-    expect(parseHash('#/')).toEqual(DEFAULT_ROUTE)
+describe('parsePath', () => {
+  it('treats an empty path as the default route', () => {
+    expect(parsePath('')).toEqual(DEFAULT_ROUTE)
+    expect(parsePath('/')).toEqual(DEFAULT_ROUTE)
   })
 
   it('reads a space on its own', () => {
-    expect(parseHash('#/Production')).toMatchObject({ space: 'Production', disk: null })
+    expect(parsePath('/Production')).toMatchObject({ space: 'Production', disk: null })
+  })
+
+  it('reads a space with a leading double slash gracefully', () => {
+    expect(parsePath('//Production')).toMatchObject({ space: 'Production', disk: null })
   })
 
   it('reads a space and disk', () => {
-    expect(parseHash('#/Production/Test/overview')).toMatchObject({
+    expect(parsePath('/Production/server-01')).toMatchObject({
       space: 'Production',
-      disk: 'Test',
-      page: 'overview',
+      disk: 'server-01',
     })
   })
 
-  it('reads a detail tab', () => {
-    expect(parseHash('#/Production/Test/detail/history')).toMatchObject({
-      page: 'detail',
-      tab: 'history',
-    })
+  it('defaults page to overview when absent', () => {
+    const r = parsePath('/Team/disk')
+    expect(r.page).toBe('overview')
   })
 
-  it('falls back to the default tab for an unknown one', () => {
-    // A link from an older build naming a tab that no longer exists must still
-    // land on the right disk.
-    expect(parseHash('#/P/Test/detail/quota')).toMatchObject({
-      disk: 'Test',
-      page: 'detail',
-      tab: DEFAULT_ROUTE.tab,
-    })
+  it('reads the overview page explicitly', () => {
+    expect(parsePath('/Team/disk/overview').page).toBe('overview')
   })
 
-  it('reads every tab the bar shows', () => {
-    // A tab in DETAIL_TABS that parseHash rejects is a dead link from the bar,
-    // which is how the Inodes tab first shipped unreachable.
-    for (const tab of DETAIL_TABS) {
-      expect(parseHash(`#/P/Test/detail/${tab}`)).toMatchObject({ page: 'detail', tab })
-    }
+  it('reads a detail sub-tab', () => {
+    const r = parsePath('/Team/disk/detail/treemap')
+    expect(r.page).toBe('detail')
+    expect(r.tab).toBe('treemap')
   })
 
-  it('defaults to overview for an unknown page', () => {
-    expect(parseHash('#/P/Test/nonsense')).toMatchObject({ page: 'overview' })
+  it('falls back to default tab for unknown detail tab', () => {
+    const r = parsePath('/Team/disk/detail/unknown')
+    expect(r.page).toBe('detail')
+    expect(r.tab).toBe(DEFAULT_ROUTE.tab)
+  })
+
+  it('treats "overview" as the overview page even when followed by more', () => {
+    expect(parsePath('/Team/disk/overview/treemap').page).toBe('overview')
   })
 
   it('decodes percent-encoded segments', () => {
-    expect(parseHash('#/My%20Space/Test/overview')).toMatchObject({ space: 'My Space' })
+    const r = parsePath('/my%20space/my%2Fdisk/detail/history')
+    expect(r.space).toBe('my space')
+    expect(r.disk).toBe('my/disk')
   })
 
-  it('does not throw on a malformed escape', () => {
-    // A lone % is invalid UTF-8 for decodeURIComponent.
-    expect(() => parseHash('#/100%/Test/overview')).not.toThrow()
-    expect(parseHash('#/100%/Test/overview').space).toBe('100%')
+  it('handles malformed percent encoding gracefully', () => {
+    const r = parsePath('/Team/%ZZ')
+    expect(r.space).toBe('Team')
   })
 
-  it('ignores empty segments from a doubled slash', () => {
-    expect(parseHash('#//Production//Test')).toMatchObject({
-      space: 'Production',
-      disk: 'Test',
-    })
+  it('trims trailing slash', () => {
+    expect(parsePath('/Team/disk/')).toMatchObject({ space: 'Team', disk: 'disk' })
   })
 })
 
-describe('buildHash', () => {
-  it('renders the empty route', () => {
-    expect(buildHash(DEFAULT_ROUTE)).toBe('#/')
+describe('buildPath', () => {
+  it('returns / for the default route', () => {
+    expect(buildPath(DEFAULT_ROUTE)).toBe('/')
   })
 
-  it('renders a space alone', () => {
-    expect(buildHash({ ...DEFAULT_ROUTE, space: 'Prod' })).toBe('#/Prod')
+  it('builds a space-only path', () => {
+    expect(buildPath({ ...DEFAULT_ROUTE, space: 'Dev' })).toBe('/Dev')
   })
 
-  it('renders an overview route', () => {
-    expect(buildHash({ space: 'Prod', disk: 'Test', page: 'overview', tab: 'treemap' })).toBe(
-      '#/Prod/Test/overview',
-    )
+  it('builds a space+disk+overview path', () => {
+    expect(buildPath({ ...DEFAULT_ROUTE, space: 'Dev', disk: 'api' })).toBe('/Dev/api/overview')
   })
 
-  it('renders a detail route with its tab', () => {
-    expect(buildHash({ space: 'Prod', disk: 'Test', page: 'detail', tab: 'permissions' })).toBe(
-      '#/Prod/Test/detail/permissions',
-    )
+  it('builds a full detail path', () => {
+    expect(
+      buildPath({ space: 'Dev', disk: 'api', page: 'detail', tab: 'inodes' }),
+    ).toBe('/Dev/api/detail/inodes')
   })
 
-  it('encodes a segment containing a slash', () => {
-    const hash = buildHash({ space: 'a/b', disk: 'Test', page: 'overview', tab: 'treemap' })
-    // Without encoding this would parse back as space 'a', disk 'b'.
-    expect(hash).toBe('#/a%2Fb/Test/overview')
-    expect(parseHash(hash).space).toBe('a/b')
+  it('encodes characters that are not valid in a URL segment', () => {
+    const r = buildPath({ ...DEFAULT_ROUTE, space: 'my space', disk: 'my/disk' })
+    expect(r).toBe('/my%20space/my%2Fdisk/overview')
   })
 
-  it('round-trips every reachable route', () => {
-    for (const route of [
-      { space: null, disk: null, page: 'overview', tab: 'treemap' },
-      { space: 'S', disk: null, page: 'overview', tab: 'treemap' },
-      { space: 'S', disk: 'D', page: 'overview', tab: 'treemap' },
-      { space: 'S', disk: 'D', page: 'detail', tab: 'history' },
-      { space: 'S', disk: 'D', page: 'detail', tab: 'detail-user' },
-    ] as const) {
-      // A space with no disk cannot carry a page, so compare only what the hash
-      // is able to express.
-      const parsed = parseHash(buildHash(route))
-      expect(parsed.space).toBe(route.space)
-      expect(parsed.disk).toBe(route.disk)
-      if (route.disk) {
-        expect(parsed.page).toBe(route.page)
-        if (route.page === 'detail') expect(parsed.tab).toBe(route.tab)
-      }
+  it('is the inverse of parsePath for every reachable route', () => {
+    for (const tab of DETAIL_TABS) {
+      const route1 = { space: 'Backend', disk: 'primary', page: 'detail' as const, tab }
+      expect(parsePath(buildPath(route1))).toEqual(route1)
+
+      const route2 = { space: 'Backend', disk: 'primary', page: 'overview' as const, tab: 'treemap' as const }
+      expect(parsePath(buildPath(route2))).toEqual(route2)
     }
   })
 })

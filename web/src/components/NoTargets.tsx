@@ -1,46 +1,60 @@
-// Shown when the API returns zero targets.
-//
-// An empty target list has two very different causes — a wrong reports path or a
-// correct path with no scans yet — and they look identical from the UI. Health
-// tells them apart, so this panel names the actual directory being read instead
-// of leaving the user to guess.
-
 import type { HealthInfo } from '../../../shared/api.js'
+import { Shield, HardDrive, Terminal } from 'lucide-react'
 
 interface Props {
   health: HealthInfo | null
+  /** What kind of empty state to show. */
+  reason: 'no-disks' | 'disk-no-report'
 }
 
-export function NoTargets({ health }: Props): JSX.Element {
-  if (health && !health.reportsDirExists) {
+export function NoTargets({ health, reason }: Props): JSX.Element {
+  if (reason === 'no-disks') {
     return (
-      <div className="state state--error">
-        <p className="state__title">Reports directory not found</p>
-        <p>
-          The server is reading <code className="state__path">{health.reportsDir}</code>, which does
-          not exist.
-        </p>
-        <p className="state__hint">
-          Point <code>DASHBOARD_REPORTS_DIR</code> at the directory that holds{' '}
-          <code>&lt;target&gt;/report.db</code>, then restart the server.
-        </p>
+      <div className="flex items-center justify-center h-full p-8">
+        <div className="text-center space-y-4 max-w-md animate-fade-in">
+          <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted">
+            <HardDrive className="size-6 text-muted-foreground" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold">No disks configured</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {health?.needsSetup
+                ? 'Create the first admin account to get started.'
+                : 'Add a space and disk in the Admin panel.'}
+            </p>
+          </div>
+          <div className="flex justify-center gap-2">
+            {health?.needsSetup ? (
+              <p className="text-xs text-muted-foreground italic">
+                Click <Shield className="inline size-3 align-text-bottom" /> <strong>Admin</strong> in the sidebar to create the first account.
+              </p>
+            ) : (
+              <p className="text-xs text-muted-foreground italic">
+                Click <Shield className="inline size-3 align-text-bottom" /> <strong>Admin</strong> in the sidebar and add a Space → Disk.
+              </p>
+            )}
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="state">
-      <p className="state__title">No scans yet</p>
-      <p>
-        {health ? (
-          <>
-            No <code>report.db</code> under <code className="state__path">{health.reportsDir}</code>.
-          </>
-        ) : (
-          <>No report.db found.</>
-        )}
-      </p>
-      <p className="state__hint">Run duscan to produce a report, then reload this page.</p>
+    <div className="flex items-center justify-center h-full p-8">
+      <div className="text-center space-y-4 max-w-md animate-fade-in">
+        <div className="mx-auto flex size-12 items-center justify-center rounded-full bg-muted">
+          <Terminal className="size-6 text-muted-foreground" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold">No scan data yet</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            The disk is configured but no <code className="rounded-sm bg-muted px-1.5 py-0.5 text-[11px]">report.db</code> was found at the configured path.
+          </p>
+        </div>
+        <p className="text-xs text-muted-foreground italic">
+          Run <code className="rounded-sm bg-muted px-1.5 py-0.5 text-[11px]">duscan run --target &lt;name&gt;</code> to produce a scan report.
+        </p>
+      </div>
     </div>
   )
 }

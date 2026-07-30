@@ -1,14 +1,4 @@
-// Overview: the three charts legacy shows, and nothing else.
-//
-//   Capacity Over Time · Usage by Teams · Top Consuming Users
-//
-// Capacity figures live in App's shared page header, since they describe the
-// target rather than this tab. No summary cards and no ranked tables: the donut
-// and the bar chart already carry that data, and duplicating it just makes the
-// page longer.
-//
-// Chart controls mirror legacy: a range selector on the timeline, a log/linear
-// toggle on the user bars, and an expand button on each chart.
+// Overview: three charts — Capacity Over Time, Usage by Teams, Top Users.
 
 import { useMemo, useState } from 'react'
 import type { Overview } from '../../../shared/api.js'
@@ -18,29 +8,15 @@ import { ChartModal } from '../components/ChartModal.js'
 import { DeltaBadge } from '../components/DeltaBadge.js'
 import { Donut, OTHER_SLICE } from '../components/Donut.js'
 import { filterByRange, RangePicker, type RangeDays } from '../components/RangePicker.js'
+import { Expand } from 'lucide-react'
 
-interface Props {
-  overview: Overview
-}
-
+interface Props { overview: Overview }
 type Expanded = 'timeline' | 'teams' | 'users' | null
 
-/** Expand button shown in each panel header. */
 function ExpandButton({ onClick }: { onClick: () => void }): JSX.Element {
   return (
-    <button
-      type="button"
-      className="icon-btn icon-btn--sm"
-      onClick={onClick}
-      title="Open full-screen chart view"
-      aria-label="Open full-screen chart view"
-    >
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
-        <polyline points="15 3 21 3 21 9" />
-        <polyline points="9 21 3 21 3 15" />
-        <line x1="21" y1="3" x2="14" y2="10" />
-        <line x1="3" y1="21" x2="10" y2="14" />
-      </svg>
+    <button type="button" onClick={onClick} className="inline-flex size-7 items-center justify-center rounded-sm hover:bg-muted transition-colors text-muted-foreground" title="Full screen" aria-label="Full screen">
+      <Expand className="size-3.5" />
     </button>
   )
 }
@@ -50,146 +26,77 @@ export function OverviewTab({ overview }: Props): JSX.Element {
   const [range, setRange] = useState<RangeDays>('all')
   const [logScale, setLogScale] = useState(false)
   const [expanded, setExpanded] = useState<Expanded>(null)
-  /** Team picked from the donut; filters the user chart. */
   const [teamFilter, setTeamFilter] = useState<string | null>(null)
 
   const allUsers = useMemo(() => [...users, ...otherUsers], [users, otherUsers])
-  const otherTotal = useMemo(
-    () => otherUsers.reduce((sum, u) => sum + u.used, 0),
-    [otherUsers],
-  )
+  const otherTotal = useMemo(() => otherUsers.reduce((s, u) => s + u.used, 0), [otherUsers])
 
   const shownUsers = useMemo(() => {
     if (teamFilter === null) return allUsers
-    // Picking the synthetic "Other" wedge means "the users with no team", which is
-    // exactly otherUsers — not a team-name match, since those rows have no team.
     if (teamFilter === OTHER_SLICE) return otherUsers
-    return allUsers.filter((u) => u.team === teamFilter)
+    return allUsers.filter(u => u.team === teamFilter)
   }, [allUsers, otherUsers, teamFilter])
   const shownHistory = useMemo(() => filterByRange(history, range), [history, range])
-
-  // A range with fewer than two points cannot draw a trend, so offer only the
-  // ones that would actually show something.
   const rangeAvailable = (v: RangeDays): boolean => filterByRange(history, v).length > 1
 
   return (
     <>
-      {/* Legacy's Overview is exactly three charts. The capacity figures live in
-          the shared page header, not here, and there are no summary cards or
-          ranked tables — the donut and bar chart already carry that data. */}
-      {/* One grid, timeline spanning both columns — legacy's .charts-grid with
-          .large-span. Keeping the three panels in a single grid is what lets the
-          whole page be sized as one unit. */}
-      <div className="charts">
-        <div className="panel panel--wide">
-          <div className="panel__head">
-            <h2 className="panel__title">Capacity Over Time</h2>
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-3 p-3 auto-rows-min">
+        {/* ── Timeline ── */}
+        <div className="md:col-span-5 rounded-lg border border-border bg-surface/50 shadow-sm flex flex-col">
+          <div className="flex items-center gap-2 border-b border-border/40 px-3 py-2">
+            <h2 className="text-sm font-semibold flex-1">Capacity Over Time</h2>
             <DeltaBadge points={shownHistory} />
-            <div className="panel__tools">
+            <div className="flex items-center gap-1">
               <RangePicker value={range} onChange={setRange} available={rangeAvailable} />
               <ExpandButton onClick={() => setExpanded('timeline')} />
             </div>
           </div>
-          <div className="canvas canvas--tall">
-            <AreaChart points={shownHistory} />
-          </div>
+          <div className="p-3 flex-1 min-h-[200px]"><AreaChart points={shownHistory} /></div>
         </div>
 
-        <div className="panel">
-          <div className="panel__head">
-            <h2 className="panel__title">Usage by Teams</h2>
+        {/* ── Teams donut ── */}
+        <div className="md:col-span-2 rounded-lg border border-border bg-surface/50 shadow-sm flex flex-col">
+          <div className="flex items-center justify-between border-b border-border/40 px-3 py-2">
+            <h2 className="text-sm font-semibold">Usage by Teams</h2>
             <ExpandButton onClick={() => setExpanded('teams')} />
           </div>
-          <div className="canvas">
-            <Donut
-              rows={teams}
-              onSelect={setTeamFilter}
-              selected={teamFilter}
+          <div className="p-3 flex-1">
+            <Donut rows={teams} onSelect={setTeamFilter} selected={teamFilter}
               {...(capacity ? { totalUsed: capacity.used } : {})}
-            {...(otherTotal > 0 ? { otherUsed: otherTotal } : {})}
-            />
+              {...(otherTotal > 0 ? { otherUsed: otherTotal } : {})} />
           </div>
         </div>
 
-        <div className="panel">
-          <div className="panel__head">
-            <h2 className="panel__title">Top Consuming Users</h2>
+        {/* ── Users bar ── */}
+        <div className="md:col-span-3 rounded-lg border border-border bg-surface/50 shadow-sm flex flex-col">
+          <div className="flex items-center gap-2 border-b border-border/40 px-3 py-2">
+            <h2 className="text-sm font-semibold flex-1">Top Consuming Users</h2>
             {teamFilter && (
-              <button
-                type="button"
-                className="chip"
-                onClick={() => setTeamFilter(null)}
-                title="Clear team filter"
-              >
-                {teamFilter} <span className="chip__x">✕</span>
+              <button type="button" onClick={() => setTeamFilter(null)}
+                className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] bg-muted hover:bg-muted/70 transition-colors">
+                {teamFilter} <span className="text-muted-foreground">×</span>
               </button>
             )}
-            <div className="panel__tools">
-              <button
-                type="button"
-                className="btn btn--sm"
-                onClick={() => setLogScale((v) => !v)}
-                title="Switch between logarithmic and linear scale"
-                aria-pressed={logScale}
-              >
-                {logScale ? 'Log' : 'Linear'}
-              </button>
+            <div className="flex items-center gap-1">
+              <button type="button" className="inline-flex items-center rounded-sm border border-border bg-transparent px-2 py-1 text-[10px] hover:bg-muted transition-colors" onClick={() => setLogScale(v => !v)} aria-pressed={logScale}>{logScale ? 'Log' : 'Linear'}</button>
               <ExpandButton onClick={() => setExpanded('users')} />
             </div>
           </div>
-          <div className="canvas">
+          <div className="p-3 flex-1 min-h-[200px]">
             {shownUsers.length === 0 ? (
-              <div className="nodata">
-                <p className="nodata__title">No consumer data</p>
-                <p>Usage in this segment is untracked or belongs to the system.</p>
+              <div className="flex flex-col items-center justify-center h-full gap-1 text-muted-foreground">
+                <p className="text-sm font-semibold text-foreground">No consumer data</p>
+                <p className="text-xs">Usage in this segment is untracked or belongs to the system.</p>
               </div>
-            ) : (
-              <BarChart rows={shownUsers} limit={10} logScale={logScale} />
-            )}
+            ) : <BarChart rows={shownUsers} limit={10} logScale={logScale} />}
           </div>
         </div>
       </div>
 
-      {expanded === 'timeline' && (
-        <ChartModal
-          title="Capacity Over Time — Full View"
-          slug="timeline"
-          onClose={() => setExpanded(null)}
-        >
-          {/* Sized by CSS in the modal, which gives it a taller box. */}
-          <div className="canvas canvas--modal">
-            <AreaChart points={shownHistory} />
-          </div>
-        </ChartModal>
-      )}
-      {expanded === 'teams' && (
-        <ChartModal
-          title="Usage by Teams — Full View"
-          slug="teams"
-          onClose={() => setExpanded(null)}
-        >
-          <Donut
-            rows={teams}
-            size={280}
-            onSelect={setTeamFilter}
-            selected={teamFilter}
-            {...(capacity ? { totalUsed: capacity.used } : {})}
-            {...(otherTotal > 0 ? { otherUsed: otherTotal } : {})}
-          />
-        </ChartModal>
-      )}
-      {expanded === 'users' && (
-        <ChartModal
-          title="Top Consuming Users — Full View"
-          slug="users"
-          onClose={() => setExpanded(null)}
-        >
-          {/* More room means more bars are worth showing. */}
-          <div className="canvas canvas--modal">
-            <BarChart rows={shownUsers} limit={30} logScale={logScale} />
-          </div>
-        </ChartModal>
-      )}
+      {expanded === 'timeline' && <ChartModal title="Capacity Over Time — Full View" slug="timeline" onClose={() => setExpanded(null)}><div className="h-[60vh]"><AreaChart points={shownHistory} /></div></ChartModal>}
+      {expanded === 'teams' && <ChartModal title="Usage by Teams — Full View" slug="teams" onClose={() => setExpanded(null)}><Donut rows={teams} size={280} onSelect={setTeamFilter} selected={teamFilter} {...(capacity ? { totalUsed: capacity.used } : {})} {...(otherTotal > 0 ? { otherUsed: otherTotal } : {})} /></ChartModal>}
+      {expanded === 'users' && <ChartModal title="Top Consuming Users — Full View" slug="users" onClose={() => setExpanded(null)}><div className="h-[60vh]"><BarChart rows={shownUsers} limit={30} logScale={logScale} /></div></ChartModal>}
     </>
   )
 }

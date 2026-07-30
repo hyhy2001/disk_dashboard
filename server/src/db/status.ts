@@ -13,9 +13,9 @@
 // on the file rather than on a query.
 
 import { existsSync, readFileSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import type { ScanStatus } from '../../../shared/api.js'
-import { openReport, readMeta, reportPath } from './reports.js'
+import { openReport, openReportAt, readMeta, reportPath } from './reports.js'
 
 /** duscan writes progress here while a scan is running, then removes it. */
 export const STATUS_FILE = 'scan_status.json'
@@ -54,13 +54,22 @@ function str(v: unknown): string | undefined {
  * all, which the route turns into a 404.
  */
 export function readScanStatus(reportsDir: string, target: string): ScanStatus | null {
-  const path = reportPath(reportsDir, target)
-  if (!existsSync(path)) return null
+  return readScanStatusAt(reportPath(reportsDir, target), join(reportsDir, target))
+}
 
-  const st = statSync(path)
-  const db = openReport(reportsDir, target)
-  const meta = db ? readMeta(db) : {}
-  const status = readStatusFile(join(reportsDir, target))
+/**
+ * Read scan status for a target whose report directory path is known directly
+ * (e.g. resolved from admin DB). This avoids needing a reportsDir + target pair.
+ */
+export function readScanStatusAt(reportDbPath: string, targetDir: string): ScanStatus | null {
+  if (!existsSync(reportDbPath)) return null
+
+  const st = statSync(reportDbPath)
+  const target = basename(targetDir)
+  const db = openReportAt(reportDbPath)
+  const meta = db ? readMeta(db.db) : {}
+  if (db) db.db.close()
+  const status = readStatusFile(targetDir)
 
   const stage = str(status?.stage)
   const message = str(status?.message)

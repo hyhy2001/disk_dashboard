@@ -189,12 +189,11 @@ export interface DetailFilter {
 /** One page of a keyset-paginated list. */
 export interface Page<T> {
   rows: T[]
-  /** Opaque cursor for the next page, or null at the end. */
   nextCursor: string | null
-  /** Whether another page exists. */
   hasMore: boolean
-  /** Sum of `used`/`size` over the rows on this page. */
   pageTotal: number
+  /** Filtered total count across all pages (detail only). */
+  total?: number
 }
 
 export interface UserDetail {
@@ -333,18 +332,50 @@ export interface HealthInfo {
   sqliteVersion: string
   /** Whether this SQLite build can do infix search (FTS5 + trigram). */
   trigramAvailable: boolean
+  /** Display path (shows how reports are resolved). */
   reportsDir: string
-  /**
-   * Whether reportsDir exists at all. Distinguishes "misconfigured path" from
-   * "configured correctly but nothing scanned yet" — the two look identical in
-   * an empty target list.
-   */
+  /** Whether the admin DB is reachable. */
   reportsDirExists: boolean
+  /** Number of configured disks (from admin DB). */
   targetsFound: number
-  /**
-   * Whether a readable teams.json was found. False means either no file or an
-   * unparseable one — both fall back to a single group, so this is the only way
-   * to tell a typo from an intentional absence.
-   */
+  /** Whether at least one space exists in the admin DB. */
   groupConfigLoaded: boolean
+  /** True when no admin accounts exist — first visitor must set up. */
+  needsSetup: boolean
+}
+
+// ── Admin types ────────────────────────────────────────────────────────
+
+export interface AdminAccount {
+  id: number
+  username: string
+  role: string
+  created_at: string
+}
+
+export interface SpaceWithDisks {
+  id: number
+  name: string
+  sort_order: number
+  disks: {
+    id: number
+    space_id: number
+    name: string
+    path: string
+    sort_order: number
+  }[]
+}
+
+export interface AuthStatus {
+  loggedIn: boolean
+  user: { id: number; username: string; role: string } | null
+  needsSetup: boolean
+  rateLimit: { captcha: boolean; attempts: number }
+}
+
+export interface DiskTeam {
+  id: number
+  disk_id: number
+  name: string
+  users: string[]
 }

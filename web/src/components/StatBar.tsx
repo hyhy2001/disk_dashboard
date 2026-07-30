@@ -72,23 +72,27 @@ function Stat({
   label,
   tone,
   title,
+  className = '',
 }: {
   value: number
   unit: string
   label: string
   tone?: 'used' | 'scanned' | 'hot'
   title?: string
+  className?: string
 }): JSX.Element {
   const shown = useCountUp(value)
   return (
-    <div className="statbar__item" title={title}>
-      <div className="statbar__figure">
-        <span className={`statbar__num${tone ? ` statbar__num--${tone}` : ''}`}>
+    <div className={`flex flex-col items-center gap-0.5 ${className}`} title={title}>
+      <div className="flex items-baseline gap-1">
+        <span className={`text-lg font-bold tabular-nums ${
+          tone === 'used' ? 'text-amber-400' : tone === 'scanned' ? 'text-emerald-400' : tone === 'hot' ? 'text-rose-400' : 'text-foreground'
+        }`}>
           {shown.toFixed(2)}
         </span>
-        <span className="statbar__unit">{unit}</span>
+        <span className="text-[10px] text-muted-foreground">{unit}</span>
       </div>
-      <div className="statbar__label">{label}</div>
+      <div className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</div>
     </div>
   )
 }
@@ -103,29 +107,27 @@ export function StatBar({ capacity }: Props): JSX.Element {
   const unscanned = Math.max(0, used - scanned)
 
   return (
-    <div className="statbar">
-      <Stat value={toTB(total)} unit="TB" label="Total" />
-      <span className="statbar__div" />
-      <Stat value={toTB(used)} unit="TB" label="Used" tone="used" />
-      <span className="statbar__div" />
+    <div className="flex flex-1 items-center divide-x divide-border/20 bg-surface/20">
+      <Stat value={toTB(total)} unit="TB" label="Total" className="flex-1" />
+      <Stat value={toTB(used)} unit="TB" label="Used" tone="used" className="flex-1" />
       <Stat
         value={toTB(scanned)}
         unit="TB"
         label="Scanned"
         tone="scanned"
+        className="flex-1"
         title={
           unscanned > 0
             ? `${toTB(unscanned).toFixed(2)} TB of used space was not walked by the scan`
             : 'The scan walked all used space'
         }
       />
-      <span className="statbar__div" />
-      <Stat value={toTB(available)} unit="TB" label="Free" />
-      <span className="statbar__div" />
+      <Stat value={toTB(available)} unit="TB" label="Free" className="flex-1" />
       <Stat
         value={usagePct}
         unit="%"
         label="Usage"
+        className="flex-1"
         tone={usagePct > HOT_PERCENT ? 'hot' : undefined}
       />
     </div>
