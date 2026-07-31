@@ -581,7 +581,7 @@ export function App() {
           )}
 
           {/* Content */}
-          <main className="main flex-1 overflow-auto">
+          <main className="main flex flex-1 flex-col overflow-auto">
             <ErrorBoundary name="content">
               {error ? (
                 <div className="flex items-center justify-center h-full">
@@ -621,7 +621,7 @@ export function App() {
               ) : route.page === 'overview' ? (
                 <OverviewTab overview={overview} />
               ) : (
-                <div>
+                <div className="flex flex-1 flex-col min-h-0">
                   <nav className="flex flex-wrap items-center gap-1 border-b border-border px-4" role="tablist">
                     {DETAIL_TABS.map((id) => (
                       <button

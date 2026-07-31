@@ -219,8 +219,8 @@ export function HistoryTab({ target }: Props): JSX.Element {
         </span>
       </div>
 
-      <div className="flex flex-col lg:flex-row flex-1 overflow-hidden relative">
-        <aside className="lg:w-56 lg:shrink-0 lg:border-r lg:border-border border-b lg:border-b-0 border-border/40 bg-surface/30 flex flex-col">
+      <div className="flex flex-col lg:flex-row flex-1 h-full overflow-hidden relative">
+        <aside className="lg:w-56 lg:shrink-0 lg:min-h-0 lg:border-r lg:border-border border-b lg:border-b-0 border-border/40 bg-surface/30 flex flex-col">
           <header className="flex items-center gap-2 border-b border-border/40 px-3 py-2 shrink-0">
             <h2 className="text-sm font-semibold flex-1">Users</h2>
             <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400 tabular-nums">
@@ -237,7 +237,7 @@ export function HistoryTab({ target }: Props): JSX.Element {
             onChange={(e) => setUserQuery(e.target.value)}
           />
 
-          <ul className="overflow-auto max-h-[200px] lg:max-h-none space-y-0.5 lg:space-y-1 lg:flex-1">
+          <ul className="overflow-auto max-h-[200px] lg:max-h-none lg:min-h-0 space-y-0.5 lg:space-y-1 lg:flex-1">
             {shownUsers.length === 0 && (
               <li className="text-xs text-muted-foreground p-4 text-center">No user matches.</li>
             )}
@@ -298,7 +298,7 @@ export function HistoryTab({ target }: Props): JSX.Element {
           </div>
         </aside>
 
-        <section className="flex flex-1 flex-col min-w-0 min-h-[300px]">
+        <section className="flex flex-1 flex-col min-w-0 min-h-[300px] lg:min-h-0">
           <header className="flex items-center gap-2 border-b border-border px-3 py-2 shrink-0">
             <h2 className="text-sm font-semibold flex-1">Usage over time</h2>
             <button

@@ -188,7 +188,7 @@ export function InodesTab({ target }: Props): JSX.Element {
       </section>
 
       {/* ── User panel ── */}
-      <section className="flex-1 flex flex-col min-w-0">
+      <section className="flex-1 flex flex-col min-w-0 min-h-0">
         <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
           <h2 className="text-sm font-semibold">Per-user inodes</h2>
           <span className="text-[10px] text-muted-foreground">
