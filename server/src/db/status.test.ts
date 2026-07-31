@@ -81,6 +81,25 @@ describe('readScanStatus', () => {
     expect(status?.running).toBe(true)
   })
 
+  it('surfaces scan detail fields when duscan wrote them', () => {
+    const targetDir = makeReport('Test')
+    writeFileSync(
+      join(targetDir, STATUS_FILE),
+      JSON.stringify({
+        stage: 'scan',
+        pid: 1892842,
+        started_at: 1785395281,
+        updated_at: 1785395284,
+        total_elapsed_sec: 3,
+      }),
+    )
+    const status = readScanStatus(dir, 'Test')
+    expect(status?.pid).toBe(1892842)
+    expect(status?.startedAt).toBe(1785395281)
+    expect(status?.updatedAt).toBe(1785395284)
+    expect(status?.elapsedSec).toBe(3)
+  })
+
   it('does not call a finished scan running', () => {
     const targetDir = makeReport('Test')
     // duscan leaves the file behind briefly after finishing.

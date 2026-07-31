@@ -242,6 +242,14 @@ export function App() {
     return () => document.removeEventListener('mousedown', handler)
   }, [showSettings])
 
+  useEffect(() => {
+    const el = document.getElementById('page-load-time')
+    if (!el) return
+    const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined
+    const ms = nav ? Math.round(nav.loadEventEnd - nav.startTime) : 0
+    if (ms > 0) el.innerHTML = `Load time: <span class="text-emerald-400/80">${ms}ms</span>`
+  }, [])
+
   const shownGroups = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return groups
@@ -422,6 +430,14 @@ export function App() {
                 {!collapsed && (theme === 'dark' ? 'Light' : 'Dark')}
               </button>
             </div>
+            {!collapsed && (
+              <p
+                id="page-load-time"
+                className="mt-1.5 border-t border-border/30 pt-1.5 text-center text-[10px] font-mono text-muted-foreground/50"
+              >
+                Load time: <span className="text-emerald-400/80">-- ms</span>
+              </p>
+            )}
           </div>
           {/* Collapse toggle */}
           <button
@@ -645,6 +661,13 @@ function ChangeLogModal({ open, onClose }: { open: boolean; onClose: () => void 
 }
 
 const CHANGES = [
+  {
+    date: '2026-07-31',
+    items: [
+      'Disk column: search filter (name/path), grid/list view toggle, detailed scan tooltips (stage, PID, started, elapsed)',
+      'Sidebar footer: page load time',
+    ],
+  },
   {
     date: '2026-07-30',
     items: [

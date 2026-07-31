@@ -29,6 +29,10 @@ interface StatusFile {
   stage?: unknown
   message?: unknown
   running?: unknown
+  pid?: unknown
+  started_at?: unknown
+  updated_at?: unknown
+  total_elapsed_sec?: unknown
 }
 
 function readStatusFile(dir: string): StatusFile | null {
@@ -47,6 +51,10 @@ function readStatusFile(dir: string): StatusFile | null {
 
 function str(v: unknown): string | undefined {
   return typeof v === 'string' && v.length > 0 ? v : undefined
+}
+
+function num(v: unknown): number | undefined {
+  return typeof v === 'number' && Number.isFinite(v) ? v : undefined
 }
 
 /**
@@ -73,6 +81,10 @@ export function readScanStatusAt(reportDbPath: string, targetDir: string): ScanS
 
   const stage = str(status?.stage)
   const message = str(status?.message)
+  const pid = num(status?.pid)
+  const startedAt = num(status?.started_at)
+  const updatedAt = num(status?.updated_at)
+  const elapsedSec = num(status?.total_elapsed_sec)
 
   return {
     target,
@@ -81,6 +93,10 @@ export function readScanStatusAt(reportDbPath: string, targetDir: string): ScanS
     reportMtime: st.mtimeMs,
     ...(stage !== undefined ? { stage } : {}),
     ...(message !== undefined ? { message } : {}),
+    ...(pid !== undefined ? { pid } : {}),
+    ...(startedAt !== undefined ? { startedAt } : {}),
+    ...(updatedAt !== undefined ? { updatedAt } : {}),
+    ...(elapsedSec !== undefined ? { elapsedSec } : {}),
     // A stage that is not a terminal one means work is still in flight. Trusting
     // an explicit `running: false` matters: duscan leaves the file behind briefly
     // after finishing, and a stale 'done' should not read as a live scan.

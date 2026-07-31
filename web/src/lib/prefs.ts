@@ -13,6 +13,7 @@ export const KEYS = {
   diskColumnWidth: 'duscan-diskcol-width',
   filters: 'duscan-filters',
   compareMode: 'duscan-compare-mode',
+  diskView: 'duscan-disk-view',
 } as const
 
 /**

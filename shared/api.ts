@@ -326,6 +326,14 @@ export interface ScanStatus {
    */
   stage?: string
   message?: string
+  /** The scan process pid, when duscan wrote one. */
+  pid?: number
+  /** Unix seconds when the scan started, when duscan wrote one. */
+  startedAt?: number
+  /** Unix seconds when the status was last written, when duscan wrote one. */
+  updatedAt?: number
+  /** Elapsed scan time in seconds (total_elapsed_sec), when duscan wrote one. */
+  elapsedSec?: number
   running: boolean
 }
 
