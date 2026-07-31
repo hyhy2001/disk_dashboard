@@ -18,7 +18,7 @@ export const DETAIL_TABS = ['treemap', 'history', 'detail-user', 'permissions', 
 
 export type DetailTab = (typeof DETAIL_TABS)[number]
 
-export type Page = 'overview' | 'detail' | 'admin'
+export type Page = 'overview' | 'detail'
 
 export interface Route {
   space: string | null
@@ -56,9 +56,6 @@ function decodeSeg(s: string): string {
 export function parsePath(pathname: string): Route {
   const raw = pathname.replace(/^\/+/, '')
   if (raw === '') return DEFAULT_ROUTE
-  if (raw === 'admin' || raw.startsWith('admin/')) {
-    return { space: null, disk: null, page: 'admin', tab: DEFAULT_ROUTE.tab }
-  }
 
   const parts = raw
     .split('/')
@@ -70,7 +67,7 @@ export function parsePath(pathname: string): Route {
   const pageSeg = parts[2]
   const tabSeg = parts[3]
 
-  const page: Page = pageSeg === 'detail' ? 'detail' : pageSeg === 'admin' ? 'admin' : 'overview'
+  const page: Page = pageSeg === 'detail' ? 'detail' : 'overview'
   const tab: DetailTab = tabSeg !== undefined && isDetailTab(tabSeg) ? tabSeg : DEFAULT_ROUTE.tab
 
   return { space, disk, page, tab }
@@ -79,7 +76,6 @@ export function parsePath(pathname: string): Route {
 /** Build the path for a route. Inverse of parsePath. */
 export function buildPath(route: Route): string {
   const seg = (s: string): string => encodeURIComponent(s)
-  if (route.page === 'admin') return '/admin'
   if (!route.space) return '/'
   if (!route.disk) return `/${seg(route.space)}`
   if (route.page === 'overview') return `/${seg(route.space)}/${seg(route.disk)}/overview`

@@ -403,13 +403,7 @@ export function App() {
             )}
             {!collapsed && groups.length === 0 && (
               <p className="px-2 text-[11px] text-muted-foreground italic mt-2">
-                No spaces yet.{' '}
-                <button
-                  onClick={() => setRoute({ ...DEFAULT_ROUTE, page: 'admin' })}
-                  className="underline hover:text-foreground"
-                >
-                  Go to Admin
-                </button>
+                No spaces yet — add one from the Admin menu below.
               </p>
             )}
             {shownGroups.map((g) => {

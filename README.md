@@ -75,11 +75,12 @@ same `.env` works on any machine:
 
 ## Admin setup
 
-The first visit to `/admin` runs the setup flow: create an owner account, then
-use **Disk Mapping** to add spaces and disks. Each disk points at a directory
-holding a `report.db` — a "Test read" button verifies the path before it is
-saved. Spaces and disks live in `DASHBOARD_ADMIN_DB`; nothing is auto-discovered
-from the filesystem anymore.
+The Admin button in the sidebar opens the admin console: on first use it runs
+the setup flow to create an owner account, then you use **Disk Mapping** to add
+spaces and disks. Each disk points at a directory holding a `report.db` — a
+"Test read" button verifies the path before it is saved. Spaces and disks live
+in `DASHBOARD_ADMIN_DB`; nothing is auto-discovered from the filesystem
+anymore.
 
 Grouping is therefore Space → Disk from the admin DB, not a `teams.json` on
 disk. A target listed under no space is still reachable through the disk
@@ -123,7 +124,6 @@ reload:
 /<space>                       one space, comparison view
 /<space>/<disk>/overview       Overview
 /<space>/<disk>/detail/<tab>   treemap | history | detail-user | permissions
-/admin                         admin console
 ```
 
 The server serves the SPA shell for any non-API path, so deep links reload
