@@ -36,6 +36,7 @@
     "vitest": "2.1.8"
   },
   "overrides": {
-    "vite": "5.4.11"
+    "vite": "5.4.11",
+    "rollup": "npm:@rollup/wasm-node@4.62.3"
   }
 }
