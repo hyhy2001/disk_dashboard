@@ -33,18 +33,21 @@ Open http://127.0.0.1:5311.
 
 ### RHEL8 / older glibc
 
-RHEL8 ships glibc 2.28 and g++ 8.x. better-sqlite3 v11 needs glibc 2.29 and
-C++20, so on RHEL8 `make setup` falls back to compiling it from source — which
-fails against the default g++ (`-std=c++20` unrecognized). Install Red Hat's
-newer toolchain and re-run:
+RHEL8 ships glibc 2.28 and g++ 8.x, which is too old to build the native
+module. The dashboard pins better-sqlite3 10.1.0 (C++17), which compiles with
+**GCC 9+**. The Makefile looks for a compiler in this order and puts it on
+PATH: a custom install at `/usr/local/gcc-*/bin`, Red Hat's
+`/opt/rh/gcc-toolset-*/root/usr/bin`, then the system g++. If none is usable,
+`make setup` stops with clear instructions:
 
 ```sh
+# either a custom gcc (e.g. /usr/local/gcc-9.2.0), or Red Hat's toolset:
 dnf install gcc-toolset-13   # then open a new login shell so it is on PATH
 make setup
 ```
 
-The Makefile automatically uses `/opt/rh/gcc-toolset-*` when present and
-`make setup` pre-checks C++20 support with a clear message before installing.
+`make setup` pre-checks C++17 support and reports exactly which compiler it
+found before installing.
 
 For a single-process production run:
 
