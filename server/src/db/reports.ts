@@ -163,6 +163,7 @@ export function listTargets(reportsDir: string): Target[] {
       const meta = readMeta(db)
       out.push({
         name: entry.name,
+        slug: entry.name,
         scanRoot: meta.scan_root ?? meta.scan_path ?? '',
         scanTimestamp: num(meta.scan_timestamp),
         totalFiles: num(meta.total_files),
@@ -184,11 +185,17 @@ export function listTargets(reportsDir: string): Target[] {
 // Admin DB disk resolution — replaces hardcoded reportsDir
 // ---------------------------------------------------------------------------
 
-/** Look up a disk's path from the admin DB by name. Returns null if unknown. */
-export function diskPath(name: string): string | null {
+/**
+ * Look up a disk's path from the admin DB by slug. Returns null if unknown.
+ *
+ * Slugs are globally unique (a random hex token per disk), so this never
+ * ambiguously resolves a duplicate display name — the exact problem name-based
+ * lookup had.
+ */
+export function diskPath(slug: string): string | null {
   try {
     const db = adminDb()
-    const row = db.prepare('SELECT path FROM disks WHERE name = ?').get(name) as { path: string } | undefined
+    const row = db.prepare('SELECT path FROM disks WHERE slug = ?').get(slug) as { path: string } | undefined
     return row?.path ?? null
   } catch {
     return null
@@ -196,11 +203,11 @@ export function diskPath(name: string): string | null {
 }
 
 /**
- * Open a target's report.db by name, resolving the path from the admin DB.
+ * Open a target's report.db by slug, resolving the path from the admin DB.
  * Returns null if the disk is unknown or the report doesn't exist.
  */
-export function openTargetReport(name: string): Database.Database | null {
-  const path = diskPath(name)
+export function openTargetReport(slug: string): Database.Database | null {
+  const path = diskPath(slug)
   if (!path) return null
   const rp = join(path, REPORT_FILE)
   if (!existsSync(rp)) return null

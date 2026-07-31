@@ -8,6 +8,7 @@ let db: Database.Database
 
 const TARGET: Target = {
   name: 'fixture',
+  slug: 'f1x7ur3',
   scanRoot: '/',
   scanTimestamp: 1_700_000_000,
   totalFiles: 42,

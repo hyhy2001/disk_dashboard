@@ -7,8 +7,8 @@
 // State that identifies "what am I looking at" lives in the URL.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import type { HealthInfo, Overview, TargetGroup } from '../../shared/api.js'
-import { clearApiCache, fetchGroups, fetchHealth, fetchOverview } from './lib/api.js'
+import type { HealthInfo, Overview, ScanStatus, TargetGroup } from '../../shared/api.js'
+import { clearApiCache, fetchGroups, fetchHealth, fetchOverview, fetchStatuses } from './lib/api.js'
 import { NoTargets } from './components/NoTargets.js'
 import { DiskColumn } from './components/DiskColumn.js'
 import { ErrorBoundary } from './components/ErrorBoundary.js'
@@ -22,7 +22,7 @@ import { OverviewTab } from './tabs/OverviewTab.js'
 import { PermissionsTab } from './tabs/PermissionsTab.js'
 import { TreemapTab } from './tabs/TreemapTab.js'
 import { UserTab } from './tabs/UserTab.js'
-import { AdminTab } from './tabs/AdminTab.js'
+import { AdminButton } from './components/AdminMenu.js'
 import { ScrollTop } from './components/ScrollTop.js'
 import { StatBar } from './components/StatBar.js'
 import { ColumnResizer } from './components/ColumnResizer.js'
@@ -37,7 +37,8 @@ import {
   type Route,
 } from './lib/route.js'
 import { cn } from './lib/utils.js'
-import { Monitor, HardDrive, Shield, Sun, Moon } from 'lucide-react'
+import { Monitor, HardDrive, Sun, Moon, Settings, FileText } from 'lucide-react'
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 type Theme = 'dark' | 'light'
 
@@ -76,7 +77,15 @@ export function App() {
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [refreshing, setRefreshing] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
+  const [showChangeLog, setShowChangeLog] = useState(false)
   const mainRef = useRef<HTMLDivElement>(null)
+  const settingsRef = useRef<HTMLButtonElement>(null)
+
+  // Scan status for every target, polled once here and shared by the disk column
+  // cards and the SyncPill. One request per interval instead of one per consumer,
+  // so the SyncPill no longer runs its own /api/status/:target loop.
+  const [statuses, setStatuses] = useState<Record<string, ScanStatus>>({})
 
   useEffect(() => {
     const root = document.documentElement
@@ -95,6 +104,34 @@ export function App() {
     let live = true
     fetchHealth().then((h) => { if (live) setHealth(h) }).catch(() => undefined)
     return () => { live = false }
+  }, [])
+
+  // Poll scan status for all targets as one request. Skipped while the tab is
+  // hidden, and aborted on unmount so a slow poll cannot setState after the app
+  // is gone. The result is handed to the disk column and the SyncPill alike.
+  useEffect(() => {
+    const controller = new AbortController()
+
+    const run = async (): Promise<void> => {
+      if (document.hidden) return
+      try {
+        const list = await fetchStatuses(controller.signal)
+        setStatuses(Object.fromEntries(list.map((s) => [s.target, s])))
+      } catch (err) {
+        if (!(err instanceof DOMException && err.name === 'AbortError')) return
+      }
+    }
+
+    void run()
+    const id = setInterval(() => void run(), 3000)
+    const onVisible = () => { if (!document.hidden) void run() }
+    document.addEventListener('visibilitychange', onVisible)
+
+    return () => {
+      clearInterval(id)
+      controller.abort()
+      document.removeEventListener('visibilitychange', onVisible)
+    }
   }, [])
 
   useEffect(() => {
@@ -121,6 +158,18 @@ export function App() {
     return groups.find((g) => g.name === route.space) ?? null
   }, [groups, route.space])
 
+  // Redirect old bookmarks that used the disk display name in the URL instead of
+  // the slug. After the slug migration any name-based path 404s, so if the disk
+  // segment matches no slug but exactly one display name in the active space,
+  // rewrite it in place — the tab then loads as if the slug had been typed.
+  useEffect(() => {
+    if (!route.disk || !activeGroup) return
+    if (activeGroup.targets.some((t) => t.slug === route.disk)) return
+    const byName = activeGroup.targets.filter((t) => t.name === route.disk)
+    if (byName.length !== 1) return
+    setRoute((r) => ({ ...r, disk: byName[0]!.slug }))
+  }, [route.disk, activeGroup])
+
   const active = overview?.target
 
   useEffect(() => {
@@ -138,10 +187,10 @@ export function App() {
     setRoute((r) => ({ ...r, space: name, disk: null }))
   }, [])
 
-  const pickDisk = useCallback((name: string) => {
+  const pickDisk = useCallback((slug: string) => {
     setRoute((r) => ({
       ...r,
-      disk: name,
+      disk: slug,
       space: r.space ?? (activeGroup?.name ?? null),
     }))
   }, [activeGroup])
@@ -153,6 +202,15 @@ export function App() {
   const setTab = useCallback((tab: DetailTab) => {
     setRoute((r) => ({ ...r, page: 'detail', tab }))
   }, [])
+
+  useEffect(() => {
+    if (!showSettings) return
+    const handler = (e: MouseEvent) => {
+      if (settingsRef.current && !settingsRef.current.parentElement?.contains(e.target as Node)) setShowSettings(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [showSettings])
 
   const shownGroups = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -167,9 +225,10 @@ export function App() {
   if (route.disk) lastDiskRef.current = route.disk
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background" style={{ '--sidebar-width': collapsed ? '56px' : '256px' } as React.CSSProperties}>
+    <>
       <Toasts />
       <Tooltip />
+      <div className="flex h-screen overflow-hidden bg-background" style={{ '--sidebar-width': collapsed ? '56px' : '256px' } as React.CSSProperties}>
 
       {/* ── Sidebar ── */}
       <aside
@@ -180,12 +239,39 @@ export function App() {
         )}
       >
         {/* Brand */}
-        <a className="flex h-14 items-center gap-2.5 border-b border-border/40 px-4" onClick={() => setRoute(DEFAULT_ROUTE)}>
-          <div className="flex size-7 items-center justify-center rounded-md bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-sm">
-            <HardDrive className="size-4 text-white" />
-          </div>
-          {!collapsed && <span className="font-semibold text-sm tracking-tight">Disk Usage</span>}
-        </a>
+        <div className="flex h-14 items-center gap-2.5 border-b border-border/40 px-4">
+          <a className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer" onClick={() => setRoute(DEFAULT_ROUTE)}>
+            <div className="flex size-7 items-center justify-center rounded-md bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-sm shrink-0">
+              <HardDrive className="size-4 text-white" />
+            </div>
+            {!collapsed && <span className="font-semibold text-sm tracking-tight">Disk Usage</span>}
+          </a>
+          {!collapsed && (
+            <div className="relative">
+              <button id="sidebar-settings-btn" onClick={() => setShowSettings(d => !d)}
+                className="inline-flex size-6 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                ref={settingsRef}>
+                <Settings className="size-3.5" />
+              </button>
+              {showSettings && (
+                <div className="absolute right-0 top-full mt-1 w-44 rounded-md border border-border bg-surface shadow-lg z-50 overflow-hidden">
+                  <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/50">Preferences</div>
+                  <button onClick={() => { setShowSettings(false); setShowChangeLog(true) }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-xs text-left hover:bg-muted transition-colors">
+                    <FileText className="size-3.5" />
+                    Change Log
+                  </button>
+                  <button onClick={() => { toggleTheme(); setShowSettings(false) }}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-xs text-left hover:bg-muted transition-colors">
+                    {theme === 'dark' ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
+                    {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        {!collapsed && <div className="px-4 py-1 text-[10px] font-mono text-muted-foreground/50" id="sidebar-clock"><LiveClock /></div>}
 
         {/* Search */}
         {!collapsed && (
@@ -259,17 +345,7 @@ export function App() {
         {/* Footer */}
         <div className="border-t border-border/40 px-2 py-2">
           <div className={cn('flex', collapsed ? 'flex-col gap-1' : 'items-center justify-between')}>
-            <button
-              onClick={() => setRoute({ ...DEFAULT_ROUTE, page: 'admin' })}
-              className={cn(
-                'inline-flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition-colors',
-                collapsed && 'justify-center px-1',
-              )}
-              title="Admin"
-            >
-              <Shield className="size-3.5" />
-              {!collapsed && 'Admin'}
-            </button>
+            <AdminButton collapsed={collapsed} />
             <button
               onClick={toggleTheme}
               className={cn(
@@ -301,6 +377,7 @@ export function App() {
           <DiskColumn
             groupName={activeGroup?.name ?? 'All Targets'}
             targets={activeGroup?.targets ?? []}
+            statuses={statuses}
             selected={route.disk}
             onSelect={pickDisk}
             onToggleSidebar={() => setCollapsed((c) => !c)}
@@ -375,7 +452,7 @@ export function App() {
         {/* Sync + Capacity */}
         {active && (
           <div className="flex items-center gap-2 border-b border-border px-4 py-1.5 text-xs">
-            <SyncPill target={route.disk!} onStale={reloadGroups} refreshing={refreshing} />
+            <SyncPill target={route.disk!} status={statuses[route.disk!] ?? null} onStale={reloadGroups} refreshing={refreshing} />
             {overview?.capacity && <StatBar capacity={overview.capacity} />}
           </div>
         )}
@@ -383,9 +460,7 @@ export function App() {
         {/* Content */}
         <main className="main flex-1 overflow-auto">
           <ErrorBoundary name="content">
-          {route.page === 'admin' ? (
-            <AdminTab />
-          ) : error ? (
+          {error ? (
             <div className="flex items-center justify-center h-full">
               <div className="text-center space-y-2">
                 <p className="text-sm font-semibold text-destructive">Could not load this target</p>
@@ -461,5 +536,48 @@ export function App() {
 
       <ScrollTop targetRef={mainRef} />
     </div>
+    <ChangeLogModal open={showChangeLog} onClose={() => setShowChangeLog(false)} />
+    </>
   )
 }
+
+function LiveClock() {
+  const [time, setTime] = useState(new Date())
+  useEffect(() => {
+    const id = setInterval(() => setTime(new Date()), 1000)
+    return () => clearInterval(id)
+  }, [])
+  return <>{time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</>
+}
+
+function ChangeLogModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader><DialogTitle className="flex items-center gap-2"><FileText className="size-4" />Change Log</DialogTitle></DialogHeader>
+        <div className="space-y-4 text-sm max-h-[60vh] overflow-auto pr-2">
+          {CHANGES.map(entry => (
+            <div key={entry.date}>
+              <p className="text-xs font-semibold text-muted-foreground">{entry.date}</p>
+              <ul className="mt-1 space-y-1">
+                {entry.items.map((item, i) => <li key={i} className="text-xs text-foreground">• {item}</li>)}
+              </ul>
+            </div>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+const CHANGES = [
+  { date: '2026-07-30', items: [
+    'Admin dashboard: modal-based login, Disk Mapping, Accounts, Backups, Group Config, Change Password',
+    'Live clock in sidebar, Settings dropdown with Change Log',
+    'Team Comparison view with chart mode toggles (Absolute, Percent)',
+  ]},
+  { date: '2026-07-29', items: [
+    'Initial standalone admin page with login, setup, spaces/disks CRUD',
+    'Backup and restore admin database',
+  ]},
+]

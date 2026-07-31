@@ -5,3 +5,8 @@ logs/
 .env
 .env.*
 .DS_Store
+
+# Local admin database (credentials, spaces, disks) — never commit.
+server/admin.db
+server/admin.db-shm
+server/admin.db-wal

@@ -4,7 +4,7 @@ import { App } from './App.js'
 
 vi.mock('./lib/api.js', () => ({
   fetchHealth: () => Promise.resolve({ live: true, targets: 3, version: '0.1.0' }),
-  fetchGroups: () => Promise.resolve([{ name: 'Prod', targets: [{ name: 'web-01', path: '/data/web' }] }]),
+  fetchGroups: () => Promise.resolve([{ name: 'Prod', targets: [{ name: 'web-01', slug: 'web-01', scanRoot: '/data/web', scanTimestamp: 0, totalFiles: 0, totalDirs: 0, totalSize: 0, dbSizeBytes: 0, capacity: null }] }]),
   fetchOverview: () => Promise.resolve(null),
   clearApiCache: () => {},
 }))
@@ -38,7 +38,10 @@ describe('App shell layout', () => {
 
   it('applies --sidebar-width variable on the root', () => {
     const { container } = render(<App />)
-    const root = container.firstElementChild as HTMLElement
+    // App renders Toasts/Tooltip before the layout root, so select the div that
+    // actually owns the CSS variable rather than assuming it is the first child.
+    const root = container.querySelector('[style*="--sidebar-width"]') as HTMLElement
+    expect(root).toBeTruthy()
     expect(root.style.getPropertyValue('--sidebar-width')).toBe('256px')
   })
 

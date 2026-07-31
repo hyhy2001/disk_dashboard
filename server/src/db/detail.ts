@@ -308,16 +308,13 @@ export function readUserFiles(
   const page = hasMore ? rows.slice(0, limit) : rows
   const last = page[page.length - 1]
 
-  const hasExtFilter = (opts.filter?.ext ?? []).some((e) => e.trim().length > 0)
-  const hasOtherFilter =
+  const hasFilter =
     (opts.filter?.query ?? []).some((t) => t.trim().length > 0) ||
+    (opts.filter?.ext ?? []).some((e) => e.trim().length > 0) ||
     (opts.filter?.minSize !== undefined && opts.filter.minSize > 0) ||
     (opts.filter?.maxSize !== undefined && opts.filter.maxSize > 0)
 
-  // COUNT(*) over an ext filter is as slow as the main query (ext not in index),
-  // so skip it and use the pre-computed total from detail_users. Path/size filters
-  // are cheap because uid is indexed, so count them.
-  const total = hasOtherFilter && !hasExtFilter
+  const total = hasFilter
     ? (
         db
           .prepare(

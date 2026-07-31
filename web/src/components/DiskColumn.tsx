@@ -1,7 +1,14 @@
 // Column 2: disk cards with usage pill and mini capacity bar.
+//
+// Matches legacy's team-disk-card: each card shows a freshness/scan dot, the
+// used% pill, a segmented bar (scanned / unattributed / free), and the four
+// headline figures (Total · Used · Scanned · Free). Scan status comes from the
+// App-level /api/statuses poll (one request per interval for every card), so a
+// running scan shows up on the owning card instead of only on the active disk's
+// SyncPill.
 
 import { useMemo, useState } from 'react'
-import type { Target } from '../../../shared/api.js'
+import type { ScanStatus, Target } from '../../../shared/api.js'
 import { formatCount, formatSize } from '../lib/format.js'
 import { cn } from '@/lib/utils.js'
 
@@ -42,18 +49,56 @@ const SORT_LABELS: Record<DiskSort, string> = {
 interface Props {
   groupName: string
   targets: Target[]
+  /** Scan status per target slug, from the App-level poll. */
+  statuses: Record<string, ScanStatus>
+  /** Selected disk slug, or null. */
   selected: string | null
-  onSelect: (name: string) => void
+  onSelect: (slug: string) => void
   onToggleSidebar: () => void
 }
 
-function DiskCard({ t, active, onSelect }: { t: Target; active: boolean; onSelect: () => void }) {
-  const pct = t.capacity && t.capacity.total > 0
-    ? ((t.capacity.total - t.capacity.available) / t.capacity.total * 100)
-    : 0
-  const scanned = t.capacity ? (t.totalSize / t.capacity.total * 100) : 0
-  const used = t.capacity ? (pct - scanned) : 0
+const STAGE_LABEL: Record<string, string> = {
+  scan: 'Scanning files',
+  report: 'Building report',
+  detail: 'Building user detail',
+  treemap: 'Building treemap',
+  sync: 'Writing report',
+  done: 'Completed',
+  error: 'Scan failed',
+}
+
+function DiskCard({
+  t,
+  status,
+  active,
+  onSelect,
+}: {
+  t: Target
+  status?: ScanStatus
+  active: boolean
+  onSelect: () => void
+}) {
+  const cap = t.capacity
+  const pct = cap && cap.total > 0 ? ((cap.total - cap.available) / cap.total * 100) : 0
+  const scannedPct = cap ? (cap.scanned / cap.total * 100) : 0
+  // Bytes the filesystem counts as used but the scan did not walk (or could not
+  // descend into) — the unattributed gap legacy surfaced as its own segment.
+  const unattributedPct = cap ? Math.max(0, pct - scannedPct) : 0
   const barColor = pct >= 85 ? 'bg-rose-500' : pct >= 70 ? 'bg-amber-400' : 'bg-emerald-500'
+
+  const running = status?.running === true
+  const failed = status?.stage === 'error'
+  const dotColor = running
+    ? 'bg-amber-400 animate-pulse'
+    : failed
+      ? 'bg-rose-500'
+      : statusColor(scanAge(t))
+
+  const stageText = running
+    ? (status?.stage ? STAGE_LABEL[status.stage] : undefined) ?? 'Working'
+    : failed
+      ? status?.message ?? 'Scan failed'
+      : null
 
   return (
     <button
@@ -71,7 +116,7 @@ function DiskCard({ t, active, onSelect }: { t: Target; active: boolean; onSelec
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <span className={cn('inline-block size-1.5 rounded-full shrink-0', statusColor(scanAge(t)))} />
+            <span className={cn('inline-block size-1.5 rounded-full shrink-0', dotColor)} />
             <p className="text-sm font-semibold truncate">{t.name}</p>
           </div>
           <p className="text-[11px] text-muted-foreground/60 font-mono truncate mt-0.5">{t.scanRoot}</p>
@@ -95,17 +140,51 @@ function DiskCard({ t, active, onSelect }: { t: Target; active: boolean; onSelec
         <span className="ml-auto text-[10px] text-muted-foreground/40">{relativeTime(scanAge(t))}</span>
       </div>
 
-      {t.capacity && (
-        <div className="mt-2.5 flex h-2 rounded-full overflow-hidden bg-muted/50 ring-1 ring-inset ring-white/[0.04]">
-          <div className={cn('transition-all', barColor)} style={{ width: `${Math.max(0, scanned)}%` }} />
-          <div className="bg-white/[0.06]" style={{ width: `${Math.max(0, used)}%` }} />
-        </div>
+      {cap && (
+        <>
+          <div className="mt-2.5 flex h-2 rounded-full overflow-hidden bg-muted/50 ring-1 ring-inset ring-white/[0.04]">
+            <div className={cn('transition-all', barColor)} style={{ width: `${Math.max(0, Math.min(100, scannedPct))}%` }} />
+            {/* Unattributed usage: used but not walked by the scan. Gray so the
+                gap between "scanned" and "used" reads at a glance. */}
+            <div className="bg-gray-500/60 transition-all" style={{ width: `${Math.max(0, Math.min(100, unattributedPct))}%` }} />
+          </div>
+
+          {/* Headline figures, matching legacy's extended-disk-stats. */}
+          <div className="mt-2 grid grid-cols-4 gap-1.5 border-t border-border/40 pt-2">
+            <div className="min-w-0">
+              <p className="text-[9px] uppercase tracking-wider text-muted-foreground/40">Total</p>
+              <p className="text-[11px] font-semibold tabular-nums truncate">{formatSize(cap.total)}</p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-[9px] uppercase tracking-wider text-muted-foreground/40">Used</p>
+              <p className="text-[11px] font-semibold tabular-nums truncate">{formatSize(cap.used)}</p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-[9px] uppercase tracking-wider text-muted-foreground/40">Scanned</p>
+              <p className="text-[11px] font-semibold tabular-nums truncate">{formatSize(cap.scanned)}</p>
+            </div>
+            <div className="min-w-0">
+              <p className="text-[9px] uppercase tracking-wider text-muted-foreground/40">Free</p>
+              <p className="text-[11px] font-semibold tabular-nums truncate">{formatSize(cap.available)}</p>
+            </div>
+          </div>
+        </>
+      )}
+
+      {stageText && (
+        <p className={cn(
+          'mt-1.5 flex items-center gap-1 text-[10px] font-medium',
+          failed ? 'text-rose-400' : 'text-amber-400',
+        )}>
+          <span className="inline-block size-1 rounded-full bg-current animate-pulse" />
+          {stageText}
+        </p>
       )}
     </button>
   )
 }
 
-export function DiskColumn({ groupName, targets, selected, onSelect, onToggleSidebar: _onToggleSidebar }: Props) {
+export function DiskColumn({ groupName, targets, statuses, selected, onSelect, onToggleSidebar: _onToggleSidebar }: Props) {
   const [sort, setSort] = useState<DiskSort>('usage-desc')
 
   const sorted = useMemo(() => {
@@ -146,9 +225,8 @@ export function DiskColumn({ groupName, targets, selected, onSelect, onToggleSid
       </div>
       <div className="flex-1 overflow-auto px-2.5 py-2 space-y-2">
         {sorted.map(t => (
-          <DiskCard key={t.name} t={t} active={t.name === selected} onSelect={() => onSelect(t.name)} />
-        ))}
-      </div>
+          <DiskCard key={t.slug} t={t} status={statuses[t.slug]} active={t.slug === selected} onSelect={() => onSelect(t.slug)} />
+        ))}      </div>
     </div>
   )
 }

@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogAction, AlertDialogCancel } from '@/components/ui/alert-dialog'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Separator } from '@/components/ui/separator'
-import { Shield, Plus, Trash2, Key, LogOut, HardDrive, User, Users, Eye, EyeOff } from 'lucide-react'
+import { Shield, Plus, Trash2, Key, LogOut, HardDrive, User, Users, Eye, EyeOff, Archive, RotateCcw } from 'lucide-react'
 import { success, failure } from '@/lib/toast.js'
 import {
   changeOwnPassword, createAccount, createDisk, createSpace,
@@ -15,11 +15,11 @@ import {
   fetchDiskTeams, createDiskTeam, updateDiskTeam, deleteDiskTeam,
   fetchSpaces, login, logout, resetAccountPassword, setup,
   updateDisk, updateSpace,
-  type AuthInfo,
+  fetchBackups, createBackup, restoreBackup, deleteBackup,
+  fetchStats,
+  type AuthInfo, type BackupInfo, type SummaryStats,
 } from '../lib/adminApi.js'
 import type { DiskTeam } from '../../../shared/api.js'
-
-// ── Helpers ──────────────────────────────────────────────────────────
 
 function PwInput({ value, onChange, placeholder, autoFocus, autoComplete }: {
   value: string; onChange: (v: string) => void; placeholder?: string; autoFocus?: boolean; autoComplete?: string
@@ -34,8 +34,6 @@ function PwInput({ value, onChange, placeholder, autoFocus, autoComplete }: {
     </div>
   )
 }
-
-// ── Confirm Dialog ───────────────────────────────────────────────────
 
 function ConfirmDialog({ open, onOpenChange, title, description, action, onConfirm }: {
   open: boolean; onOpenChange: (v: boolean) => void; title: string; description: string; action: string; onConfirm: () => void
@@ -54,6 +52,12 @@ function ConfirmDialog({ open, onOpenChange, title, description, action, onConfi
       </AlertDialogContent>
     </AlertDialog>
   )
+}
+
+function formatBytes(n: number): string {
+  if (n < 1024) return `${n}B`
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(0)}KB`
+  return `${(n / (1024 * 1024)).toFixed(1)}MB`
 }
 
 // ── Login ────────────────────────────────────────────────────────────
@@ -118,6 +122,31 @@ function SetupForm({ onDone }: { onDone: (u: AuthInfo['user']) => void }) {
           </form>
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+// ── Stats Bar ────────────────────────────────────────────────────────
+
+function StatsBar({ stats }: { stats: SummaryStats }) {
+  const items = [
+    { label: 'Spaces', value: stats.spaces, icon: HardDrive },
+    { label: 'Disks', value: stats.disks, icon: HardDrive },
+    { label: 'Teams', value: stats.teams, icon: Users },
+    { label: 'Team Users', value: stats.teamUsers, icon: User },
+    { label: 'Accounts', value: stats.accounts, icon: Shield },
+  ]
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+      {items.map(item => (
+        <div key={item.label} className="rounded-lg border border-border/50 bg-surface/30 px-4 py-3 flex items-center gap-3">
+          <item.icon className="size-4 text-muted-foreground shrink-0" />
+          <div>
+            <p className="text-lg font-semibold tabular-nums">{item.value}</p>
+            <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{item.label}</p>
+          </div>
+        </div>
+      ))}
     </div>
   )
 }
@@ -263,13 +292,16 @@ function SpacesPanel() {
             {s.disks.length > 0 ? (
               <table className="w-full text-sm">
                 <thead><tr className="text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-border">
-                  <th className="py-1.5 pl-3">Name</th><th className="py-1.5">Path</th><th className="py-1.5 pr-3 text-right">Actions</th>
+                  <th className="py-1.5 pl-3">Name</th><th className="py-1.5">Path</th><th className="py-1.5">Teams</th><th className="py-1.5 pr-3 text-right">Actions</th>
                 </tr></thead>
                 <tbody>
                   {s.disks.map((d: any) => (
                     <tr key={d.id} className="border-b border-border/50 hover:bg-muted/50 transition-colors">
                       <td className="py-1.5 pl-3">{d.name}</td>
                       <td className="py-1.5 font-mono text-[11px] text-muted-foreground">{d.path}</td>
+                      <td className="py-1.5">
+                        <TeamCountBadge diskId={d.id} />
+                      </td>
                       <td className="py-1.5 pr-3">
                         <div className="flex justify-end gap-1">
                           <Button variant="ghost" size="sm" onClick={() => { setTeamsDiskId(d.id); setTeamsDiskName(d.name) }} title="Manage teams/users"><Users className="size-3" /></Button>
@@ -310,9 +342,19 @@ function SpacesPanel() {
       <ConfirmDialog open={confirmSpaceId !== null} onOpenChange={() => setConfirmSpaceId(null)} title="Delete Space" description={`Delete '${confirmSpaceName}' and all its disks? This cannot be undone.`} action="Delete" onConfirm={() => { if (confirmSpaceId !== null) delSpace(confirmSpaceId); setConfirmSpaceId(null) }} />
       <ConfirmDialog open={confirmDiskId !== null} onOpenChange={() => setConfirmDiskId(null)} title="Delete Disk" description={`Remove '${confirmDiskName}'? This cannot be undone.`} action="Delete" onConfirm={() => { if (confirmDiskId !== null) delDisk(confirmDiskId); setConfirmDiskId(null) }} />
 
-      {/* Teams dialog */}
       <TeamsDialog diskId={teamsDiskId} diskName={teamsDiskName} onClose={() => setTeamsDiskId(null)} onChanged={load} />
     </Card>
+  )
+}
+
+function TeamCountBadge({ diskId }: { diskId: number }) {
+  const [teams, setTeams] = useState<DiskTeam[]>([])
+  useEffect(() => { if (diskId) fetchDiskTeams(diskId).then(setTeams).catch(() => {}) }, [diskId])
+  const userCount = teams.reduce((s, t) => s + t.users.length, 0)
+  return (
+    <span className="text-[11px] text-muted-foreground">
+      {teams.length > 0 ? `${teams.length} team${teams.length !== 1 ? 's' : ''}, ${userCount} user${userCount !== 1 ? 's' : ''}` : '—'}
+    </span>
   )
 }
 
@@ -448,6 +490,82 @@ function TeamsDialog({ diskId, diskName, onClose, onChanged }: { diskId: number 
   )
 }
 
+// ── Backup & Restore ─────────────────────────────────────────────────
+
+function BackupPanel() {
+  const [backups, setBackups] = useState<BackupInfo[]>([])
+  const [restoreName, setRestoreName] = useState<string | null>(null)
+  const [deleteName, setDeleteName] = useState<string | null>(null)
+
+  const load = useCallback(async () => {
+    try { setBackups(await fetchBackups()) } catch { /* */ }
+  }, [])
+  useEffect(() => { void load() }, [load])
+
+  const doBackup = async () => {
+    try { await createBackup(); success('Backup created'); await load() } catch (e: any) { failure('Backup failed', e.message) }
+  }
+
+  const doRestore = async () => {
+    if (!restoreName) return
+    try {
+      await restoreBackup(restoreName)
+      success('Backup restored', restoreName)
+      setRestoreName(null)
+    } catch (e: any) { failure('Restore failed', e.message) }
+  }
+
+  const doDelete = async () => {
+    if (!deleteName) return
+    try { await deleteBackup(deleteName); success('Backup deleted'); setDeleteName(null); await load() } catch (e: any) { failure('Delete failed', e.message) }
+  }
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between space-y-0 py-3">
+        <CardTitle className="text-sm">Backups · {backups.length}</CardTitle>
+        <Button size="sm" onClick={doBackup}><Archive className="size-3.5 mr-1" />Create Backup</Button>
+      </CardHeader>
+      <CardContent>
+        {backups.length === 0 ? (
+          <p className="text-xs text-muted-foreground py-4 text-center">No backups yet.</p>
+        ) : (
+          <div className="overflow-auto">
+            <table className="w-full text-sm">
+              <thead><tr className="border-y border-border text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                <th className="py-2">Name</th><th className="py-2">Date</th><th className="py-2">Size</th><th className="py-2 text-right">Actions</th>
+              </tr></thead>
+              <tbody>
+                {backups.map(b => (
+                  <tr key={b.name} className="border-b border-border/50 hover:bg-muted/50 transition-colors">
+                    <td className="py-2 font-mono text-[11px]">{b.name}</td>
+                    <td className="py-2 text-xs text-muted-foreground">{b.mtime.slice(0, 19).replace('T', ' ')}</td>
+                    <td className="py-2 text-xs text-muted-foreground">{formatBytes(b.size)}</td>
+                    <td className="py-2 text-right">
+                      <div className="flex justify-end gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => setRestoreName(b.name)} title="Restore"><RotateCcw className="size-3" /></Button>
+                        <Button variant="ghost" size="sm" onClick={() => setDeleteName(b.name)}><Trash2 className="size-3 text-destructive" /></Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </CardContent>
+
+      <ConfirmDialog open={restoreName !== null} onOpenChange={() => setRestoreName(null)}
+        title="Restore Backup"
+        description={`Restore '${restoreName}'? This will replace the current admin database. A new backup will be created automatically before restoring.`}
+        action="Restore" onConfirm={doRestore} />
+
+      <ConfirmDialog open={deleteName !== null} onOpenChange={() => setDeleteName(null)}
+        title="Delete Backup" description={`Delete '${deleteName}'?`} action="Delete" onConfirm={doDelete} />
+    </Card>
+  )
+}
+
 // ── Profile ──────────────────────────────────────────────────────────
 
 function ProfilePanel({ user }: { user: AuthInfo['user'] }) {
@@ -487,15 +605,22 @@ function ProfilePanel({ user }: { user: AuthInfo['user'] }) {
 export function AdminTab() {
   const [auth, setAuth] = useState<AuthInfo | null>(null)
   const [loading, setLoading] = useState(true)
+  const [stats, setStats] = useState<SummaryStats | null>(null)
 
   const check = useCallback(async () => {
-    try { setAuth(await fetchAuthStatus()) } catch { /* */ } finally { setLoading(false) }
+    try {
+      const a = await fetchAuthStatus()
+      setAuth(a)
+      if (a.loggedIn) {
+        fetchStats().then(setStats).catch(() => {})
+      }
+    } catch { /* */ } finally { setLoading(false) }
   }, [])
 
   useEffect(() => { void check() }, [check])
 
   if (loading) return (
-    <div className="max-w-3xl mx-auto p-6 space-y-4 animate-fade-in">
+    <div className="max-w-3xl mx-auto p-6 space-y-4 animate-fade-in w-full">
       <div className="flex items-center gap-3">
         <div className="size-10 rounded-full bg-muted animate-pulse" />
         <div className="space-y-2 flex-1">
@@ -503,7 +628,7 @@ export function AdminTab() {
           <div className="h-3 w-20 rounded-sm bg-muted animate-pulse" />
         </div>
       </div>
-      <div className="h-48 rounded-sm bg-muted animate-pulse" />
+      <div className="h-24 rounded-sm bg-muted animate-pulse" />
       <div className="h-48 rounded-sm bg-muted animate-pulse" />
     </div>
   )
@@ -513,7 +638,7 @@ export function AdminTab() {
   const isOwner = auth.user?.role === 'owner'
 
   return (
-    <div className="max-w-3xl mx-auto p-6 space-y-4 animate-fade-in">
+    <div className="max-w-4xl mx-auto p-6 space-y-4 animate-fade-in w-full">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold tracking-tight">Admin</h2>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -522,14 +647,18 @@ export function AdminTab() {
         </div>
       </div>
 
+      {stats && <StatsBar stats={stats} />}
+
       <Tabs defaultValue="spaces">
         <TabsList>
-          <TabsTrigger value="spaces"><HardDrive className="size-3.5 mr-1.5" />Spaces & Disks</TabsTrigger>
+          <TabsTrigger value="spaces"><HardDrive className="size-3.5 mr-1.5" />Disk Mapping</TabsTrigger>
           {isOwner && <TabsTrigger value="accounts"><Shield className="size-3.5 mr-1.5" />Accounts</TabsTrigger>}
+          <TabsTrigger value="backups"><Archive className="size-3.5 mr-1.5" />Backups</TabsTrigger>
           <TabsTrigger value="profile"><User className="size-3.5 mr-1.5" />Profile</TabsTrigger>
         </TabsList>
         <TabsContent value="spaces"><SpacesPanel /></TabsContent>
         {isOwner && <TabsContent value="accounts"><AccountsPanel /></TabsContent>}
+        <TabsContent value="backups"><BackupPanel /></TabsContent>
         <TabsContent value="profile"><ProfilePanel user={auth.user} /></TabsContent>
       </Tabs>
     </div>

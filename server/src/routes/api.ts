@@ -19,6 +19,7 @@ import type {
   Target,
   TargetGroup,
   TreemapLevel,
+  UsageRow,
   UserDetail,
 } from '../../../shared/api.js'
 import type { Config } from '../config.js'
@@ -40,6 +41,7 @@ import { readHistorySeries } from '../db/history.js'
 import { readInodeStats } from '../db/inodes.js'
 import { searchNames } from '../db/search.js'
 import { readScanStatusAt } from '../db/status.js'
+import { listSpacesWithDisks, listDiskTeams, diskBySlug } from '../db/admin.js'
 
 function ok<T>(data: T): ApiResponse<T> {
   return { status: 'success', data }
@@ -115,6 +117,58 @@ function detailFilterFrom(q: {
   }
 }
 
+/**
+ * Apply teams from admin.db to the overview, overriding report.db team assignments.
+ * This lets the admin Group Config control team → user mapping in the dashboard.
+ */
+function applyAdminTeams(slug: string, overview: Overview): Overview {
+  try {
+    const disk = diskBySlug(slug)
+    if (!disk) return overview
+
+    const adminTeams = listDiskTeams(disk.id)
+    if (adminTeams.length === 0) return overview
+
+    // Build user → team lookup from admin teams
+    const userTeam = new Map<string, string>()
+    for (const t of adminTeams) {
+      for (const u of t.users) userTeam.set(u.toLowerCase(), t.name)
+    }
+
+    // Remap users: if user has an admin team, move them to teams; else to otherUsers
+    const teamUsage = new Map<string, number>()
+    const teamUsers: UsageRow[] = []
+    const otherUsers: UsageRow[] = []
+
+    const allUsers = [...overview.users, ...overview.otherUsers]
+    for (const u of allUsers) {
+      const team = userTeam.get(u.name.toLowerCase())
+      if (team) {
+        teamUsage.set(team, (teamUsage.get(team) ?? 0) + u.used)
+        teamUsers.push({ ...u, team })
+      } else {
+        otherUsers.push(u)
+      }
+    }
+
+    // Add admin teams that have no users yet (show them as 0)
+    for (const t of adminTeams) {
+      if (!teamUsage.has(t.name)) {
+        teamUsage.set(t.name, 0)
+      }
+    }
+
+    // Build teams UsageRow[] sorted by size
+    const teams: UsageRow[] = Array.from(teamUsage.entries())
+      .map(([name, used]) => ({ name, used }))
+      .sort((a, b) => b.used - a.used)
+
+    return { ...overview, teams, users: teamUsers, otherUsers }
+  } catch {
+    return overview
+  }
+}
+
 export function registerApi(app: FastifyInstance, config: Config): void {
   app.get('/api/health', async (): Promise<ApiResponse<HealthInfo>> => {
     const adminCfg = getPublicConfig()
@@ -145,6 +199,7 @@ export function registerApi(app: FastifyInstance, config: Config): void {
           info.db.close()
           targets.push({
             name: disk.name,
+            slug: disk.slug,
             scanRoot: meta.scan_root ?? disk.path,
             scanTimestamp: Number(meta.scan_timestamp ?? 0),
             totalFiles: Number(meta.total_files ?? 0),
@@ -167,15 +222,16 @@ export function registerApi(app: FastifyInstance, config: Config): void {
         const members: Target[] = []
         for (const disk of space.disks) {
           const rp = join(disk.path, REPORT_FILE)
-          const info = openReportAt(rp)
-          if (info) {
-            const meta = readMeta(info.db)
-            const cap = readCapacity(info.db)
-            const dbSize = statSync(rp).size
-            info.db.close()
-            members.push({
-              name: disk.name,
-              scanRoot: meta.scan_root ?? disk.path,
+        const info = openReportAt(rp)
+        if (info) {
+          const meta = readMeta(info.db)
+          const cap = readCapacity(info.db)
+          const dbSize = statSync(rp).size
+          info.db.close()
+          members.push({
+            name: disk.name,
+            slug: disk.slug,
+            scanRoot: meta.scan_root ?? disk.path,
               scanTimestamp: Number(meta.scan_timestamp ?? 0),
               totalFiles: Number(meta.total_files ?? 0),
               totalDirs: Number(meta.total_dirs ?? 0),
@@ -203,10 +259,15 @@ export function registerApi(app: FastifyInstance, config: Config): void {
         return fail(reply, 404, `no report found for target '${target}'`)
       }
 
+      // The slug is the route id; the display name comes from the admin DB so a
+      // renamed disk still shows its current name in the header.
+      const disk = diskBySlug(target)
+
       // readOverview needs a Target row; build one from meta.
       const meta = readMeta(db)
       const row: Target = {
-        name: target,
+        name: disk?.name ?? target,
+        slug: target,
         scanRoot: meta.scan_root ?? '',
         scanTimestamp: Number(meta.scan_timestamp) || 0,
         totalFiles: Number(meta.total_files) || 0,
@@ -216,7 +277,7 @@ export function registerApi(app: FastifyInstance, config: Config): void {
         capacity: readCapacity(db),
       }
 
-      return ok(readOverview(db, row))
+      return ok(applyAdminTeams(target, readOverview(db, row)))
     },
   )
 
@@ -446,4 +507,22 @@ export function registerApi(app: FastifyInstance, config: Config): void {
       return ok(status)
     },
   )
+
+  // Freshness for every configured target at once, so the disk column can show a
+  // per-card scan indicator with one poll per interval instead of one request per
+  // card. Same cost model as the single-target route: stat() plus one small read.
+  app.get('/api/statuses', async (request, reply): Promise<ApiResponse<ScanStatus[]>> => {
+    const statuses: ScanStatus[] = []
+    for (const space of getPublicConfig().spaces) {
+      for (const disk of space.disks) {
+        const status = readScanStatusAt(join(disk.path, REPORT_FILE), disk.path)
+        if (!status) continue
+        // readScanStatusAt names the target from the directory basename; the card
+        // keys on the admin-DB route slug, so overwrite it.
+        statuses.push({ ...status, target: disk.slug })
+      }
+    }
+    reply.header('cache-control', 'no-store')
+    return ok(statuses)
+  })
 }

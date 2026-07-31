@@ -60,7 +60,6 @@ export function HistoryTab({ target }: Props): JSX.Element {
   const [selected, setSelected] = useState<string[]>(saved.selectedUsers)
   const [logScale, setLogScale] = useState(saved.logScale)
   const [userQuery, setUserQuery] = useState('')
-  const [filtersOpen, setFiltersOpen] = useState(false)
   const seededRef = useRef(false)
 
   useEffect(() => {
@@ -220,16 +219,7 @@ export function HistoryTab({ target }: Props): JSX.Element {
       </div>
 
       <div className="flex flex-1 overflow-hidden relative">
-        <button
-          type="button"
-          className={`inline-flex items-center gap-1 px-2 py-1 text-[11px] text-muted-foreground hover:text-foreground transition-all duration-200 absolute top-2 left-2 z-10 ${filtersOpen ? 'opacity-0 pointer-events-none' : ''}`}
-          aria-expanded={filtersOpen}
-          onClick={() => setFiltersOpen((v) => !v)}
-        >
-          Users ({selected.length})
-        </button>
-
-        <aside className={`w-56 shrink-0 border-r border-border bg-surface/30 flex flex-col transition-all duration-200 ${filtersOpen ? '' : '-translate-x-full w-0 border-r-0 overflow-hidden'}`}>
+        <aside className="w-56 shrink-0 border-r border-border bg-surface/30 flex flex-col">
           <header className="flex items-center gap-2 border-b border-border/40 px-3 py-2 shrink-0">
             <h2 className="text-sm font-semibold flex-1">Users</h2>
             <span className="text-[10px] text-muted-foreground">

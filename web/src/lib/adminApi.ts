@@ -38,13 +38,23 @@ export async function fetchAuthStatus(): Promise<AuthInfo> {
 
 export function clearAuthCache(): void { _authCache = null }
 
-export async function login(username: string, password: string): Promise<AuthInfo['user']> {
+export async function login(username: string, password: string, captchaId?: string, captchaAnswer?: number): Promise<AuthInfo['user']> {
+  const body: any = { username, password }
+  if (captchaId !== undefined && captchaAnswer !== undefined) {
+    body.captchaId = captchaId
+    body.captchaAnswer = captchaAnswer
+  }
   const res = await fetchJson<{ status: string; data: AuthInfo['user'] }>('/api/admin/login', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ username, password }),
+    body: JSON.stringify(body),
   })
   clearAuthCache()
+  return res.data
+}
+
+export async function fetchCaptcha(): Promise<{ id: string; question: string }> {
+  const res = await fetchJson<{ status: string; data: { id: string; question: string } }>('/api/admin/captcha')
   return res.data
 }
 
@@ -161,6 +171,18 @@ export async function fetchDiskTeams(diskId: number): Promise<DiskTeam[]> {
   return res.data
 }
 
+export async function importDiskTeams(diskId: number): Promise<{ imported: number; teams: DiskTeam[] }> {
+  const res = await fetchJson<{ status: string; data: { imported: number; teams: DiskTeam[] } }>(
+    `/api/admin/disks/${diskId}/import-teams`, { method: 'POST' }
+  )
+  return res.data
+}
+
+export async function fetchDiskUsers(diskId: number): Promise<string[]> {
+  const res = await fetchJson<{ status: string; data: string[] }>(`/api/admin/disks/${diskId}/users`)
+  return res.data
+}
+
 export async function createDiskTeam(diskId: number, name: string): Promise<DiskTeam> {
   const res = await fetchJson<{ status: string; data: DiskTeam }>(`/api/admin/disks/${diskId}/teams`, {
     method: 'POST',
@@ -180,4 +202,49 @@ export async function updateDiskTeam(id: number, fields: { name?: string; users?
 
 export async function deleteDiskTeam(id: number): Promise<void> {
   await fetchJson<{ status: string }>(`/api/admin/teams/${id}`, { method: 'DELETE' })
+}
+
+// ---------------------------------------------------------------------------
+// Backup & Restore
+// ---------------------------------------------------------------------------
+
+export interface BackupInfo {
+  name: string
+  mtime: string
+  size: number
+}
+
+export async function fetchBackups(): Promise<BackupInfo[]> {
+  const res = await fetchJson<{ status: string; data: BackupInfo[] }>('/api/admin/backups')
+  return res.data
+}
+
+export async function createBackup(): Promise<BackupInfo> {
+  const res = await fetchJson<{ status: string; data: BackupInfo }>('/api/admin/backups', { method: 'POST' })
+  return res.data
+}
+
+export async function restoreBackup(name: string): Promise<void> {
+  await fetchJson<{ status: string }>(`/api/admin/backups/${encodeURIComponent(name)}/restore`, { method: 'POST' })
+}
+
+export async function deleteBackup(name: string): Promise<void> {
+  await fetchJson<{ status: string }>(`/api/admin/backups/${encodeURIComponent(name)}`, { method: 'DELETE' })
+}
+
+// ---------------------------------------------------------------------------
+// Stats
+// ---------------------------------------------------------------------------
+
+export interface SummaryStats {
+  spaces: number
+  disks: number
+  teams: number
+  teamUsers: number
+  accounts: number
+}
+
+export async function fetchStats(): Promise<SummaryStats> {
+  const res = await fetchJson<{ status: string; data: SummaryStats }>('/api/admin/stats')
+  return res.data
 }

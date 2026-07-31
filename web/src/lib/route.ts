@@ -1,15 +1,17 @@
 // HTML5 History routing (no hash).
 //
 // The server serves index.html for every non-API path, so a real URL like
-// /my-space/my-disk/detail/treemap works on reload without any proxy config.
+// /my-space/<slug>/detail/treemap works on reload without any proxy config.
 //
 // Shape:
 //   /                                        nothing selected
 //   /<space>                                 a space, no disk
-//   /<space>/<disk>/overview                 the Overview page
-//   /<space>/<disk>/detail/<tab>            a Detail sub-tab
+//   /<space>/<slug>/overview                 the Overview page
+//   /<space>/<slug>/detail/<tab>             a Detail sub-tab
 //
-// Segments are percent-encoded, so a space or disk containing a slash round-trips.
+// The disk segment is the disk's globally-unique random hex slug (from the admin
+// DB), not its display name, so duplicate names across spaces can never collide
+// in the URL. Segments are percent-encoded.
 
 /** Detail sub-tabs, in the order the tab bar shows them. */
 export const DETAIL_TABS = [

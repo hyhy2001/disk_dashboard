@@ -4,19 +4,15 @@
 // button in the sense of triggering work — it reports whether the data on screen
 // matches the report on disk, and refetches when it does not.
 //
-// Polling is by stamp comparison: the endpoint is a stat() plus a small read, so a
-// short interval is cheap, and the client only refetches its actual data when the
-// stamp moves.
+// Freshness is polled once at the App level via /api/statuses and handed down as
+// a prop, so the pill does not run its own polling loop. Detection is by stamp
+// comparison: the client only refetches its actual data when the stamp moves.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ScanStatus } from '../../../shared/api.js'
-import { fetchStatus } from '../lib/api.js'
 import { formatTimestamp } from '../lib/format.js'
 import { cn } from '@/lib/utils.js'
 import { RotateCw, RefreshCw } from 'lucide-react'
-
-/** Poll interval. Matches legacy's 3s while a scan is running. */
-const POLL_MS = 3000
 
 const STAGE_LABEL: Record<string, string> = {
   scan: 'Scanning files',
@@ -30,13 +26,13 @@ const STAGE_LABEL: Record<string, string> = {
 
 interface Props {
   target: string
+  /** Freshness of the active target, from the App-level statuses poll. */
+  status: ScanStatus | null
   onStale: () => void
   refreshing: boolean
 }
 
-export function SyncPill({ target, onStale, refreshing }: Props): JSX.Element {
-  const [status, setStatus] = useState<ScanStatus | null>(null)
-  const [error, setError] = useState<string | null>(null)
+export function SyncPill({ target, status, onStale, refreshing }: Props): JSX.Element {
   const knownStamp = useRef<string | null>(null)
   const [stale, setStale] = useState(false)
   const wasRunningRef = useRef(false)
@@ -44,56 +40,30 @@ export function SyncPill({ target, onStale, refreshing }: Props): JSX.Element {
   useEffect(() => {
     knownStamp.current = null
     setStale(false)
-    setStatus(null)
     wasRunningRef.current = false
   }, [target])
 
-  const poll = useCallback(
-    async (signal?: AbortSignal): Promise<void> => {
-      try {
-        const next = await fetchStatus(target, signal)
-        setStatus(next)
-        setError(null)
-
-        if (knownStamp.current === null) {
-          knownStamp.current = next.stamp
-        } else if (next.stamp !== knownStamp.current) {
-          setStale(true)
-        }
-
-        // Auto-refresh when a scan finishes (was running → now not running)
-        if (wasRunningRef.current && !next.running && knownStamp.current !== next.stamp) {
-          setStale(true)
-          onStale()
-        }
-        wasRunningRef.current = next.running === true
-      } catch (err) {
-        if (signal?.aborted) return
-        setError(err instanceof Error ? err.message : String(err))
-      }
-    },
-    [target, onStale],
-  )
-
+  // React to the latest polled status. A stamp change means the report file was
+  // replaced; a scan finishing while we saw it running means the data on screen
+  // is now out of date, so trigger a reload.
   useEffect(() => {
-    const controller = new AbortController()
-    void poll(controller.signal)
+    if (!status) return
 
-    const id = setInterval(() => {
-      if (!document.hidden) void poll(controller.signal)
-    }, POLL_MS)
+    const nextStamp = status.stamp
+    const stampMoved = knownStamp.current !== null && nextStamp !== knownStamp.current
 
-    const onVisible = () => {
-      if (!document.hidden) void poll(controller.signal)
+    if (knownStamp.current === null) {
+      knownStamp.current = nextStamp
+    } else if (stampMoved) {
+      setStale(true)
     }
-    document.addEventListener('visibilitychange', onVisible)
 
-    return () => {
-      clearInterval(id)
-      controller.abort()
-      document.removeEventListener('visibilitychange', onVisible)
+    if (wasRunningRef.current && !status.running && stampMoved) {
+      setStale(true)
+      onStale()
     }
-  }, [poll])
+    wasRunningRef.current = status.running === true
+  }, [status, onStale])
 
   const refresh = useCallback(() => {
     if (status) knownStamp.current = status.stamp
@@ -109,24 +79,22 @@ export function SyncPill({ target, onStale, refreshing }: Props): JSX.Element {
       {/* Dot */}
       <span className={cn(
         'inline-block size-1.5 rounded-full shrink-0',
-        error ? 'bg-rose-500' : running ? 'bg-amber-400 animate-pulse' : failed ? 'bg-rose-500' : stale ? 'bg-amber-400' : 'bg-emerald-500',
+        running ? 'bg-amber-400 animate-pulse' : failed ? 'bg-rose-500' : stale ? 'bg-amber-400' : 'bg-emerald-500',
       )} />
 
       {/* Text */}
       <div className="flex items-center gap-1.5 min-w-0">
         <span className={cn(
           'font-medium truncate',
-          error ? 'text-rose-400' : running ? 'text-amber-400' : failed ? 'text-rose-400' : stale ? 'text-amber-400' : 'text-muted-foreground',
+          running ? 'text-amber-400' : failed ? 'text-rose-400' : stale ? 'text-amber-400' : 'text-muted-foreground',
         )}>
-          {error
-            ? 'Status unavailable'
-            : running
-              ? (status?.stage ? STAGE_LABEL[status.stage] : undefined) ?? 'Working'
-              : failed
-                ? status?.message ?? 'Scan failed'
-                : stale
-                  ? 'New report available'
-                  : 'Up to date'}
+          {running
+            ? (status?.stage ? STAGE_LABEL[status.stage] : undefined) ?? 'Working'
+            : failed
+              ? status?.message ?? 'Scan failed'
+              : stale
+                ? 'New report available'
+                : 'Up to date'}
         </span>
         {running && <RotateCw className="size-3 animate-spin text-amber-400/70" />}
         <span className="text-muted-foreground/50 hidden sm:inline">

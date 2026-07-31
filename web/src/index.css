@@ -142,16 +142,17 @@
 .donut__total { fill: var(--text); font-weight: 700; }
 .donut__caption { fill: var(--text-muted); }
 .legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
-.legend__item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--text-muted); width: 100%; min-width: 0; }
-.legend__item--click { cursor: pointer; background: none; border: none; padding: 2px 4px; border-radius: 4px; text-align: left; }
+.legend__item { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--text-muted); width: 100%; min-width: 0; padding: 2px 4px; }
+.legend__item--click { cursor: pointer; background: none; border: none; border-radius: 4px; text-align: left; }
 .legend__item--click:hover { background: var(--bg-hover); }
 .legend__item--on { background: var(--bg-active); color: var(--text); }
 .legend__swatch { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
 .legend__swatch--scanned { background: var(--accent); }
 .legend__swatch--unscanned { background: var(--amber-400); opacity: 0.6; }
 .legend__swatch--cap { background: var(--text-faint); opacity: 0.5; }
-.legend__name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.legend__value { font-variant-numeric: tabular-nums; }
+.legend__label { display: flex; align-items: baseline; gap: 4px; min-width: 0; flex: 1; }
+.legend__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.legend__value { font-variant-numeric: tabular-nums; flex-shrink: 0; }
 
 .empty { text-align: center; font-size: 12px; color: var(--text-muted); padding: 24px 16px; }
 

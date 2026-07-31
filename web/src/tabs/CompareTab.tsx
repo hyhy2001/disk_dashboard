@@ -40,7 +40,7 @@ const BANDS = [
 interface Props {
   spaceName: string
   targets: Target[]
-  onSelect: (name: string) => void
+  onSelect: (slug: string) => void
 }
 
 export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element {
@@ -160,7 +160,7 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
 
             return (
               <li className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors" key={t.name}>
-                <button type="button" className="text-sm font-semibold truncate hover:text-emerald-400 transition-colors min-w-[100px]" onClick={() => onSelect(t.name)}>
+                <button type="button" className="text-sm font-semibold truncate hover:text-emerald-400 transition-colors min-w-[100px]" onClick={() => onSelect(t.slug)}>
                   {t.name}
                 </button>
 

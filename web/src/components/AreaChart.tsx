@@ -19,14 +19,14 @@ import { useSize } from '../lib/useSize.js'
 
 interface Props {
   points: HistoryPoint[]
+  showLegend?: boolean
 }
 
 /** Layout constants for the plot box inside the SVG. */
 const PAD_L = 14
-/** Legacy pins the y axis on the right at a fixed 90px. */
-const PAD_R = 84
+const PAD_R = 92
 const PAD_T = 12
-const PAD_B = 28
+const PAD_B = 34
 
 // Legacy's exact strokes: solid amber for Used, translucent dashed amber for the
 // scan result, translucent dashed slate for Total.
@@ -57,7 +57,7 @@ const SERIES = [
   },
 ] as const
 
-export function AreaChart({ points }: Props): JSX.Element {
+export function AreaChart({ points, showLegend }: Props): JSX.Element {
   const [hover, setHover] = useState<number | null>(null)
   const [cursorY, setCursorY] = useState<number | null>(null)
   const [box, size] = useSize<HTMLDivElement>()
@@ -305,24 +305,53 @@ export function AreaChart({ points }: Props): JSX.Element {
       </svg>
       </div>
 
-      <div className="chart__legend">
-        {SERIES.map((s) => (
-          <span className="chart__key" key={s.key}>
-            <svg width="16" height="6" aria-hidden="true">
-              <line
-                x1="0"
-                y1="3"
-                x2="16"
-                y2="3"
-                stroke={s.color}
-                strokeWidth="2"
-                strokeDasharray={s.dash || undefined}
-              />
-            </svg>
-            {s.label}
-          </span>
-        ))}
-      </div>
+      {showLegend !== false && (
+        <div className="chart__legend">
+          {SERIES.map((s) => (
+            <span className="chart__key" key={s.key}>
+              <svg width="16" height="6" aria-hidden="true">
+                <line
+                  x1="0"
+                  y1="3"
+                  x2="16"
+                  y2="3"
+                  stroke={s.color}
+                  strokeWidth="2"
+                  strokeDasharray={s.dash || undefined}
+                />
+              </svg>
+              {s.label}
+            </span>
+          ))}
+        </div>
+      )}
     </>
+  )
+}
+
+export function ChartLegend({
+  series = SERIES,
+}: {
+  series?: typeof SERIES
+}) {
+  return (
+    <div className="chart__legend">
+      {series.map((s) => (
+        <span className="chart__key" key={s.key}>
+          <svg width="16" height="6" aria-hidden="true">
+            <line
+              x1="0"
+              y1="3"
+              x2="16"
+              y2="3"
+              stroke={s.color}
+              strokeWidth="2"
+              strokeDasharray={s.dash || undefined}
+            />
+          </svg>
+          {s.label}
+        </span>
+      ))}
+    </div>
   )
 }

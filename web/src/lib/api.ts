@@ -214,9 +214,10 @@ export function fetchSearch(
 }
 
 /**
- * Report freshness. Never cached — this is the one endpoint whose whole purpose is
- * to report change, so a cached answer would freeze the sync pill permanently.
+ * Freshness for every target in one request, polled by the App shell and shared
+ * by the disk column and the SyncPill. Never cached — the whole point is noticing
+ * a rescan, so a cached answer would freeze the indicators.
  */
-export function fetchStatus(target: string, signal?: AbortSignal): Promise<ScanStatus> {
-  return get<ScanStatus>(`/api/status/${encodeURIComponent(target)}`, signal)
+export function fetchStatuses(signal?: AbortSignal): Promise<ScanStatus[]> {
+  return get<ScanStatus[]>('/api/statuses', signal)
 }

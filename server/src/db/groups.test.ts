@@ -24,6 +24,7 @@ afterEach(() => {
 function target(name: string): Target {
   return {
     name,
+    slug: `slug-${name}`,
     scanRoot: `/${name}`,
     scanTimestamp: 1_700_000_000,
     totalFiles: 1,

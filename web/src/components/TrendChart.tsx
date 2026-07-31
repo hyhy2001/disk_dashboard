@@ -22,9 +22,9 @@ import { useSize } from '../lib/useSize.js'
 const WIDTH = 560
 const HEIGHT = 220
 const PAD_L = 14
-const PAD_R = 84
+const PAD_R = 92
 const PAD_T = 12
-const PAD_B = 28
+const PAD_B = 34
 
 /**
  * Line colours. Twelve distinct hues; beyond that the palette repeats, which is

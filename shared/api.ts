@@ -10,8 +10,10 @@ export type ApiResponse<T> = ApiOk<T> | ApiErr
 
 /** One scanned target = one duscan report.db on disk. */
 export interface Target {
-  /** Directory name under reports/, used as the route id. */
+  /** Display name from the admin DB (may repeat across spaces). */
   name: string
+  /** Globally-unique route id from the admin DB, random hex slug. */
+  slug: string
   /** Filesystem root that was scanned (meta.scan_root). */
   scanRoot: string
   /** Unix seconds of the scan (meta.scan_timestamp). */
@@ -362,6 +364,7 @@ export interface SpaceWithDisks {
     space_id: number
     name: string
     path: string
+    slug: string
     sort_order: number
   }[]
 }

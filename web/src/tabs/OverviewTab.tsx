@@ -1,8 +1,6 @@
-// Overview: three charts — Capacity Over Time, Usage by Teams, Top Users.
-
 import { useMemo, useState } from 'react'
 import type { Overview } from '../../../shared/api.js'
-import { AreaChart } from '../components/AreaChart.js'
+import { AreaChart, ChartLegend } from '../components/AreaChart.js'
 import { BarChart } from '../components/BarChart.js'
 import { ChartModal } from '../components/ChartModal.js'
 import { DeltaBadge } from '../components/DeltaBadge.js'
@@ -41,9 +39,9 @@ export function OverviewTab({ overview }: Props): JSX.Element {
 
   return (
     <>
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-3 p-3 auto-rows-min">
-        {/* ── Timeline ── */}
-        <div className="md:col-span-5 rounded-lg border border-border bg-surface/50 shadow-sm flex flex-col">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3">
+        {/* ── Timeline (spans both columns) ── */}
+        <div className="md:col-span-2 rounded-lg border border-border bg-surface/50 shadow-sm flex flex-col">
           <div className="flex items-center gap-2 border-b border-border/40 px-3 py-2">
             <h2 className="text-sm font-semibold flex-1">Capacity Over Time</h2>
             <DeltaBadge points={shownHistory} />
@@ -52,24 +50,29 @@ export function OverviewTab({ overview }: Props): JSX.Element {
               <ExpandButton onClick={() => setExpanded('timeline')} />
             </div>
           </div>
-          <div className="p-3 flex-1 min-h-[200px]"><AreaChart points={shownHistory} /></div>
+          <div className="p-3 pb-1" style={{ height: 'clamp(186px, 31vh, 380px)' }}>
+            <AreaChart points={shownHistory} showLegend={false} />
+          </div>
+          <div className="px-3 pb-3">
+            <ChartLegend />
+          </div>
         </div>
 
         {/* ── Teams donut ── */}
-        <div className="md:col-span-2 rounded-lg border border-border bg-surface/50 shadow-sm flex flex-col">
+        <div className="rounded-lg border border-border bg-surface/50 shadow-sm flex flex-col">
           <div className="flex items-center justify-between border-b border-border/40 px-3 py-2">
             <h2 className="text-sm font-semibold">Usage by Teams</h2>
             <ExpandButton onClick={() => setExpanded('teams')} />
           </div>
-          <div className="p-3 flex-1">
-            <Donut rows={teams} onSelect={setTeamFilter} selected={teamFilter}
+          <div className="p-3 flex flex-col justify-center" style={{ height: 'clamp(260px, 32vh, 420px)' }}>
+            <Donut rows={teams} size={200} onSelect={setTeamFilter} selected={teamFilter}
               {...(capacity ? { totalUsed: capacity.used } : {})}
               {...(otherTotal > 0 ? { otherUsed: otherTotal } : {})} />
           </div>
         </div>
 
         {/* ── Users bar ── */}
-        <div className="md:col-span-3 rounded-lg border border-border bg-surface/50 shadow-sm flex flex-col">
+        <div className="rounded-lg border border-border bg-surface/50 shadow-sm flex flex-col">
           <div className="flex items-center gap-2 border-b border-border/40 px-3 py-2">
             <h2 className="text-sm font-semibold flex-1">Top Consuming Users</h2>
             {teamFilter && (
@@ -83,7 +86,7 @@ export function OverviewTab({ overview }: Props): JSX.Element {
               <ExpandButton onClick={() => setExpanded('users')} />
             </div>
           </div>
-          <div className="p-3 flex-1 min-h-[200px]">
+          <div className="p-3" style={{ height: 'clamp(260px, 32vh, 420px)' }}>
             {shownUsers.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full gap-1 text-muted-foreground">
                 <p className="text-sm font-semibold text-foreground">No consumer data</p>
@@ -94,9 +97,9 @@ export function OverviewTab({ overview }: Props): JSX.Element {
         </div>
       </div>
 
-      {expanded === 'timeline' && <ChartModal title="Capacity Over Time — Full View" slug="timeline" onClose={() => setExpanded(null)}><div className="h-[60vh]"><AreaChart points={shownHistory} /></div></ChartModal>}
-      {expanded === 'teams' && <ChartModal title="Usage by Teams — Full View" slug="teams" onClose={() => setExpanded(null)}><Donut rows={teams} size={280} onSelect={setTeamFilter} selected={teamFilter} {...(capacity ? { totalUsed: capacity.used } : {})} {...(otherTotal > 0 ? { otherUsed: otherTotal } : {})} /></ChartModal>}
-      {expanded === 'users' && <ChartModal title="Top Consuming Users — Full View" slug="users" onClose={() => setExpanded(null)}><div className="h-[60vh]"><BarChart rows={shownUsers} limit={30} logScale={logScale} /></div></ChartModal>}
+      {expanded === 'timeline' && <ChartModal title="Capacity Over Time — Full View" slug="timeline" onClose={() => setExpanded(null)}><div className="flex flex-col flex-1 min-h-0 p-3"><div className="flex-1 min-h-0"><AreaChart points={shownHistory} showLegend={false} /></div><ChartLegend /></div></ChartModal>}
+      {expanded === 'teams' && <ChartModal title="Usage by Teams — Full View" slug="teams" onClose={() => setExpanded(null)}><div className="flex-1 min-h-0" style={{ height: 'auto' }}><Donut rows={teams} size={280} onSelect={setTeamFilter} selected={teamFilter} {...(capacity ? { totalUsed: capacity.used } : {})} {...(otherTotal > 0 ? { otherUsed: otherTotal } : {})} /></div></ChartModal>}
+      {expanded === 'users' && <ChartModal title="Top Consuming Users — Full View" slug="users" onClose={() => setExpanded(null)}><div className="flex-1 min-h-0" style={{ height: 'auto' }}><BarChart rows={shownUsers} limit={30} logScale={logScale} /></div></ChartModal>}
     </>
   )
 }

@@ -212,8 +212,10 @@ export function Donut({
           const body = (
             <>
               <span className="legend__swatch" style={{ background: s.color }} />
-              <span className="legend__name">{s.name}</span>
-              <span className="legend__value">{formatPercent(s.used, total)}</span>
+              <span className="legend__label">
+                <span className="legend__name">{s.name}</span>
+                <span className="legend__value">{formatPercent(s.used, total)}</span>
+              </span>
             </>
           )
           return (

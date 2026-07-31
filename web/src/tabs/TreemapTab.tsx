@@ -192,6 +192,8 @@ export function TreemapTab({ target, totalSize }: Props): JSX.Element {
           {formatSize(node.size)}
         </span>
 
+        <TreeSearch target={target} onOpen={setOpenId} />
+
         <div className="flex-1" />
 
         <div className="flex rounded-sm border border-border overflow-hidden" role="group" aria-label="View mode">
@@ -216,7 +218,6 @@ export function TreemapTab({ target, totalSize }: Props): JSX.Element {
 
       <div className="flex items-center gap-2 px-3 py-1.5 border-b border-border/20 bg-surface/20 shrink-0">
         <Breadcrumbs path={path} onNavigate={navigate} />
-        <TreeSearch target={target} onOpen={setOpenId} />
       </div>
 
       <div className={`flex flex-1 flex-col min-h-0${loading ? ' opacity-50 pointer-events-none' : ''}`} ref={fit.ref}>
