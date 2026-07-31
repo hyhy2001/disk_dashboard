@@ -115,7 +115,7 @@ export function createFixture(opts: FixtureOptions = {}): Database.Database {
 
     INSERT INTO detail_users (uid, username, team_id, total_files, total_dirs, total_size) VALUES
       (0,   'root',  '1',  20, 2, 700),
-      (900, 'alice', '1',   5, 0, 200),
+      (900, 'alice', '1',   6, 0, 204),
       (104, 'syslog', NULL, 3, 0,  80),
       (105, 'nobody', '',   1, 0,  20),
       (106, 'empty',  NULL, 0, 0,   0);
@@ -133,7 +133,12 @@ export function createFixture(opts: FixtureOptions = {}): Database.Database {
       (2, 3, 'bin', 900, 150),
       (2, 4, 'dat', 900, 100),
       (2, 5, 'dat', 900,  50),
-      (3, 1, 'log', 104, 400);
+      (3, 1, 'log', 104, 400),
+      -- A file alice owns inside a directory root owns (/etc, id 6). This models
+      -- the real-world case where a user touches a shared directory: the dir has
+      -- a per-user row (uid 900) but is owned by root, so it must not appear on
+      -- alice's "own directories" list.
+      (6, 3, 'cnf', 900, 4);
 
     -- Paths mirror the treemap tree. alice (900) owns two directories with equal
     -- sizes so the keyset tie-break on id is exercised; root (0) owns the tail.
@@ -143,7 +148,9 @@ export function createFixture(opts: FixtureOptions = {}): Database.Database {
       (4, 900, 2, '/home/alice', 900, 100, 1),
       (5, 900, 2, '/home/bob',   900, 100, 1),
       (0, 0,   NULL, '/',          0, 700, 2),
-      (3, 104, 1, '/var/log',    104, 400, 1);
+      (3, 104, 1, '/var/log',    104, 400, 1),
+      (6, 0,   0, '/etc',          0,   4, 1),
+      (6, 900, 0, '/etc',          0,   4, 1);
 
     INSERT INTO perm_issues (id, user, item_type, error, path) VALUES
       (1, 'root',   'directory', 'Permission denied', '/proc/1/fd'),

@@ -198,17 +198,24 @@ export function readUserDirs(db: Database.Database, uid: number, opts: PageOptio
   const keyset = cursor ? ' AND (size < ? OR (size = ? AND id > ?))' : ''
   const keysetParams = cursor ? [cursor.size, cursor.size, cursor.id] : []
 
+  // detail_dirs is keyed (id, uid): a directory has one row per user who has
+  // files in it, and `owner_uid` is the directory's real owner. Filtering on
+  // uid alone would show directories the user merely touches (a file in /etc
+  // puts /etc on the list) — the user's own directories are those they own.
+  const ownedClause = ' AND owner_uid = ?'
+  const ownedParam = uid
+
   // Fetch one extra row to learn whether another page exists, which avoids a
   // second COUNT(*) over the same range.
   const rows = db
     .prepare(
       `SELECT id, path, size, files
          FROM detail_dirs
-        WHERE uid = ?${keyset}${filter.sql}
+        WHERE uid = ?${ownedClause}${keyset}${filter.sql}
         ORDER BY size DESC, id ASC
         LIMIT ?`,
     )
-    .all(uid, ...keysetParams, ...filter.params, limit + 1) as {
+    .all(uid, ownedParam, ...keysetParams, ...filter.params, limit + 1) as {
     id: number
     path: string
     size: number
@@ -224,13 +231,23 @@ export function readUserDirs(db: Database.Database, uid: number, opts: PageOptio
     (opts.filter?.minSize !== undefined && opts.filter.minSize > 0) ||
     (opts.filter?.maxSize !== undefined && opts.filter.maxSize > 0)
 
+  // Owner filtering means detail_users.total_dirs (the raw contribution count) no
+  // longer matches what this list shows, so the total is always counted rather
+  // than trusting totalHint. The uid+owner_uid predicate still rides the (uid,
+  // size, id) index, so the COUNT is a range scan, not a table scan.
   const total = hasFilter
     ? (
-        db.prepare(`SELECT COUNT(*) AS cnt FROM detail_dirs WHERE uid = ?${filter.sql}`).get(uid, ...filter.params) as {
+        db
+          .prepare(`SELECT COUNT(*) AS cnt FROM detail_dirs WHERE uid = ?${ownedClause}${filter.sql}`)
+          .get(uid, ownedParam, ...filter.params) as {
           cnt: number
         }
       ).cnt
-    : (opts.totalHint ?? 0)
+    : (
+        db.prepare('SELECT COUNT(*) AS cnt FROM detail_dirs WHERE uid = ? AND owner_uid = ?').get(uid, uid) as {
+          cnt: number
+        }
+      ).cnt
 
   return {
     rows: page.map((r) => ({ id: r.id, path: r.path, used: r.size, files: r.files })),

@@ -83,7 +83,7 @@ describe('readInodeStats', () => {
     db = createFixture()
     const stats = readInodeStats(db)
     // Files + dirs across the fixture's users: (20+2) + (5+0) + (3+0) + (1+0).
-    expect(stats.scanned).toBe(31)
+    expect(stats.scanned).toBe(32)
   })
 
   it('treats a snapshot with NULL inodes as unavailable', () => {
@@ -111,6 +111,6 @@ describe('readInodeStats', () => {
     const stats = readInodeStats(db)
     expect(stats.systemAvailable).toBe(false)
     expect(stats.timestamp).toBe(0)
-    expect(stats.scanned).toBe(31)
+    expect(stats.scanned).toBe(32)
   })
 })

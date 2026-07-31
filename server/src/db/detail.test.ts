@@ -69,6 +69,14 @@ describe('readUserDirs', () => {
     expect(page.rows.some((r) => r.path === '/var/log')).toBe(false)
   })
 
+  it('excludes shared directories the user only touches, not owns', () => {
+    db = createFixture()
+    // /etc is owned by root; alice has a file in it (per-user row uid=900) but
+    // must not see it in her own-directories list.
+    const page = readUserDirs(db, aliceUid())
+    expect(page.rows.map((r) => r.path)).toEqual(['/home', '/home/alice', '/home/bob'])
+  })
+
   it('reports no more pages when everything fits', () => {
     db = createFixture()
     const page = readUserDirs(db, aliceUid())
@@ -130,7 +138,7 @@ describe('readUserFiles', () => {
   it('joins the directory path and basename into a full path', () => {
     db = createFixture()
     const page = readUserFiles(db, aliceUid())
-    expect(page.rows.map((r) => r.path)).toEqual(['/home/mid.bin', '/home/a.dat', '/home/b.dat'])
+    expect(page.rows.map((r) => r.path)).toEqual(['/home/mid.bin', '/home/a.dat', '/home/b.dat', '/etc/mid.bin'])
   })
 
   it('does not double the separator for a file in the root', () => {
@@ -142,7 +150,7 @@ describe('readUserFiles', () => {
 
   it('orders largest first', () => {
     db = createFixture()
-    expect(readUserFiles(db, aliceUid()).rows.map((r) => r.size)).toEqual([150, 100, 50])
+    expect(readUserFiles(db, aliceUid()).rows.map((r) => r.size)).toEqual([150, 100, 50, 4])
   })
 
   it('resumes from the cursor across the three-part key', () => {
@@ -152,7 +160,7 @@ describe('readUserFiles', () => {
       limit: 5,
       ...(first.nextCursor !== null ? { cursor: first.nextCursor } : {}),
     })
-    expect([...first.rows, ...second.rows].map((r) => r.size)).toEqual([150, 100, 50])
+    expect([...first.rows, ...second.rows].map((r) => r.size)).toEqual([150, 100, 50, 4])
   })
 
   it('filters by extension', () => {
@@ -177,9 +185,9 @@ describe('readUserDetail', () => {
   it('returns both lists and the user total', () => {
     db = createFixture()
     const detail = readUserDetail(db, 'alice', aliceUid())
-    expect(detail.userTotal).toBe(200)
+    expect(detail.userTotal).toBe(204)
     expect(detail.dirs.rows).toHaveLength(3)
-    expect(detail.files.rows).toHaveLength(3)
+    expect(detail.files.rows).toHaveLength(4)
     expect(detail.dirsSuppressed).toBe(false)
   })
 

@@ -113,7 +113,7 @@ describe('readOverview', () => {
     db = createFixture()
     const out = readOverview(db, TARGET)
 
-    expect(out.users.map((u) => u.used)).toEqual([700, 200])
+    expect(out.users.map((u) => u.used)).toEqual([700, 204])
   })
 
   it('reports null capacity and empty teams when no scan history exists', () => {
