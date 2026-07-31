@@ -79,6 +79,11 @@ export PATH := $(NODE_BIN):$(PY_BIN):$(CLEAN_PATH)
 endif
 export npm_config_cache := $(CACHE)
 export npm_config_python := $(PYTHON)
+# Force development so npm install/build never omit devDependencies. A company
+# shell often exports NODE_ENV=production, which makes `npm install` skip all
+# dev deps (react, vite, tsc) and the build then fails. Runtime NODE_ENV stays
+# production via ecosystem.config.cjs.
+export NODE_ENV := development
 # Pin the platform so npm installs the right native optional deps (rollup's
 # @rollup/rollup-linux-x64-gnu) even when npm's own detection is off — e.g. on
 # RHEL8 where libc detection can be wrong and the build then fails with

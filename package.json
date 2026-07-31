@@ -21,10 +21,12 @@
     "format:check": "prettier --check \"{server,web,shared}/**/*.{ts,tsx}\"",
     "start": "npm run start --workspace=server"
   },
+  "dependencies": {
+    "@rollup/rollup-linux-x64-gnu": "4.62.3",
+    "@rollup/rollup-linux-x64-musl": "4.62.3"
+  },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
-    "@rollup/rollup-linux-x64-gnu": "4.62.3",
-    "@rollup/rollup-linux-x64-musl": "4.62.3",
     "@testing-library/react": "16.1.0",
     "eslint": "^10.8.0",
     "eslint-config-prettier": "^10.1.8",
