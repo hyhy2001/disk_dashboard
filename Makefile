@@ -105,7 +105,6 @@ build: $(NODE_BIN)/node
 	@"$(NPM)" run build
 
 dev: $(NODE_BIN)/node
-	"$(NODE)" "$(ROOT)/node_modules/.bin/vitest" --version >/dev/null 2>&1; \
 	@"$(NPM)" run dev
 
 test: $(NODE_BIN)/node

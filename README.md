@@ -75,7 +75,7 @@ same `.env` works on any machine:
 
 ## Admin setup
 
-The first visit to `#/admin` runs the setup flow: create an owner account, then
+The first visit to `/admin` runs the setup flow: create an owner account, then
 use **Disk Mapping** to add spaces and disks. Each disk points at a directory
 holding a `report.db` — a "Test read" button verifies the path before it is
 saved. Spaces and disks live in `DASHBOARD_ADMIN_DB`; nothing is auto-discovered
@@ -115,15 +115,19 @@ appear when duscan runs as a user that cannot read everything.
 
 ## Routes
 
-The hash carries what you are looking at, so views are linkable and survive a
+Routing is HTML5 History (no hash), so views are linkable and survive a
 reload:
 
 ```
-#/                              first space, comparison view
-#/<space>                       one space, comparison view
-#/<space>/<disk>/overview       Overview
-#/<space>/<disk>/detail/<tab>   treemap | history | detail-user | permissions
+/                              first space, comparison view
+/<space>                       one space, comparison view
+/<space>/<disk>/overview       Overview
+/<space>/<disk>/detail/<tab>   treemap | history | detail-user | permissions
+/admin                         admin console
 ```
+
+The server serves the SPA shell for any non-API path, so deep links reload
+correctly behind the reverse proxy.
 
 ## Performance
 
@@ -188,16 +192,18 @@ Each part repeats the header.
 
 ### Client cache
 
-Responses for immutable report data — treemap levels, the user list, history — are
-cached by URL with in-flight dedup, so drilling into a directory and back out does
-not refetch, and two components asking for the same URL share one request. The cache
-is dropped when the sync pill observes a new report stamp. `/api/status` is never
-cached: it is the one endpoint whose purpose is to report change.
+Responses for immutable report data — treemap levels, the user list, history,
+inodes — are cached by URL with in-flight dedup, so drilling into a directory
+and back out does not refetch, and two components asking for the same URL share
+one request. The cache is dropped when the sync pill observes a new report
+stamp. `/api/status` is never cached: it is the one endpoint whose purpose is
+to report change.
 
 ## Sync
 
-The dashboard cannot start a scan. `/api/status/:target` reports what it observes: a
-`stamp` of `report.db`'s mtime and size, the scan timestamp inside the report, and
-duscan's stage if a `scan_status.json` sits beside it. The client polls that and
-offers a reload when the stamp moves — which is why the pill reads "Up to date"
-rather than "Synced".
+The dashboard cannot start a scan. `/api/statuses` reports, for every configured
+target, a `stamp` of `report.db`'s mtime and size, the scan timestamp inside the
+report, and duscan's stage if a `scan_status.json` sits beside it (the single-target
+`/api/status/:target` is the same for one disk). The client polls and offers a
+reload when the stamp moves — which is why the pill reads "Up to date" rather
+than "Synced".
