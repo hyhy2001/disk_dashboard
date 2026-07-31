@@ -4,6 +4,7 @@ logs/
 *.log
 .env
 .env.*
+!.env.example
 .DS_Store
 
 # Local toolchain (Node binary, npm cache, pm2 state) — portable, never committed.

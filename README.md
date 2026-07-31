@@ -64,7 +64,6 @@ All configuration is in `.env` (written by `make setup`, loaded by
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `DASHBOARD_REPORTS_DIR` | `../disk_scanner/reports` | Directory holding one subdir per target |
 | `DASHBOARD_PORT` | `5311` | Listen port |
 | `DASHBOARD_HOST` | `127.0.0.1` | Listen address |
 | `DASHBOARD_WEB_DIR` | `web/dist` | Built assets to serve; unset means API-only |
