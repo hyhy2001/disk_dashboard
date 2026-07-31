@@ -254,11 +254,18 @@ export function PermissionsTab({ target }: Props): JSX.Element {
             {data.rows.length === 0 ? (
               <p className="p-4 text-xs text-muted-foreground">No issue matches the current filters.</p>
             ) : (
-              <div className="divide-y divide-border/50">
+              <div>
+                <div className="grid grid-cols-[18px_minmax(0,110px)_1fr_minmax(0,140px)] items-center gap-2 px-4 py-1.5 border-b border-border text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 sticky top-0 bg-surface">
+                  <span />
+                  <span>User</span>
+                  <span>Path</span>
+                  <span>Error</span>
+                </div>
+                <div className="divide-y divide-border/50">
                 {data.rows.map((r, i) => (
                   <div
                     key={`${r.path}-${i}`}
-                    className="flex items-center gap-2 px-4 py-1.5 hover:bg-muted/30 transition-colors text-xs"
+                    className="grid grid-cols-[18px_minmax(0,110px)_1fr_minmax(0,140px)] items-center gap-2 px-4 py-1.5 hover:bg-muted/30 transition-colors text-xs"
                   >
                     {r.itemType === 'directory' ? (
                       <Folder className="size-3 text-muted-foreground shrink-0" />
@@ -267,21 +274,22 @@ export function PermissionsTab({ target }: Props): JSX.Element {
                     )}
                     <Badge
                       variant="secondary"
-                      className={cn('text-[9px] shrink-0', r.user === UNKNOWN && 'opacity-50')}
+                      className={cn('text-[9px] justify-self-start max-w-full truncate', r.user === UNKNOWN && 'opacity-50')}
                     >
                       {r.user === UNKNOWN ? 'unknown' : r.user}
                     </Badge>
                     <button
                       onClick={() => void copyPath(r.path)}
-                      className="flex-1 truncate text-left font-mono text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                      className="truncate text-left font-mono text-[11px] text-muted-foreground hover:text-foreground transition-colors"
                       title={`${r.path} — click to copy`}
                     >
                       <Copy className="size-2.5 inline mr-1 opacity-0 group-hover:opacity-100" />
                       {r.path}
                     </button>
-                    <span className="text-[10px] text-muted-foreground shrink-0">{r.error}</span>
+                    <span className="text-[10px] text-muted-foreground truncate">{r.error}</span>
                   </div>
                 ))}
+                </div>
               </div>
             )}
           </div>
