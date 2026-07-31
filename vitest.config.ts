@@ -13,6 +13,11 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['{server,web,shared}/**/*.test.{ts,tsx}'],
+    // The viewport test drives a real browser against the deployed dashboard
+    // (https://dashboard.hydev.me), so it is an e2e check, not a unit test. It
+    // hangs when that URL is unreachable, so it is excluded from the default run
+    // and invoked separately via `npm run test:e2e`.
+    exclude: ['web/src/styles/viewport.test.ts'],
     // Component tests are .tsx. The web/src/lib tests also need a DOM — Blob
     // downloads, clipboard, location — without rendering anything. Scoped to lib
     // rather than the whole web tree because the stylesheet test reads files via
