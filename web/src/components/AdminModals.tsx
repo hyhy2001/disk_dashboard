@@ -54,8 +54,10 @@ import {
   restoreBackup,
   deleteBackup,
   changeOwnPassword,
+  testDiskRead,
   type AuthInfo,
   type BackupInfo,
+  type DiskReadTest,
 } from '../lib/adminApi.js'
 
 function formatBytes(n: number): string {
@@ -195,6 +197,8 @@ function SpacesContent() {
   const [restoreName, setRestoreName] = useState<string | null>(null)
   const [teamDiskId, setTeamDiskId] = useState<number | null>(null)
   const [teamDiskName, setTeamDiskName] = useState('')
+  const [testBusyKey, setTestBusyKey] = useState<string | null>(null)
+  const [testResult, setTestResult] = useState<Record<string, DiskReadTest>>({})
 
   const load = useCallback(async () => {
     const raw = await fetchSpaces()
@@ -214,6 +218,20 @@ function SpacesContent() {
   useEffect(() => {
     void load()
   }, [])
+
+  /** Probe one disk path on the server (readonly) so a mapping is verified before save. */
+  const runDiskTest = async (key: string, path: string) => {
+    if (!path.trim()) return
+    setTestBusyKey(key)
+    try {
+      const result = await testDiskRead(path)
+      setTestResult((r) => ({ ...r, [key]: result }))
+    } catch (e: any) {
+      setTestResult((r) => ({ ...r, [key]: { path, reportFound: false, reportReadable: false, message: e.message } }))
+    } finally {
+      setTestBusyKey(null)
+    }
+  }
 
   const changes =
     JSON.stringify(
@@ -358,6 +376,16 @@ function SpacesContent() {
                       className="flex-[2] min-w-0 bg-muted/20 rounded-sm px-2 py-1 text-xs font-mono border border-border/30 outline-none focus:border-emerald-500/40 transition-colors"
                       placeholder="Path to report.db"
                     />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-6 px-2 text-[10px] shrink-0"
+                      onClick={() => void runDiskTest(d._key, d.path)}
+                      disabled={!d.path.trim() || testBusyKey === d._key}
+                    >
+                      {testBusyKey === d._key ? 'Testing…' : 'Test read'}
+                    </Button>
                     {d.id && (
                       <button
                         onClick={() => {
@@ -383,6 +411,18 @@ function SpacesContent() {
                       <X className="size-3" />
                     </Button>
                   </div>
+                  {testResult[d._key] && (
+                    <div
+                      className={`mt-1.5 text-[10px] font-mono ${
+                        testResult[d._key]!.reportReadable ? 'text-emerald-500' : 'text-rose-500'
+                      }`}
+                    >
+                      {testResult[d._key]!.reportReadable
+                        ? `✓ ${testResult[d._key]!.totalFiles} files · ${testResult[d._key]!.scanRoot ?? 'no scan_root'}`
+                        : `✗ ${testResult[d._key]!.message ?? 'not readable'}`
+                          .replace(testResult[d._key]!.path, '…')}
+                    </div>
+                  )}
                   {d.id && d.slug && (
                     <div className="flex items-center gap-2 mt-1.5 text-[10px] text-muted-foreground">
                       <code className="font-mono">

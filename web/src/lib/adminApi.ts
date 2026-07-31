@@ -165,6 +165,28 @@ export async function updateDisk(id: number, fields: { name?: string; path?: str
   })
 }
 
+export interface DiskReadTest {
+  path: string
+  reportFound: boolean
+  reportReadable: boolean
+  scanRoot?: string
+  scanTimestamp?: number
+  totalSize?: number
+  totalFiles?: number
+  totalDirs?: number
+  message?: string
+}
+
+/** Probe a disk path before saving the mapping — readonly on the server. */
+export async function testDiskRead(path: string): Promise<DiskReadTest> {
+  const res = await fetchJson<{ status: string; data: DiskReadTest }>('/api/admin/disks/test-read', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ path }),
+  })
+  return res.data
+}
+
 export async function deleteDisk(id: number): Promise<void> {
   await fetchJson<{ status: string }>(`/api/admin/disks/${id}`, { method: 'DELETE' })
 }

@@ -199,23 +199,34 @@ function sessionKey(): Buffer {
 
 import { createHmac } from 'node:crypto'
 
+/** How long a session stays valid before the user has to sign in again. */
+export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000 // 7 days
+
 export function signSession(payload: string): string {
-  const hmac = createHmac('sha256', sessionKey()).update(payload).digest('hex')
-  return `${payload}.${hmac}`
+  const expires = Math.floor((Date.now() + SESSION_TTL_MS) / 1000)
+  const body = `${payload}:${expires}`
+  const hmac = createHmac('sha256', sessionKey()).update(body).digest('hex')
+  return `${body}.${hmac}`
 }
 
 export function verifySession(token: string): string | null {
   const idx = token.lastIndexOf('.')
   if (idx === -1) return null
-  const payload = token.slice(0, idx)
+  const body = token.slice(0, idx)
   const hmac = token.slice(idx + 1)
-  const expected = createHmac('sha256', sessionKey()).update(payload).digest('hex')
+  const expected = createHmac('sha256', sessionKey()).update(body).digest('hex')
   try {
-    if (timingSafeEqual(Buffer.from(hmac, 'hex'), Buffer.from(expected, 'hex'))) return payload
+    if (!timingSafeEqual(Buffer.from(hmac, 'hex'), Buffer.from(expected, 'hex'))) return null
   } catch {
-    /* ignore */
+    return null
   }
-  return null
+  // `body` is `${id}:${role}:${username}:${expires}`; drop the trailing expiry
+  // so callers keep seeing the same `${id}:${role}:${username}` payload.
+  const sep = body.lastIndexOf(':')
+  if (sep === -1) return null
+  const expires = Number(body.slice(sep + 1))
+  if (!Number.isFinite(expires) || expires * 1000 <= Date.now()) return null
+  return body.slice(0, sep)
 }
 
 // ---------------------------------------------------------------------------
@@ -417,6 +428,8 @@ export function deleteSpace(id: number): boolean {
 }
 
 export function createDisk(spaceId: number, name: string, path: string): Disk {
+  const valid = validateDiskPath(path)
+  if (!valid.ok) throw new Error(valid.reason)
   const db = adminDb()
   const maxOrder = db
     .prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 as n FROM disks WHERE space_id = ?')
@@ -447,6 +460,78 @@ export function updateDisk(id: number, fields: { name?: string; path?: string })
       .prepare(`UPDATE disks SET ${sets.join(', ')} WHERE id = ?`)
       .run(...params).changes > 0
   )
+}
+
+// ---------------------------------------------------------------------------
+// Disk path validation & read test
+// ---------------------------------------------------------------------------
+
+/**
+ * Reject a disk path that could point the report reader outside what the admin
+ * intended. A path must be absolute (so it is explicit about what it reads) and
+ * must reference an existing directory; the report.db check is separate because
+ * a disk can be configured before its first scan.
+ */
+export function validateDiskPath(path: string): { ok: true } | { ok: false; reason: string } {
+  if (typeof path !== 'string' || path.trim().length === 0) {
+    return { ok: false, reason: 'path is required' }
+  }
+  if (!path.startsWith('/')) {
+    return { ok: false, reason: 'path must be absolute (start with /)' }
+  }
+  try {
+    if (!existsSync(path)) return { ok: false, reason: 'directory does not exist' }
+    if (!statSync(path).isDirectory()) return { ok: false, reason: 'path is not a directory' }
+  } catch {
+    return { ok: false, reason: 'cannot read directory' }
+  }
+  return { ok: true }
+}
+
+export interface DiskReadTest {
+  path: string
+  reportFound: boolean
+  reportReadable: boolean
+  scanRoot?: string
+  scanTimestamp?: number
+  totalSize?: number
+  totalFiles?: number
+  totalDirs?: number
+  message?: string
+}
+
+/**
+ * Open a disk's report.db readonly and report what is there. Used by the admin
+ * "Test read" button so a mapping can be verified before it is saved.
+ */
+export function testDiskRead(path: string): DiskReadTest {
+  const valid = validateDiskPath(path)
+  if (!valid.ok) return { path, reportFound: false, reportReadable: false, message: valid.reason }
+
+  const rp = join(path, 'report.db')
+  if (!existsSync(rp)) {
+    return { path, reportFound: false, reportReadable: false, message: 'report.db not found (not scanned yet?)' }
+  }
+
+  try {
+    const db = new Database(rp, { readonly: true, fileMustExist: true })
+    const meta = db.prepare('SELECT key, value FROM meta').all() as { key: string; value: string }[]
+    db.close()
+    const m: Record<string, string> = {}
+    for (const r of meta) m[r.key] = r.value
+    return {
+      path,
+      reportFound: true,
+      reportReadable: true,
+      scanRoot: m.scan_root ?? m.scan_path,
+      scanTimestamp: Number(m.scan_timestamp) || undefined,
+      totalSize: Number(m.total_size) || undefined,
+      totalFiles: Number(m.total_files) || undefined,
+      totalDirs: Number(m.total_dirs) || undefined,
+    }
+  } catch {
+    return { path, reportFound: true, reportReadable: false, message: 'report.db exists but could not be read' }
+  }
 }
 
 export function deleteDisk(id: number): boolean {

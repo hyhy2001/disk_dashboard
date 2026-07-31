@@ -16,7 +16,11 @@ import { join } from 'node:path'
 // ---------------------------------------------------------------------------
 
 const SESSION_COOKIE = 'du_sess'
-const COOKIE_OPTS = { path: '/', httpOnly: true, sameSite: 'lax' as const, secure: false }
+// Secure only matters to the browser over plain HTTP; the app is served behind
+// HTTPS, but the cookie still rides the connection the page came from, so keep
+// it off until the reverse proxy proves TLS. maxAge mirrors the token expiry in
+// signSession so the browser drops the cookie when the server would reject it.
+const COOKIE_OPTS = { path: '/', httpOnly: true, sameSite: 'lax' as const, secure: false, maxAge: 7 * 24 * 60 * 60 }
 
 interface AuthUser {
   id: number
@@ -70,6 +74,27 @@ function uniqueGuard(reply: any, e: any, what: string): never {
   throw e
 }
 
+/**
+ * Shared username/password rules for setup and account creation, so an owner
+ * cannot create an account weaker than the rules the first admin had to meet.
+ * Returns an error message, or null when the pair is acceptable.
+ */
+function validateCredentials(username: unknown, password: unknown): string | null {
+  if (typeof username !== 'string' || typeof password !== 'string' || !username || !password) {
+    return 'Username and password required'
+  }
+  if (username.length < 3 || username.length > 64) {
+    return 'Username must be 3-64 characters'
+  }
+  if (!/^[a-zA-Z0-9._-]+$/.test(username)) {
+    return 'Username contains invalid characters'
+  }
+  if (password.length < 10) {
+    return 'Password must be at least 10 characters'
+  }
+  return null
+}
+
 // ---------------------------------------------------------------------------
 // Public endpoints (no auth)
 // ---------------------------------------------------------------------------
@@ -86,18 +111,8 @@ export function registerAdmin(app: FastifyInstance): void {
       return reply.code(403).send({ status: 'error', message: 'Setup already completed' })
     }
     const { username, password } = req.body ?? {}
-    if (!username || !password || typeof username !== 'string' || typeof password !== 'string') {
-      return reply.code(422).send({ status: 'error', message: 'Username and password required' })
-    }
-    if (username.length < 3 || username.length > 64) {
-      return reply.code(422).send({ status: 'error', message: 'Username must be 3-64 characters' })
-    }
-    if (!/^[a-zA-Z0-9._-]+$/.test(username)) {
-      return reply.code(422).send({ status: 'error', message: 'Username contains invalid characters' })
-    }
-    if (password.length < 10) {
-      return reply.code(422).send({ status: 'error', message: 'Password must be at least 10 characters' })
-    }
+    const invalid = validateCredentials(username, password)
+    if (invalid) return reply.code(422).send({ status: 'error', message: invalid })
     const admin = A.createAdmin(username, password, 'owner')
     const token = A.signSession(`${admin.id}:owner:${admin.username}`)
     return reply
@@ -177,8 +192,10 @@ export function registerAdmin(app: FastifyInstance): void {
   app.post('/api/admin/accounts', async (req: any, reply) => {
     requireOwner(req, reply)
     const { username, password, role } = req.body ?? {}
-    if (!username || !password) {
-      return reply.code(422).send({ status: 'error', message: 'Username and password required' })
+    const invalid = validateCredentials(username, password)
+    if (invalid) return reply.code(422).send({ status: 'error', message: invalid })
+    if (role !== undefined && role !== 'admin' && role !== 'owner') {
+      return reply.code(422).send({ status: 'error', message: 'Role must be admin or owner' })
     }
     const admin = A.createAdmin(username, password, role ?? 'admin')
     return reply.code(201).send({ status: 'success', data: admin })
@@ -267,6 +284,8 @@ export function registerAdmin(app: FastifyInstance): void {
     if (!space_id || !name || !path) {
       return reply.code(422).send({ status: 'error', message: 'space_id, name, and path required' })
     }
+    const valid = A.validateDiskPath(path)
+    if (!valid.ok) return reply.code(422).send({ status: 'error', message: valid.reason })
     try {
       return reply.code(201).send({ status: 'success', data: A.createDisk(space_id, name, path) })
     } catch (e) {
@@ -279,12 +298,27 @@ export function registerAdmin(app: FastifyInstance): void {
     const id = Number.parseInt(req.params.id, 10)
     const { name, path } = req.body ?? {}
     if (!id) return reply.code(422).send({ status: 'error', message: 'Invalid id' })
+    if (path !== undefined) {
+      const valid = A.validateDiskPath(path)
+      if (!valid.ok) return reply.code(422).send({ status: 'error', message: valid.reason })
+    }
     try {
       A.updateDisk(id, { name, path })
     } catch (e) {
       uniqueGuard(reply, e, 'disk name in this space')
     }
     return reply.send({ status: 'success', data: null })
+  })
+
+  // Verify a disk path before saving the mapping: report.db presence and the
+  // meta fields the dashboard will show. Readonly, so it is safe to poke.
+  app.post('/api/admin/disks/test-read', async (req: any, reply) => {
+    requireAuth(req, reply)
+    const { path } = req.body ?? {}
+    if (typeof path !== 'string' || !path) {
+      return reply.code(422).send({ status: 'error', message: 'path required' })
+    }
+    return reply.send({ status: 'success', data: A.testDiskRead(path) })
   })
 
   // Import teams from report.db into admin.db (idempotent)
@@ -339,9 +373,9 @@ export function registerAdmin(app: FastifyInstance): void {
 
       reportDb.close()
       return reply.send({ status: 'success', data: { imported, teams: A.listDiskTeams(diskId) } })
-    } catch (e: any) {
+    } catch {
       if (reportDb) reportDb.close()
-      return reply.code(500).send({ status: 'error', message: e.message })
+      return reply.code(500).send({ status: 'error', message: 'Could not import teams from this report' })
     }
   })
 
@@ -366,9 +400,9 @@ export function registerAdmin(app: FastifyInstance): void {
         .all() as { username: string }[]
       reportDb.close()
       return reply.send({ status: 'success', data: rows.map((r) => r.username) })
-    } catch (e: any) {
+    } catch {
       if (reportDb) reportDb.close()
-      return reply.code(500).send({ status: 'error', message: e.message })
+      return reply.code(500).send({ status: 'error', message: 'Could not read users from this report' })
     }
   })
 
