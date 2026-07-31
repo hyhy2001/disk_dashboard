@@ -223,7 +223,7 @@ export function HistoryTab({ target }: Props): JSX.Element {
         <aside className="lg:w-56 lg:shrink-0 lg:border-r lg:border-border border-b lg:border-b-0 border-border/40 bg-surface/30 flex flex-col">
           <header className="flex items-center gap-2 border-b border-border/40 px-3 py-2 shrink-0">
             <h2 className="text-sm font-semibold flex-1">Users</h2>
-            <span className="text-[10px] text-muted-foreground">
+            <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-400 tabular-nums">
               {selected.length} / {MAX_SELECTED}
             </span>
           </header>
@@ -237,7 +237,7 @@ export function HistoryTab({ target }: Props): JSX.Element {
             onChange={(e) => setUserQuery(e.target.value)}
           />
 
-          <ul className="overflow-auto max-h-[500px] lg:max-h-none space-y-0.5 lg:flex-1">
+          <ul className="overflow-auto max-h-[200px] lg:max-h-none space-y-0.5 lg:space-y-1 lg:flex-1">
             {shownUsers.length === 0 && (
               <li className="text-xs text-muted-foreground p-4 text-center">No user matches.</li>
             )}
@@ -247,14 +247,24 @@ export function HistoryTab({ target }: Props): JSX.Element {
                 <li key={r.name}>
                   <button
                     type="button"
-                    className={`flex items-center gap-1 w-full px-2 py-1 text-[11px] rounded-sm transition-colors text-left ${on ? 'bg-accent text-accent-foreground' : 'text-muted-foreground hover:bg-muted hover:text-foreground'}`}
+                    className={`flex items-center gap-1 w-full px-2 py-1 text-[11px] rounded-sm transition-colors text-left border ${
+                      on
+                        ? 'border-amber-400/40 bg-amber-400/10 text-amber-400'
+                        : 'border-transparent hover:border-border/60 hover:bg-muted/50 text-muted-foreground hover:text-foreground'
+                    }`}
                     aria-pressed={on}
                     onClick={() => toggle(r.name)}
                     disabled={!on && selected.length >= MAX_SELECTED}
                     data-tooltip={`${formatSize(r.current)} now · ${r.delta >= 0 ? '+' : ''}${formatSize(Math.abs(r.delta))} over the window`}
                   >
-                    <span className="w-3 text-[10px] shrink-0" aria-hidden="true">
-                      {on ? '✓' : ''}
+                    <span className="w-3 text-[10px] shrink-0 flex items-center justify-center" aria-hidden="true">
+                      {on ? (
+                        <span className="flex size-3 items-center justify-center rounded-[3px] bg-amber-500 text-[8px] font-bold text-black">
+                          ✓
+                        </span>
+                      ) : (
+                        <span className="size-3 rounded-[3px] border border-border/60" />
+                      )}
                     </span>
                     <span className="flex-1 truncate">{r.name}</span>
                     <span
@@ -270,17 +280,17 @@ export function HistoryTab({ target }: Props): JSX.Element {
             })}
           </ul>
 
-          <div className="flex gap-1 pt-1">
+          <div className="flex gap-1 pt-1.5">
             <button
               type="button"
-              className="inline-flex items-center rounded-sm border border-border bg-transparent px-3 py-1.5 text-xs hover:bg-muted transition-colors"
+              className="flex-1 inline-flex items-center justify-center rounded-sm border border-border bg-transparent px-2 py-1.5 text-[11px] hover:bg-muted transition-colors"
               onClick={() => setSelected(ranked.slice(0, MAX_SELECTED).map((r) => r.name))}
             >
               Top {MAX_SELECTED}
             </button>
             <button
               type="button"
-              className="inline-flex items-center rounded-sm border border-border bg-transparent px-3 py-1.5 text-xs hover:bg-muted transition-colors"
+              className="flex-1 inline-flex items-center justify-center rounded-sm border border-border bg-transparent px-2 py-1.5 text-[11px] hover:bg-muted transition-colors"
               onClick={() => setSelected([])}
             >
               Clear
