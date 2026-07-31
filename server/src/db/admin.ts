@@ -6,7 +6,7 @@
 import Database from 'better-sqlite3'
 import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, statSync, copyFileSync, unlinkSync } from 'node:fs'
-import { dirname, resolve, join } from 'node:path'
+import { dirname, isAbsolute, resolve, join } from 'node:path'
 
 // ---------------------------------------------------------------------------
 // Path & singleton
@@ -16,7 +16,9 @@ let _db: Database.Database | null = null
 
 function adminDbPath(): string {
   const fromEnv = process.env.DASHBOARD_ADMIN_DB
-  if (fromEnv) return resolve(fromEnv)
+  // A relative value in .env is anchored to the repo root, not cwd, so the
+  // dashboard stays portable across machines and launch directories.
+  if (fromEnv) return isAbsolute(fromEnv) ? fromEnv : resolve(repoRoot(), fromEnv)
   const repo = repoRoot()
   return resolve(repo, 'server', 'admin.db')
 }

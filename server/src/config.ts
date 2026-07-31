@@ -3,7 +3,7 @@
 // land during development.
 
 import { existsSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 export interface Config {
@@ -50,12 +50,17 @@ export function loadConfig(): Config {
   const fromEnv = process.env.DASHBOARD_REPORTS_DIR
   // Sibling checkout of the scanner is where reports land in development.
   const reportsDir = fromEnv ? resolve(fromEnv) : resolve(repoRoot(), '..', 'disk_scanner', 'reports')
+  // Resolve relative paths against the repo root, not cwd, so a portable .env
+  // entry like `web/dist` works no matter which directory the server was
+  // launched from.
+  const webEnv = process.env.DASHBOARD_WEB_DIR
+  const webDir = webEnv ? (isAbsolute(webEnv) ? webEnv : resolve(repoRoot(), webEnv)) : null
   return {
     reportsDir,
     port: envInt('DASHBOARD_PORT', 5310),
     // Loopback by default: the dashboard exposes filesystem usage and has no
     // authentication of its own, so binding 0.0.0.0 must be an explicit choice.
     host: process.env.DASHBOARD_HOST ?? '127.0.0.1',
-    webDir: process.env.DASHBOARD_WEB_DIR ? resolve(process.env.DASHBOARD_WEB_DIR) : null,
+    webDir,
   }
 }
