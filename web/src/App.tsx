@@ -203,6 +203,13 @@ export function App() {
     return groups.find((g) => g.name === route.space) ?? null
   }, [groups, route.space])
 
+  // A URL that names a space or disk that does not exist. Distinguishing this
+  // from "no data yet" matters: /some-typo should say "not found", not pretend
+  // to be the first space.
+  const spaceNotFound = route.space !== null && activeGroup === null && groups.length > 0
+  const diskExists = spaceNotFound ? false : route.disk === null || !!activeGroup?.targets.some((t) => t.slug === route.disk)
+  const diskNotFound = !spaceNotFound && route.disk !== null && !diskExists
+
   // Redirect old bookmarks that used the disk display name in the URL instead of
   // the slug. After the slug migration any name-based path 404s, so if the disk
   // segment matches no slug but exactly one display name in the active space,
@@ -218,7 +225,7 @@ export function App() {
   const active = overview?.target
 
   useEffect(() => {
-    if (!route.disk || !activeGroup) {
+    if (!route.disk || !activeGroup || diskNotFound) {
       setOverview(null)
       return
     }
@@ -235,7 +242,7 @@ export function App() {
     return () => {
       live = false
     }
-  }, [route.disk, activeGroup])
+  }, [route.disk, activeGroup, diskNotFound])
 
   const pickSpace = useCallback((name: string) => {
     setRoute((r) => ({ ...r, space: name, disk: null }))
@@ -577,7 +584,24 @@ export function App() {
           {/* Content */}
           <main className="main flex flex-1 flex-col overflow-auto">
             <ErrorBoundary name="content">
-              {error ? (
+              {(spaceNotFound || diskNotFound) && !loading ? (
+                <div className="flex items-center justify-center h-full">
+                  <div className="text-center space-y-2 max-w-md px-4">
+                    <p className="text-sm font-semibold text-destructive">Page not found</p>
+                    <p className="text-xs text-muted-foreground">
+                      {spaceNotFound
+                        ? `No space named “${route.space}” exists.`
+                        : `No disk named “${route.disk}” exists in ${activeGroup?.name ?? 'this space'}.`}
+                    </p>
+                    <button
+                      onClick={() => setRoute(DEFAULT_ROUTE)}
+                      className="mt-2 inline-flex items-center rounded-sm border border-border bg-transparent px-3 py-1.5 text-xs hover:bg-muted transition-colors"
+                    >
+                      ← Back to dashboard
+                    </button>
+                  </div>
+                </div>
+              ) : error ? (
                 <div className="flex items-center justify-center h-full">
                   <div className="text-center space-y-2">
                     <p className="text-sm font-semibold text-destructive">Could not load this target</p>

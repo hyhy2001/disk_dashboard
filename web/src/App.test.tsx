@@ -76,3 +76,29 @@ describe('App shell layout', () => {
     expect(mainArea).toBeTruthy()
   })
 })
+
+describe('unknown route links', () => {
+  /** Point the address bar at a path before the App mounts. */
+  function renderAt(path: string): ReturnType<typeof render> {
+    const spy = vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, pathname: path })
+    const out = render(<App />)
+    spy.mockRestore()
+    return out
+  }
+
+  it('shows a not-found page for an unknown space', async () => {
+    const { container, findByText } = renderAt('/no-such-space')
+    expect(await findByText('Page not found')).toBeTruthy()
+    expect(container.textContent).toContain('No space named “no-such-space” exists.')
+  })
+
+  it('shows a not-found page for an unknown disk in a real space', async () => {
+    const { findByText } = renderAt('/Prod/bogus-disk')
+    expect(await findByText('Page not found')).toBeTruthy()
+  })
+
+  it('still renders the dashboard for the default route', () => {
+    const { container } = renderAt('/')
+    expect(container.querySelector('aside')).toBeTruthy()
+  })
+})
