@@ -44,7 +44,12 @@ PYTHON := $(PY_BIN)/python3
 CACHE := $(TOOL)/npm-cache
 PM2_HOME := $(TOOL)/pm2
 PM2 := $(ROOT)/node_modules/.bin/pm2
+# A local $HOME so node-gyp (npm_config_python builds) and other tools keep
+# their caches (.cache/node-gyp) inside the repo instead of /root or a user's
+# home — the toolchain stays portable and needs nothing from a real home dir.
+LOCAL_HOME := $(TOOL)/home
 
+export HOME := $(LOCAL_HOME)
 export PATH := $(NODE_BIN):$(PY_BIN):$(PATH)
 export npm_config_cache := $(CACHE)
 export npm_config_python := $(PYTHON)
@@ -82,7 +87,7 @@ $(NODE_BIN)/node:
 	@mkdir -p "$(NODE_DIR)"
 	@tar -xJf "$(TOOL)/node.tar.xz" -C "$(NODE_DIR)" --strip-components=1
 	@rm -f "$(TOOL)/node.tar.xz"
-	@mkdir -p "$(CACHE)" "$(PM2_HOME)"
+	@mkdir -p "$(CACHE)" "$(PM2_HOME)" "$(LOCAL_HOME)"
 	@echo '==> Local Node ready:'
 	@"$(NODE)" --version
 
