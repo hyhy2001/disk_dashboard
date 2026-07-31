@@ -67,8 +67,7 @@ endif
 # Inherited PATH can carry root-only entries (e.g. /root/.local/bin) or
 # nonexistent dirs; neither is usable by a normal user on a company machine.
 # Filter them out so the toolchain works without root.
-CLEAN_PATH := $(subst ::,:,$(shell echo "$$PATH" | sed 's#:[^:]*/root[^:]*##g; s#^/root[^:]*:##'))
-CLEAN_PATH := $(shell echo "$(CLEAN_PATH)" | tr ':' '\n' | while read -r p; do [ -d "$$p" ] && printf "%s:" "$$p"; done | sed 's/:$$//')
+CLEAN_PATH := $(shell echo "$$PATH" | tr ':' '\n' | grep -v '^/root' | while read -r p; do [ -d "$$p" ] && printf "%s:" "$$p"; done | sed 's/:$$//')
 
 export HOME := $(LOCAL_HOME)
 ifneq ($(GCC_CUSTOM),)
