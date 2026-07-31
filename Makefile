@@ -231,7 +231,9 @@ stop:
 	@"$(PM2)" stop disk-dashboard 2>/dev/null || true
 
 restart:
-	@"$(PM2)" restart disk-dashboard 2>/dev/null || { echo '==> not running — starting fresh'; "$(PM2)" start "$(ROOT)/ecosystem.config.cjs"; }
+	@echo '==> Restarting (delete + start so .env changes are picked up) ...'
+	@"$(PM2)" delete disk-dashboard 2>/dev/null || true
+	@"$(PM2)" start "$(ROOT)/ecosystem.config.cjs"
 	@"$(PM2)" save
 
 status:
