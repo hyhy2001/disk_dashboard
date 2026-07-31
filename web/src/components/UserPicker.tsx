@@ -25,8 +25,34 @@ export function UserPicker({ users, selected, onSelect }: Props): JSX.Element {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [shown, setShown] = useState(WINDOW)
+  const [pos, setPos] = useState<{ left: number; top: number; width: number } | null>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+
+  // Measure the button so the dropdown can be fixed-positioned and clamped to the
+  // viewport — a left-anchored absolute box overflows on narrow windows.
+  useEffect(() => {
+    if (!open) {
+      setPos(null)
+      return
+    }
+    const btn = wrapRef.current?.querySelector('button')
+    if (!btn) return
+    const update = () => {
+      const r = btn.getBoundingClientRect()
+      const gap = 8
+      const maxW = window.innerWidth - r.left - gap
+      const width = Math.min(300, Math.max(200, maxW))
+      setPos({ left: r.left, top: r.bottom + 4, width })
+    }
+    update()
+    window.addEventListener('scroll', update, true)
+    window.addEventListener('resize', update)
+    return () => {
+      window.removeEventListener('scroll', update, true)
+      window.removeEventListener('resize', update)
+    }
+  }, [open])
 
   // Close on an outside click or Escape. Both are needed: the dropdown covers
   // content, so being unable to dismiss it traps the view.
@@ -82,8 +108,11 @@ export function UserPicker({ users, selected, onSelect }: Props): JSX.Element {
         </span>
       </button>
 
-      {open && (
-        <div className="absolute top-full left-0 mt-1 z-30 glass rounded-sm shadow-md w-[300px] max-h-80 flex flex-col">
+      {open && pos && (
+        <div
+          className="fixed z-30 glass rounded-sm shadow-md max-h-80 flex flex-col"
+          style={{ left: pos.left, top: pos.top, width: pos.width }}
+        >
           <input
             ref={searchRef}
             type="search"
@@ -123,8 +152,11 @@ export function UserPicker({ users, selected, onSelect }: Props): JSX.Element {
                 >
                   <span className="flex-1 font-medium truncate">{u.name}</span>
                   <span className="text-muted-foreground tabular-nums shrink-0">
-                    {formatSize(u.used)} · {formatCount(u.files)} files
-                    {!u.hasDetail && ' · no breakdown'}
+                    {formatSize(u.used)}
+                    <span className="hidden min-[440px]:inline">
+                      {' '}· {formatCount(u.files)} files
+                      {!u.hasDetail && ' · no breakdown'}
+                    </span>
                   </span>
                 </button>
               </li>
