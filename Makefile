@@ -79,6 +79,11 @@ export PATH := $(NODE_BIN):$(PY_BIN):$(CLEAN_PATH)
 endif
 export npm_config_cache := $(CACHE)
 export npm_config_python := $(PYTHON)
+# Always install optional dependencies. Rollup ships its native binary as an
+# optional dep, and on RHEL8 npm's libc detection can be wrong, skipping
+# @rollup/rollup-linux-x64-gnu and breaking `vite build` with "Cannot find
+# module". --include=optional forces them in regardless.
+export npm_config_include := optional
 # Force development so npm install/build never omit devDependencies. A company
 # shell often exports NODE_ENV=production, which makes `npm install` skip all
 # dev deps (react, vite, tsc) and the build then fails. Runtime NODE_ENV stays
@@ -154,6 +159,15 @@ setup: $(NODE_BIN)/node $(PY_BIN)/python3
 	fi
 	@echo '==> Installing dependencies with local npm (python: $(PYTHON)) ...'
 	@"$(NPM)" install
+	@echo '==> Ensuring rollup native binary is present ...'
+	@if [ ! -f "$(ROOT)/node_modules/@rollup/rollup-linux-x64-gnu/package.json" ]; then \
+		echo '   npm skipped @rollup/rollup-linux-x64-gnu (libc detection). Installing it directly.'; \
+		"$(NPM)" install --no-save --include=optional "@rollup/rollup-linux-x64-gnu@4.62.3" || exit 1; \
+	fi
+	@if [ ! -f "$(ROOT)/node_modules/@rollup/rollup-linux-x64-gnu/package.json" ]; then \
+		echo '   ERROR: @rollup/rollup-linux-x64-gnu still missing. Set npm_config_libc=glibc and re-run.'; \
+		exit 1; \
+	fi
 	@if [ ! -f "$(ROOT)/.env" ]; then \
 		echo '==> Writing .env (relative to this repo) ...'; \
 		SECRET=$$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n'); \
