@@ -41,13 +41,21 @@ PATH: a custom install at `/usr/local/gcc-*/bin`, Red Hat's
 `make setup` stops with clear instructions:
 
 ```sh
-# either a custom gcc (e.g. /usr/local/gcc-9.2.0), or Red Hat's toolset:
+# either a custom gcc (e.g. /usr/local/gcc-9.2.0 or /usr/local/gcc-13.2.0),
+# or Red Hat's toolset:
 dnf install gcc-toolset-13   # then open a new login shell so it is on PATH
 make setup
 ```
 
 `make setup` pre-checks C++17 support and reports exactly which compiler it
 found before installing.
+
+### Running as a normal user (no root)
+
+Everything stays inside the repo: `.tooling/` holds Node, Python, the npm cache,
+PM2 state and a local `$HOME`, and the server binds an unprivileged port
+(5311). The Makefile also strips root-only and nonexistent entries from the
+inherited `PATH`, so nothing needs `sudo` on a company machine.
 
 For a single-process production run:
 

@@ -64,13 +64,19 @@ $(info using gcc-toolset: $(GCC_TOOLSET_DIR))
 export LD_LIBRARY_PATH := $(GCC_TOOLSET_DIR)/root/usr/lib64:$(LD_LIBRARY_PATH)
 endif
 
+# Inherited PATH can carry root-only entries (e.g. /root/.local/bin) or
+# nonexistent dirs; neither is usable by a normal user on a company machine.
+# Filter them out so the toolchain works without root.
+CLEAN_PATH := $(subst ::,:,$(shell echo "$$PATH" | sed 's#:[^:]*/root[^:]*##g; s#^/root[^:]*:##'))
+CLEAN_PATH := $(shell echo "$(CLEAN_PATH)" | tr ':' '\n' | while read -r p; do [ -d "$$p" ] && printf "%s:" "$$p"; done | sed 's/:$$//')
+
 export HOME := $(LOCAL_HOME)
 ifneq ($(GCC_CUSTOM),)
-export PATH := $(GCC_CUSTOM)/bin:$(NODE_BIN):$(PY_BIN):$(PATH)
+export PATH := $(GCC_CUSTOM)/bin:$(NODE_BIN):$(PY_BIN):$(CLEAN_PATH)
 else ifneq ($(GCC_TOOLSET_DIR),)
-export PATH := $(GCC_TOOLSET_DIR)/root/usr/bin:$(NODE_BIN):$(PY_BIN):$(PATH)
+export PATH := $(GCC_TOOLSET_DIR)/root/usr/bin:$(NODE_BIN):$(PY_BIN):$(CLEAN_PATH)
 else
-export PATH := $(NODE_BIN):$(PY_BIN):$(PATH)
+export PATH := $(NODE_BIN):$(PY_BIN):$(CLEAN_PATH)
 endif
 export npm_config_cache := $(CACHE)
 export npm_config_python := $(PYTHON)
