@@ -160,12 +160,19 @@ setup: $(NODE_BIN)/node $(PY_BIN)/python3
 	@echo '==> Installing dependencies with local npm (python: $(PYTHON)) ...'
 	@"$(NPM)" install
 	@echo '==> Ensuring rollup native binary is present ...'
-	@if [ ! -f "$(ROOT)/node_modules/@rollup/rollup-linux-x64-gnu/package.json" ]; then \
-		echo '   npm skipped @rollup/rollup-linux-x64-gnu (libc detection). Installing it directly.'; \
-		"$(NPM)" install --no-save --include=optional "@rollup/rollup-linux-x64-gnu@4.62.3" || exit 1; \
+	@if [ ! -f "$(ROOT)/node_modules/@rollup/rollup-linux-x64-gnu/rollup.linux-x64-gnu.node" ]; then \
+		echo '   npm skipped @rollup/rollup-linux-x64-gnu — fetching the binary directly.'; \
+		mkdir -p "$(TOOL)/rollup-gnu" && \
+		curl -fsSL "https://registry.npmjs.org/@rollup/rollup-linux-x64-gnu/-/rollup-linux-x64-gnu-4.62.3.tgz" -o "$(TOOL)/rollup-gnu.tgz" && \
+		tar -xzf "$(TOOL)/rollup-gnu.tgz" -C "$(TOOL)/rollup-gnu" && \
+		mkdir -p "$(ROOT)/node_modules/@rollup/rollup-linux-x64-gnu" && \
+		cp "$(TOOL)/rollup-gnu/package/package.json" "$(ROOT)/node_modules/@rollup/rollup-linux-x64-gnu/" && \
+		cp "$(TOOL)/rollup-gnu/package/rollup.linux-x64-gnu.node" "$(ROOT)/node_modules/@rollup/rollup-linux-x64-gnu/" && \
+		rm -f "$(TOOL)/rollup-gnu.tgz" && rm -rf "$(TOOL)/rollup-gnu" && \
+		echo '   @rollup/rollup-linux-x64-gnu installed manually.'; \
 	fi
-	@if [ ! -f "$(ROOT)/node_modules/@rollup/rollup-linux-x64-gnu/package.json" ]; then \
-		echo '   ERROR: @rollup/rollup-linux-x64-gnu still missing. Set npm_config_libc=glibc and re-run.'; \
+	@if [ ! -f "$(ROOT)/node_modules/@rollup/rollup-linux-x64-gnu/rollup.linux-x64-gnu.node" ]; then \
+		echo '   ERROR: could not fetch @rollup/rollup-linux-x64-gnu. Check network access to registry.npmjs.org.'; \
 		exit 1; \
 	fi
 	@if [ ! -f "$(ROOT)/.env" ]; then \
