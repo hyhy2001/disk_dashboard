@@ -43,8 +43,9 @@ full list.
 
 ## Deployment
 
-`dashboard.hydev.me` is nginx proxying to `127.0.0.1:5311`. That port is served by
-one pm2-managed process which handles both the API and the built assets:
+The production setup is a reverse proxy (nginx) terminating TLS and proxying to
+`127.0.0.1:5311` — the port served by one pm2-managed process that handles both
+the API and the built web assets:
 
 ```sh
 make build
@@ -54,7 +55,7 @@ make start       # equivalent to: pm2 start ecosystem.config.cjs && pm2 save
 `ecosystem.config.cjs` loads `.env` from this repo, so the config lives in one
 place and moves with the folder. After changing code, `make restart`.
 
-Do not put `make dev` behind the vhost. Vite plus `tsx watch` has no restart
+Do not put `make dev` behind the proxy. Vite plus `tsx watch` has no restart
 policy, so any crash leaves nginx returning 502 with nothing bringing it back.
 
 ## Configuration

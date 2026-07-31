@@ -49,7 +49,7 @@ module.exports = {
       max_memory_restart: '512M',
       env: {
         NODE_ENV: 'production',
-        // nginx (dashboard.hydev.me) proxies to this port.
+        // The reverse proxy (nginx) proxies to this port.
         DASHBOARD_PORT: dot.DASHBOARD_PORT || '5311',
         // Loopback only: nginx terminates TLS and is the sole entry point.
         DASHBOARD_HOST: dot.DASHBOARD_HOST || '127.0.0.1',
