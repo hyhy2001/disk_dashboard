@@ -32,22 +32,33 @@ NODE_DIR := $(TOOL)/node
 NODE_BIN := $(NODE_DIR)/bin
 NODE := $(NODE_BIN)/node
 NPM := $(NODE_BIN)/npm
+
+# A relocatable CPython so node-gyp (better-sqlite3 build) needs no system
+# Python. Pinned release from astral-sh/python-build-standalone.
+PY_VERSION := 3.12.13
+PY_RELEASE := 20260728
+PY_DIR := $(TOOL)/python
+PY_BIN := $(PY_DIR)/bin
+PYTHON := $(PY_BIN)/python3
+
 CACHE := $(TOOL)/npm-cache
 PM2_HOME := $(TOOL)/pm2
 PM2 := $(ROOT)/node_modules/.bin/pm2
 
-export PATH := $(NODE_BIN):$(PATH)
+export PATH := $(NODE_BIN):$(PY_BIN):$(PATH)
 export npm_config_cache := $(CACHE)
+export npm_config_python := $(PYTHON)
 export PM2_HOME := $(PM2_HOME)
 
 .DEFAULT_GOAL := help
-.PHONY: help setup node install build dev start stop restart status logs test lint typecheck format clean
+.PHONY: help setup node python install build dev start stop restart status logs test lint typecheck format clean
 
 help:
 	@echo 'Disk Dashboard — portable toolchain'
 	@echo ''
-	@echo '  make setup       one-time: download local Node, npm ci, install pm2, write .env'
+	@echo '  make setup       one-time: download local Node + Python, npm install, write .env'
 	@echo '  make node        print the local Node/npm versions'
+	@echo '  make python      print the local Python version'
 	@echo '  make install     npm ci (after setup)'
 	@echo '  make build       typecheck + build server & web'
 	@echo '  make dev         run dev servers in the foreground'
@@ -75,8 +86,18 @@ $(NODE_BIN)/node:
 	@echo '==> Local Node ready:'
 	@"$(NODE)" --version
 
-setup: $(NODE_BIN)/node
-	@echo '==> Installing dependencies with local npm (cache: $(CACHE)) ...'
+$(PY_BIN)/python3:
+	@echo '==> Downloading CPython $(PY_VERSION) into $(TOOL) ...'
+	@mkdir -p "$(TOOL)"
+	@curl -fsSL "https://github.com/astral-sh/python-build-standalone/releases/download/$(PY_RELEASE)/cpython-$(PY_VERSION)%2B$(PY_RELEASE)-x86_64-unknown-linux-gnu-install_only.tar.gz" -o "$(TOOL)/python.tar.gz"
+	@mkdir -p "$(PY_DIR)"
+	@tar -xzf "$(TOOL)/python.tar.gz" -C "$(PY_DIR)" --strip-components=1
+	@rm -f "$(TOOL)/python.tar.gz"
+	@echo '==> Local Python ready:'
+	@"$(PYTHON)" --version
+
+setup: $(NODE_BIN)/node $(PY_BIN)/python3
+	@echo '==> Installing dependencies with local npm (python: $(PYTHON)) ...'
 	@"$(NPM)" install
 	@if [ ! -f "$(ROOT)/.env" ]; then \
 		echo '==> Writing .env (relative to this repo) ...'; \
@@ -94,9 +115,12 @@ node: $(NODE_BIN)/node
 	@"$(NODE)" --version
 	@"$(NPM)" --version
 
+python: $(PY_BIN)/python3
+	@"$(PYTHON)" --version
+
 # ── Install ─────────────────────────────────────────────────────────────────
 
-install: $(NODE_BIN)/node
+install: $(NODE_BIN)/node $(PY_BIN)/python3
 	@"$(NPM)" ci
 
 # ── Build / dev / test ──────────────────────────────────────────────────────

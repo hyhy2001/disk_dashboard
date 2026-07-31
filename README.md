@@ -10,7 +10,7 @@ depends on the schema, not on the binary.
 
 ```
 Makefile       portable toolchain commands (see below)
-.tooling/      local Node, npm cache, PM2 state (created by `make setup`)
+.tooling/      local Node, Python, npm cache, PM2 state (created by `make setup`)
 shared/        API types used by both sides
 server/        Fastify + better-sqlite3, readonly access to report.db
 web/           React + TypeScript + Vite
@@ -18,13 +18,14 @@ web/           React + TypeScript + Vite
 
 ## Run
 
-The toolchain is fully portable — Node, the npm cache and PM2's state all live
-inside this repository under `.tooling/`, nothing is read from `$HOME` or
+The toolchain is fully portable — Node, a relocatable Python (used by node-gyp
+to build native modules like better-sqlite3), the npm cache and PM2's state all
+live inside this repository under `.tooling/`, nothing is read from `$HOME` or
 `/usr`. Move the folder to another machine and `make setup` rebuilds the
 toolchain. `make` prints the full command list.
 
 ```sh
-make setup       # one-time: download local Node, npm install, write .env
+make setup       # one-time: download local Node + Python, npm install, write .env
 make dev         # Fastify + Vite dev servers in the foreground
 ```
 
