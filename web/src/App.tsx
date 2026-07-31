@@ -37,7 +37,7 @@ import {
   type Route,
 } from './lib/route.js'
 import { cn } from './lib/utils.js'
-import { Monitor, HardDrive, Sun, Moon, Settings, FileText } from 'lucide-react'
+import { Monitor, HardDrive, Sun, Moon, Settings, FileText, X } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 type Theme = 'dark' | 'light'
@@ -305,6 +305,15 @@ export function App() {
         style={{ '--sidebar-width': collapsed ? '56px' : '256px' } as React.CSSProperties}
       >
         {/* ── Sidebar ── */}
+        {/* Drawer backdrop: below the drawer (z-30), above the main content, so
+            tapping the dimmed area closes the drawer on mobile. */}
+        {drawer && (
+          <div
+            className="fixed inset-0 z-20 bg-black/40 md:hidden"
+            onClick={() => setDrawer(false)}
+            aria-hidden="true"
+          />
+        )}
         <aside
           className={cn(
             'fixed inset-y-0 left-0 z-30 flex w-[--sidebar-width] flex-col border-r border-border/50 bg-surface backdrop-blur-lg',
@@ -351,6 +360,15 @@ export function App() {
                   </div>
                 )}
               </div>
+            )}
+            {drawer && (
+              <button
+                className="md:hidden inline-flex size-6 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                onClick={() => setDrawer(false)}
+                aria-label="Close menu"
+              >
+                <X className="size-3.5" />
+              </button>
             )}
           </div>
           {!collapsed && (
