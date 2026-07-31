@@ -335,7 +335,7 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
       {/* Always mounted, and the box useFitRows measures. It has to exist before the
           first fetch, because the fetch waits on the measurement to know its page
           size — measuring the rendered list instead would deadlock. */}
-      <div className="flex flex-1 flex-col overflow-hidden" ref={fit.ref}>
+      <div className="flex flex-1 flex-col overflow-y-auto lg:overflow-hidden" ref={fit.ref}>
         {!user ? (
           <div className="flex items-center justify-center p-8">
             <p className="text-sm font-semibold">Select a user</p>
@@ -352,8 +352,12 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
         ) : !detail ? (
           <div className="h-32 w-full rounded-lg border border-border/50 bg-surface/50 animate-pulse" />
         ) : (
-          <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
-            <section className="rounded-lg border border-border bg-surface/50 shadow-sm flex flex-col min-h-0">
+          <div
+            className={`grid grid-cols-1 md:grid-cols-2 gap-3 h-full min-h-0 ${
+              loading ? 'opacity-50 pointer-events-none' : ''
+            }`}
+          >
+            <section className="rounded-lg border border-border bg-surface/50 shadow-sm flex flex-col min-h-0 md:h-full">
               <header className="flex items-center gap-2 border-b border-border/40 px-3 py-2 shrink-0">
                 <h2 className="text-sm font-semibold flex-1">Top directories</h2>
                 <span className="text-[10px] text-muted-foreground">
@@ -424,7 +428,7 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
               />
             </section>
 
-            <section className="rounded-lg border border-border bg-surface/50 shadow-sm flex flex-col min-h-0">
+            <section className="rounded-lg border border-border bg-surface/50 shadow-sm flex flex-col min-h-0 md:h-full">
               <header className="flex items-center gap-2 border-b border-border/40 px-3 py-2 shrink-0">
                 <h2 className="text-sm font-semibold flex-1">Top files</h2>
                 <span className="text-[10px] text-muted-foreground">

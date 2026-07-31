@@ -155,8 +155,8 @@ export function TrendChart({ trends, dates, logScale }: Props): JSX.Element {
   const tipY = Math.min(PAD_T, PAD_T + plotH - tipH)
 
   return (
-    <>
-      <div className="chartbox" ref={box}>
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="chartbox min-h-0 flex-1" ref={box}>
         <svg
           className="chart"
           viewBox={`0 0 ${width} ${height}`}
@@ -235,7 +235,7 @@ export function TrendChart({ trends, dates, logScale }: Props): JSX.Element {
         </svg>
       </div>
 
-      <div className="chart__legend">
+      <div className="chart__legend shrink-0">
         {trends.map((t, i) => (
           <span className="chart__key" key={t.name}>
             <svg width="16" height="6" aria-hidden="true">
@@ -245,6 +245,6 @@ export function TrendChart({ trends, dates, logScale }: Props): JSX.Element {
           </span>
         ))}
       </div>
-    </>
+    </div>
   )
 }
