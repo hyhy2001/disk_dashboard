@@ -275,7 +275,9 @@ export function App() {
     const show = () => {
       const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined
       const ms = nav ? Math.round(nav.loadEventEnd - nav.startTime) : 0
-      if (ms > 0) el.innerHTML = `Load time: <span class="text-emerald-400/80">${ms}ms</span>`
+      if (ms <= 0) return
+      const target = el.querySelector('[data-ms]')
+      if (target) target.textContent = `${ms}ms`
     }
     if (document.readyState === 'complete') show()
     else window.addEventListener('load', show)
@@ -439,14 +441,21 @@ export function App() {
           {/* Footer */}
           <div className="border-t border-border/40 px-2 py-2">
             <AdminButton collapsed={collapsed} />
-            {!collapsed && (
-              <p
-                id="page-load-time"
-                className="mt-1.5 border-t border-border/30 pt-1.5 text-center text-[10px] font-mono text-muted-foreground/50"
-              >
-                Load time: <span className="text-emerald-400/80">-- ms</span>
-              </p>
-            )}
+            <p
+              id="page-load-time"
+              className={cn(
+                'mt-1.5 border-t border-border/30 pt-1.5 text-center text-[10px] font-mono text-muted-foreground/50',
+                collapsed && 'mt-2 border-t-0 pt-0 text-[9px]',
+              )}
+            >
+              {collapsed ? (
+                <span data-ms />
+              ) : (
+                <>
+                  Load time: <span className="text-emerald-400/80" data-ms>-- ms</span>
+                </>
+              )}
+            </p>
           </div>
           {/* Collapse toggle */}
           <button
