@@ -167,7 +167,7 @@ export function TreemapTab({ target, totalSize }: Props): JSX.Element {
 
   return (
     <>
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border/30 bg-surface/30 shrink-0">
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5 px-3 py-2 border-b border-border/30 bg-surface/30 shrink-0">
         <div className="flex gap-1">
           <button
             type="button"

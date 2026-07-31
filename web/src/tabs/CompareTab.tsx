@@ -104,7 +104,7 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
 
   return (
     <>
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-border/30">
+      <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-border/30">
         {bands.map((b) => (
           <div
             className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] ${
@@ -130,9 +130,9 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
       </div>
 
       <section className="m-3 rounded-lg border border-border bg-surface/50 shadow-sm">
-        <header className="flex items-center gap-2 border-b border-border/40 px-3 py-2">
-          <h2 className="text-sm font-semibold flex-1">{spaceName} — capacity by disk</h2>
-          <span className="text-[10px] text-muted-foreground tabular-nums">
+        <header className="flex flex-wrap items-center gap-2 border-b border-border/40 px-3 py-2">
+          <h2 className="text-sm font-semibold flex-1 min-w-0">{spaceName} — capacity by disk</h2>
+          <span className="text-[10px] text-muted-foreground tabular-nums truncate hidden sm:inline">
             {formatSize(spaceUsed)} of {formatSize(spaceTotal)} used · {formatSize(spaceScanned)} attributed
           </span>
           <div className="flex rounded-sm border border-border overflow-hidden" role="group" aria-label="Chart mode">
@@ -164,7 +164,10 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
             const totalW = cap ? widthFor(t, cap.total) : 0
 
             return (
-              <li className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors" key={t.name}>
+              <li
+                className="flex flex-wrap items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors"
+                key={t.name}
+              >
                 <button
                   type="button"
                   className="text-sm font-semibold truncate hover:text-emerald-400 transition-colors min-w-[100px]"
@@ -173,7 +176,7 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
                   {t.name}
                 </button>
 
-                <div className="flex-1 h-4 relative rounded-full overflow-hidden bg-muted/50">
+                <div className="flex-1 h-4 relative rounded-full overflow-hidden bg-muted/50 min-w-[80px]">
                   {cap ? (
                     <>
                       <span className="absolute inset-0 rounded-full border border-border/40" style={{}} />

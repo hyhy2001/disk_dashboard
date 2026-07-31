@@ -50,8 +50,8 @@ export function OverviewTab({ overview }: Props): JSX.Element {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 p-3">
         {/* ── Timeline (spans both columns) ── */}
         <div className="md:col-span-2 rounded-lg border border-border bg-surface/50 shadow-sm flex flex-col">
-          <div className="flex items-center gap-2 border-b border-border/40 px-3 py-2">
-            <h2 className="text-sm font-semibold flex-1">Capacity Over Time</h2>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border/40 px-3 py-2">
+            <h2 className="text-sm font-semibold flex-1 min-w-0">Capacity Over Time</h2>
             <DeltaBadge points={shownHistory} />
             <div className="flex items-center gap-1">
               <RangePicker value={range} onChange={setRange} available={rangeAvailable} />
@@ -86,8 +86,8 @@ export function OverviewTab({ overview }: Props): JSX.Element {
 
         {/* ── Users bar ── */}
         <div className="rounded-lg border border-border bg-surface/50 shadow-sm flex flex-col">
-          <div className="flex items-center gap-2 border-b border-border/40 px-3 py-2">
-            <h2 className="text-sm font-semibold flex-1">Top Consuming Users</h2>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border/40 px-3 py-2">
+            <h2 className="text-sm font-semibold flex-1 min-w-0">Top Consuming Users</h2>
             {teamFilter && (
               <button
                 type="button"

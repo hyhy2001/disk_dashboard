@@ -79,8 +79,8 @@ export function ColumnResizer(): JSX.Element {
 
   return (
     <div
-      className="absolute top-0 bottom-0 z-10 w-1.5 cursor-col-resize hover:bg-accent/50 transition-colors"
-      style={{ left: 'calc(var(--col2-width) - 3px)' }}
+      className="absolute top-0 bottom-0 z-10 hidden lg:block w-1.5 cursor-col-resize hover:bg-accent/50 transition-colors"
+      style={{ left: 'calc(var(--sidebar-width) + var(--col2-width) - 3px)' }}
       role="separator"
       aria-orientation="vertical"
       aria-label="Resize disk column"

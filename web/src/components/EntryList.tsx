@@ -76,15 +76,15 @@ export function EntryList({
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="flex items-center gap-4 px-4 py-1.5 border-b border-border/30 text-[10px] text-muted-foreground uppercase tracking-wider shrink-0">
+    <div className="flex flex-col h-full overflow-x-auto">
+      <div className="flex items-center gap-4 px-4 py-1.5 border-b border-border/30 text-[10px] text-muted-foreground uppercase tracking-wider shrink-0 min-w-[460px]">
         <span className="flex-1">Folder</span>
         <span className="w-20 shrink-0">Owner</span>
         <span className="w-44 shrink-0 text-right">Size · %</span>
         <span className="w-10 shrink-0 text-right">Type</span>
       </div>
 
-      <div className="flex-1 overflow-auto divide-y divide-border/20">
+      <div className="flex-1 overflow-auto divide-y divide-border/20 min-w-[460px]">
         {dirs.map((d) => (
           <button
             type="button"

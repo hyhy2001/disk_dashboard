@@ -245,9 +245,14 @@ export function App() {
   useEffect(() => {
     const el = document.getElementById('page-load-time')
     if (!el) return
-    const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined
-    const ms = nav ? Math.round(nav.loadEventEnd - nav.startTime) : 0
-    if (ms > 0) el.innerHTML = `Load time: <span class="text-emerald-400/80">${ms}ms</span>`
+    const show = () => {
+      const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined
+      const ms = nav ? Math.round(nav.loadEventEnd - nav.startTime) : 0
+      if (ms > 0) el.innerHTML = `Load time: <span class="text-emerald-400/80">${ms}ms</span>`
+    }
+    if (document.readyState === 'complete') show()
+    else window.addEventListener('load', show)
+    return () => window.removeEventListener('load', show)
   }, [])
 
   const shownGroups = useMemo(() => {
@@ -300,7 +305,7 @@ export function App() {
                   <Settings className="size-3.5" />
                 </button>
                 {showSettings && (
-                  <div className="absolute right-0 top-full mt-1 w-44 rounded-md border border-border bg-surface shadow-lg z-50 overflow-hidden">
+                  <div className="absolute right-0 top-full mt-1 w-44 rounded-md border border-border bg-secondary shadow-lg z-50 overflow-hidden">
                     <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/50">
                       Preferences
                     </div>
@@ -313,16 +318,6 @@ export function App() {
                     >
                       <FileText className="size-3.5" />
                       Change Log
-                    </button>
-                    <button
-                      onClick={() => {
-                        toggleTheme()
-                        setShowSettings(false)
-                      }}
-                      className="flex w-full items-center gap-2 px-3 py-2 text-xs text-left hover:bg-muted transition-colors"
-                    >
-                      {theme === 'dark' ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
-                      {theme === 'dark' ? 'Light Mode' : 'Dark Mode'}
                     </button>
                   </div>
                 )}
@@ -416,20 +411,7 @@ export function App() {
 
           {/* Footer */}
           <div className="border-t border-border/40 px-2 py-2">
-            <div className={cn('flex', collapsed ? 'flex-col gap-1' : 'items-center justify-between')}>
-              <AdminButton collapsed={collapsed} />
-              <button
-                onClick={toggleTheme}
-                className={cn(
-                  'inline-flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-white/[0.04] transition-colors',
-                  collapsed && 'justify-center px-1',
-                )}
-                title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
-              >
-                {theme === 'dark' ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
-                {!collapsed && (theme === 'dark' ? 'Light' : 'Dark')}
-              </button>
-            </div>
+            <AdminButton collapsed={collapsed} />
             {!collapsed && (
               <p
                 id="page-load-time"
@@ -451,8 +433,8 @@ export function App() {
         {/* ── Disk Column ── */}
         {!collapsed && (
           <div
-            className="diskcol hidden md:block w-[--col2-width] shrink-0 border-r border-border overflow-auto glass-sm"
-            style={{ marginLeft: 'var(--sidebar-width)', '--col2-width': '260px' } as React.CSSProperties}
+            className="diskcol hidden lg:block w-[--col2-width] shrink-0 border-r border-border overflow-auto glass-sm"
+            style={{ marginLeft: 'var(--sidebar-width)' }}
           >
             <DiskColumn
               groupName={activeGroup?.name ?? 'All Targets'}
@@ -467,11 +449,11 @@ export function App() {
 
         {/* ── Main ── */}
         <div
-          className="flex flex-1 flex-col transition-[margin] duration-200"
+          className="flex min-w-0 flex-1 flex-col transition-[margin] duration-200 md:ml-[var(--sidebar-width)] lg:ml-0"
           style={{ marginLeft: collapsed ? 'var(--sidebar-width)' : undefined }}
           ref={mainRef}
         >
-          <ColumnResizer />
+          {!collapsed && <ColumnResizer />}
 
           {/* Header */}
           <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border px-4 glass-sm">
@@ -580,7 +562,7 @@ export function App() {
                 <OverviewTab overview={overview} />
               ) : (
                 <div>
-                  <nav className="flex items-center gap-1 border-b border-border px-4" role="tablist">
+                  <nav className="flex flex-wrap items-center gap-1 border-b border-border px-4" role="tablist">
                     {DETAIL_TABS.map((id) => (
                       <button
                         key={id}
