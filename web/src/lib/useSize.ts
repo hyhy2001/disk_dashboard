@@ -33,9 +33,7 @@ export function useSize<T extends HTMLElement>(): [React.RefObject<T>, Size | nu
       // Ignore sub-pixel jitter, which would otherwise re-render on every
       // scrollbar appearance or font swap.
       setSize((prev) =>
-        prev && Math.abs(prev.width - width) < 1 && Math.abs(prev.height - height) < 1
-          ? prev
-          : { width, height },
+        prev && Math.abs(prev.width - width) < 1 && Math.abs(prev.height - height) < 1 ? prev : { width, height },
       )
     })
     observer.observe(el)

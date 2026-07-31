@@ -49,9 +49,7 @@ function repoRoot(): string {
 export function loadConfig(): Config {
   const fromEnv = process.env.DASHBOARD_REPORTS_DIR
   // Sibling checkout of the scanner is where reports land in development.
-  const reportsDir = fromEnv
-    ? resolve(fromEnv)
-    : resolve(repoRoot(), '..', 'disk_scanner', 'reports')
+  const reportsDir = fromEnv ? resolve(fromEnv) : resolve(repoRoot(), '..', 'disk_scanner', 'reports')
   return {
     reportsDir,
     port: envInt('DASHBOARD_PORT', 5310),

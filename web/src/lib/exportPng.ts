@@ -77,11 +77,7 @@ function resolveVars(svg: SVGSVGElement, source: Element): void {
  * Rasterise `svg` and trigger a download. `scale` oversamples so the PNG is
  * usable in a document rather than looking like a screenshot.
  */
-export async function downloadSvgAsPng(
-  svg: SVGSVGElement,
-  filename: string,
-  scale = 2,
-): Promise<void> {
+export async function downloadSvgAsPng(svg: SVGSVGElement, filename: string, scale = 2): Promise<void> {
   const clone = svg.cloneNode(true) as SVGSVGElement
   resolveVars(clone, svg)
 

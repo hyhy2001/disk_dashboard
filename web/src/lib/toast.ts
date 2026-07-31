@@ -57,12 +57,7 @@ export function dismiss(id: string): void {
  * `durationMs` of 0 means "stay until dismissed", which is what the progress
  * variant uses.
  */
-export function toast(
-  kind: ToastKind,
-  title: string,
-  message?: string,
-  durationMs = DEFAULT_MS,
-): string {
+export function toast(kind: ToastKind, title: string, message?: string, durationMs = DEFAULT_MS): string {
   seq += 1
   const id = `t${seq}`
   toasts = [...toasts, { id, kind, title, ...(message !== undefined ? { message } : {}) }]
@@ -74,8 +69,7 @@ export function toast(
   return id
 }
 
-export const success = (title: string, message?: string): string =>
-  toast('success', title, message)
+export const success = (title: string, message?: string): string => toast('success', title, message)
 export const failure = (title: string, message?: string): string => toast('error', title, message)
 export const warn = (title: string, message?: string): string => toast('warning', title, message)
 export const info = (title: string, message?: string): string => toast('info', title, message)

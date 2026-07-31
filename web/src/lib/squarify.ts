@@ -40,11 +40,7 @@ function worstRatio(areas: number[], side: number, sum: number): number {
  * rectangle is not something the user can see or click. Callers that need to
  * show them must handle that separately.
  */
-export function squarify<T>(
-  items: T[],
-  value: (item: T) => number,
-  bounds: Rect,
-): LayoutItem<T>[] {
+export function squarify<T>(items: T[], value: (item: T) => number, bounds: Rect): LayoutItem<T>[] {
   const entries = items
     .map((item) => ({ item, value: value(item) }))
     .filter((e) => e.value > 0)

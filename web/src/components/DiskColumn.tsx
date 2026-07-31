@@ -20,9 +20,9 @@ function scanAge(t: Target): number | null {
 
 function statusColor(age: number | null): string {
   if (age === null) return 'bg-muted-foreground/30'
-  if (age < 3600 * 6) return 'bg-emerald-500'       // < 6h
-  if (age < 3600 * 24) return 'bg-amber-400'         // 6-24h
-  return 'bg-rose-500'                                // > 24h
+  if (age < 3600 * 6) return 'bg-emerald-500' // < 6h
+  if (age < 3600 * 24) return 'bg-amber-400' // 6-24h
+  return 'bg-rose-500' // > 24h
 }
 
 function relativeTime(age: number | null): string {
@@ -42,8 +42,10 @@ export function usedPercent(t: Target): number | null {
 export type DiskSort = 'alpha-asc' | 'alpha-desc' | 'usage-desc' | 'free-desc'
 
 const SORT_LABELS: Record<DiskSort, string> = {
-  'alpha-asc': 'Name A–Z', 'alpha-desc': 'Name Z–A',
-  'usage-desc': 'Used Capacity (%)', 'free-desc': 'Free Space',
+  'alpha-asc': 'Name A–Z',
+  'alpha-desc': 'Name Z–A',
+  'usage-desc': 'Used Capacity (%)',
+  'free-desc': 'Free Space',
 }
 
 interface Props {
@@ -79,8 +81,8 @@ function DiskCard({
   onSelect: () => void
 }) {
   const cap = t.capacity
-  const pct = cap && cap.total > 0 ? ((cap.total - cap.available) / cap.total * 100) : 0
-  const scannedPct = cap ? (cap.scanned / cap.total * 100) : 0
+  const pct = cap && cap.total > 0 ? ((cap.total - cap.available) / cap.total) * 100 : 0
+  const scannedPct = cap ? (cap.scanned / cap.total) * 100 : 0
   // Bytes the filesystem counts as used but the scan did not walk (or could not
   // descend into) — the unattributed gap legacy surfaced as its own segment.
   const unattributedPct = cap ? Math.max(0, pct - scannedPct) : 0
@@ -88,16 +90,12 @@ function DiskCard({
 
   const running = status?.running === true
   const failed = status?.stage === 'error'
-  const dotColor = running
-    ? 'bg-amber-400 animate-pulse'
-    : failed
-      ? 'bg-rose-500'
-      : statusColor(scanAge(t))
+  const dotColor = running ? 'bg-amber-400 animate-pulse' : failed ? 'bg-rose-500' : statusColor(scanAge(t))
 
   const stageText = running
-    ? (status?.stage ? STAGE_LABEL[status.stage] : undefined) ?? 'Working'
+    ? ((status?.stage ? STAGE_LABEL[status.stage] : undefined) ?? 'Working')
     : failed
-      ? status?.message ?? 'Scan failed'
+      ? (status?.message ?? 'Scan failed')
       : null
 
   return (
@@ -122,10 +120,16 @@ function DiskCard({
           <p className="text-[11px] text-muted-foreground/60 font-mono truncate mt-0.5">{t.scanRoot}</p>
         </div>
         {pct > 0 && (
-          <span className={cn(
-            'shrink-0 rounded-md px-2 py-0.5 text-[11px] font-bold tabular-nums',
-            pct >= 85 ? 'bg-rose-500/15 text-rose-400' : pct >= 70 ? 'bg-amber-400/15 text-amber-400' : 'bg-emerald-500/15 text-emerald-400',
-          )}>
+          <span
+            className={cn(
+              'shrink-0 rounded-md px-2 py-0.5 text-[11px] font-bold tabular-nums',
+              pct >= 85
+                ? 'bg-rose-500/15 text-rose-400'
+                : pct >= 70
+                  ? 'bg-amber-400/15 text-amber-400'
+                  : 'bg-emerald-500/15 text-emerald-400',
+            )}
+          >
             {pct.toFixed(0)}%
           </span>
         )}
@@ -143,10 +147,16 @@ function DiskCard({
       {cap && (
         <>
           <div className="mt-2.5 flex h-2 rounded-full overflow-hidden bg-muted/50 ring-1 ring-inset ring-white/[0.04]">
-            <div className={cn('transition-all', barColor)} style={{ width: `${Math.max(0, Math.min(100, scannedPct))}%` }} />
+            <div
+              className={cn('transition-all', barColor)}
+              style={{ width: `${Math.max(0, Math.min(100, scannedPct))}%` }}
+            />
             {/* Unattributed usage: used but not walked by the scan. Gray so the
                 gap between "scanned" and "used" reads at a glance. */}
-            <div className="bg-gray-500/60 transition-all" style={{ width: `${Math.max(0, Math.min(100, unattributedPct))}%` }} />
+            <div
+              className="bg-gray-500/60 transition-all"
+              style={{ width: `${Math.max(0, Math.min(100, unattributedPct))}%` }}
+            />
           </div>
 
           {/* Headline figures, matching legacy's extended-disk-stats. */}
@@ -172,10 +182,12 @@ function DiskCard({
       )}
 
       {stageText && (
-        <p className={cn(
-          'mt-1.5 flex items-center gap-1 text-[10px] font-medium',
-          failed ? 'text-rose-400' : 'text-amber-400',
-        )}>
+        <p
+          className={cn(
+            'mt-1.5 flex items-center gap-1 text-[10px] font-medium',
+            failed ? 'text-rose-400' : 'text-amber-400',
+          )}
+        >
           <span className="inline-block size-1 rounded-full bg-current animate-pulse" />
           {stageText}
         </p>
@@ -184,14 +196,25 @@ function DiskCard({
   )
 }
 
-export function DiskColumn({ groupName, targets, statuses, selected, onSelect, onToggleSidebar: _onToggleSidebar }: Props) {
+export function DiskColumn({
+  groupName,
+  targets,
+  statuses,
+  selected,
+  onSelect,
+  onToggleSidebar: _onToggleSidebar,
+}: Props) {
   const [sort, setSort] = useState<DiskSort>('usage-desc')
 
   const sorted = useMemo(() => {
     const arr = [...targets]
     switch (sort) {
-      case 'alpha-asc': arr.sort((a, b) => a.name.localeCompare(b.name)); break
-      case 'alpha-desc': arr.sort((a, b) => b.name.localeCompare(a.name)); break
+      case 'alpha-asc':
+        arr.sort((a, b) => a.name.localeCompare(b.name))
+        break
+      case 'alpha-desc':
+        arr.sort((a, b) => b.name.localeCompare(a.name))
+        break
       case 'usage-desc':
         arr.sort((a, b) => {
           const ap = a.capacity?.total ? (a.capacity.total - a.capacity.available) / a.capacity.total : 0
@@ -200,7 +223,7 @@ export function DiskColumn({ groupName, targets, statuses, selected, onSelect, o
         })
         break
       case 'free-desc':
-        arr.sort((a, b) => ((b.capacity?.available ?? 0) - (a.capacity?.available ?? 0)) || a.name.localeCompare(b.name))
+        arr.sort((a, b) => (b.capacity?.available ?? 0) - (a.capacity?.available ?? 0) || a.name.localeCompare(b.name))
         break
     }
     return arr
@@ -211,22 +234,35 @@ export function DiskColumn({ groupName, targets, statuses, selected, onSelect, o
       <div className="flex items-center justify-between border-b border-border/40 px-3.5 py-2.5">
         <div className="min-w-0">
           <h2 className="text-sm font-semibold truncate">{groupName}</h2>
-          <p className="text-[10px] text-muted-foreground/60 mt-0.5">{targets.length} disk{targets.length !== 1 ? 's' : ''}</p>
+          <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+            {targets.length} disk{targets.length !== 1 ? 's' : ''}
+          </p>
         </div>
         <div className="flex items-center gap-1">
           <select
             value={sort}
-            onChange={e => setSort(e.target.value as DiskSort)}
+            onChange={(e) => setSort(e.target.value as DiskSort)}
             className="h-6 rounded-md border border-border/40 bg-transparent px-1.5 text-[10px] text-muted-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500/30"
           >
-            {Object.entries(SORT_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+            {Object.entries(SORT_LABELS).map(([k, v]) => (
+              <option key={k} value={k}>
+                {v}
+              </option>
+            ))}
           </select>
         </div>
       </div>
       <div className="flex-1 overflow-auto px-2.5 py-2 space-y-2">
-        {sorted.map(t => (
-          <DiskCard key={t.slug} t={t} status={statuses[t.slug]} active={t.slug === selected} onSelect={() => onSelect(t.slug)} />
-        ))}      </div>
+        {sorted.map((t) => (
+          <DiskCard
+            key={t.slug}
+            t={t}
+            status={statuses[t.slug]}
+            active={t.slug === selected}
+            onSelect={() => onSelect(t.slug)}
+          />
+        ))}{' '}
+      </div>
     </div>
   )
 }

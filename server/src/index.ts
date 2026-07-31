@@ -26,7 +26,7 @@ const app = Fastify({
 
 await app.register(fastifyCookie, { secret: process.env.DASHBOARD_COOKIE_SECRET || undefined })
 
-registerApi(app, config)
+registerApi(app)
 registerAdmin(app)
 
 // In dev the Vite server owns the assets and proxies /api here, so a missing

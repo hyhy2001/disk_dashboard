@@ -57,6 +57,19 @@ function clientIp(req: any): string {
   return (req.headers?.['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown'
 }
 
+/** True when a better-sqlite3 UNIQUE constraint was violated. */
+function isUniqueViolation(e: any): boolean {
+  return e?.code === 'SQLITE_CONSTRAINT_UNIQUE' || /UNIQUE constraint failed/i.test(String(e?.message))
+}
+
+/** Send a 409 for duplicate names, otherwise rethrow. */
+function uniqueGuard(reply: any, e: any, what: string): never {
+  if (isUniqueViolation(e)) {
+    reply.code(409).send({ status: 'error', message: `Duplicate ${what}` })
+  }
+  throw e
+}
+
 // ---------------------------------------------------------------------------
 // Public endpoints (no auth)
 // ---------------------------------------------------------------------------
@@ -152,9 +165,7 @@ export function registerAdmin(app: FastifyInstance): void {
   })
 
   app.post('/api/admin/logout', async (_req: any, reply) => {
-    return reply
-      .clearCookie(SESSION_COOKIE, COOKIE_OPTS)
-      .send({ status: 'success', data: null })
+    return reply.clearCookie(SESSION_COOKIE, COOKIE_OPTS).send({ status: 'success', data: null })
   })
 
   // --- Accounts (owner only) ---
@@ -183,7 +194,7 @@ export function registerAdmin(app: FastifyInstance): void {
   })
 
   app.post('/api/admin/accounts/:id/password', async (req: any, reply) => {
-    const caller = requireOwner(req, reply)
+    requireOwner(req, reply)
     const id = Number.parseInt(req.params.id, 10)
     if (!id) return reply.code(422).send({ status: 'error', message: 'Invalid id' })
     const { password } = req.body ?? {}
@@ -222,7 +233,11 @@ export function registerAdmin(app: FastifyInstance): void {
     if (!name || typeof name !== 'string') {
       return reply.code(422).send({ status: 'error', message: 'Name required' })
     }
-    return reply.code(201).send({ status: 'success', data: A.createSpace(name) })
+    try {
+      return reply.code(201).send({ status: 'success', data: A.createSpace(name) })
+    } catch (e) {
+      uniqueGuard(reply, e, 'space name')
+    }
   })
 
   app.put('/api/admin/spaces/:id', async (req: any, reply) => {
@@ -230,7 +245,11 @@ export function registerAdmin(app: FastifyInstance): void {
     const id = Number.parseInt(req.params.id, 10)
     const { name } = req.body ?? {}
     if (!id || !name) return reply.code(422).send({ status: 'error', message: 'Invalid request' })
-    A.updateSpace(id, name)
+    try {
+      A.updateSpace(id, name)
+    } catch (e) {
+      uniqueGuard(reply, e, 'space name')
+    }
     return reply.send({ status: 'success', data: null })
   })
 
@@ -248,7 +267,11 @@ export function registerAdmin(app: FastifyInstance): void {
     if (!space_id || !name || !path) {
       return reply.code(422).send({ status: 'error', message: 'space_id, name, and path required' })
     }
-    return reply.code(201).send({ status: 'success', data: A.createDisk(space_id, name, path) })
+    try {
+      return reply.code(201).send({ status: 'success', data: A.createDisk(space_id, name, path) })
+    } catch (e) {
+      uniqueGuard(reply, e, 'disk name in this space')
+    }
   })
 
   app.put('/api/admin/disks/:id', async (req: any, reply) => {
@@ -256,7 +279,11 @@ export function registerAdmin(app: FastifyInstance): void {
     const id = Number.parseInt(req.params.id, 10)
     const { name, path } = req.body ?? {}
     if (!id) return reply.code(422).send({ status: 'error', message: 'Invalid id' })
-    A.updateDisk(id, { name, path })
+    try {
+      A.updateDisk(id, { name, path })
+    } catch (e) {
+      uniqueGuard(reply, e, 'disk name in this space')
+    }
     return reply.send({ status: 'success', data: null })
   })
 
@@ -268,28 +295,30 @@ export function registerAdmin(app: FastifyInstance): void {
 
     // Get disk path from admin.db
     const spaces = A.listSpacesWithDisks()
-    const disk = spaces.flatMap(s => s.disks).find(d => d.id === diskId)
+    const disk = spaces.flatMap((s) => s.disks).find((d) => d.id === diskId)
     if (!disk) return reply.code(404).send({ status: 'error', message: 'Disk not found' })
 
     const rp = join(disk.path, 'report.db')
-    if (!existsSync(rp)) return reply.code(404).send({ status: 'error', message: 'report.db not found at ' + disk.path })
+    if (!existsSync(rp))
+      return reply.code(404).send({ status: 'error', message: 'report.db not found at ' + disk.path })
 
     let reportDb: Database.Database | null = null
     try {
       reportDb = new Database(rp, { readonly: true })
 
       // Read teams from hist_team_usage
-      const teamRows = reportDb.prepare(
-        'SELECT DISTINCT team_id AS id, name FROM hist_team_usage WHERE name IS NOT NULL AND name != \'\''
-      ).all() as { id: string; name: string }[]
+      const teamRows = reportDb
+        .prepare("SELECT DISTINCT team_id AS id, name FROM hist_team_usage WHERE name IS NOT NULL AND name != ''")
+        .all() as { id: string; name: string }[]
 
       // Read users per team from newest snapshot
-      const snapRow = reportDb.prepare('SELECT id FROM hist_snapshots ORDER BY scan_date DESC LIMIT 1').get() as { id: number } | undefined
-      let usersByTeam: Record<string, string[]> = {}
+      const snapRow = reportDb.prepare('SELECT id FROM hist_snapshots ORDER BY scan_date DESC LIMIT 1').get() as
+        { id: number } | undefined
+      const usersByTeam: Record<string, string[]> = {}
       if (snapRow) {
-        const userRows = reportDb.prepare(
-          `SELECT u.username, u.team_id FROM detail_users u WHERE u.team_id IS NOT NULL AND u.team_id != ''`
-        ).all() as { username: string; team_id: string }[]
+        const userRows = reportDb
+          .prepare(`SELECT u.username, u.team_id FROM detail_users u WHERE u.team_id IS NOT NULL AND u.team_id != ''`)
+          .all() as { username: string; team_id: string }[]
         for (const u of userRows) {
           if (!usersByTeam[u.team_id]) usersByTeam[u.team_id] = []
           usersByTeam[u.team_id]!.push(u.username)
@@ -323,7 +352,7 @@ export function registerAdmin(app: FastifyInstance): void {
     if (!diskId) return reply.code(422).send({ status: 'error', message: 'Invalid disk id' })
 
     const spaces = A.listSpacesWithDisks()
-    const disk = spaces.flatMap(s => s.disks).find(d => d.id === diskId)
+    const disk = spaces.flatMap((s) => s.disks).find((d) => d.id === diskId)
     if (!disk) return reply.code(404).send({ status: 'error', message: 'Disk not found' })
 
     const rp = join(disk.path, 'report.db')
@@ -332,11 +361,11 @@ export function registerAdmin(app: FastifyInstance): void {
     let reportDb: Database.Database | null = null
     try {
       reportDb = new Database(rp, { readonly: true })
-      const rows = reportDb.prepare(
-        "SELECT DISTINCT username FROM detail_users WHERE total_size > 0 ORDER BY username"
-      ).all() as { username: string }[]
+      const rows = reportDb
+        .prepare('SELECT DISTINCT username FROM detail_users WHERE total_size > 0 ORDER BY username')
+        .all() as { username: string }[]
       reportDb.close()
-      return reply.send({ status: 'success', data: rows.map(r => r.username) })
+      return reply.send({ status: 'success', data: rows.map((r) => r.username) })
     } catch (e: any) {
       if (reportDb) reportDb.close()
       return reply.code(500).send({ status: 'error', message: e.message })

@@ -196,9 +196,7 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
       // The picker already knows the user's unfiltered row count, so the progress
       // bar gets a denominator without a counting pass.
       const expected = kind === 'dirs' ? selectedMeta?.dirs : selectedMeta?.files
-      exportUserList(target, user, kind, toQuery(applied), expected).finally(() =>
-        setExporting(false),
-      )
+      exportUserList(target, user, kind, toQuery(applied), expected).finally(() => setExporting(false))
     },
     [target, user, applied, selectedMeta],
   )
@@ -256,11 +254,18 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
             onClick={() => setShowFilters((v) => !v)}
           >
             Filters
-            {filterBadge > 0 && <span className="inline-flex items-center justify-center size-4 rounded-full bg-primary text-[9px] text-primary-foreground ml-1">{filterBadge}</span>}
+            {filterBadge > 0 && (
+              <span className="inline-flex items-center justify-center size-4 rounded-full bg-primary text-[9px] text-primary-foreground ml-1">
+                {filterBadge}
+              </span>
+            )}
           </button>
 
           {showFilters && (
-            <div className="absolute top-full left-0 mt-1 z-20 glass rounded-sm shadow-md p-3 space-y-3 w-64" onMouseDown={(e) => e.stopPropagation()}>
+            <div
+              className="absolute top-full left-0 mt-1 z-20 glass rounded-sm shadow-md p-3 space-y-3 w-64"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
               <TagInput
                 id="ud-ext"
                 label="File extension"
@@ -283,14 +288,23 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
                 onChange={(max) => setDraft((d) => ({ ...d, max }))}
                 onSubmit={apply}
               />
-              <button type="button" className="inline-flex items-center rounded-sm border border-border bg-transparent px-3 py-1.5 text-xs hover:bg-muted transition-colors w-full justify-center" onClick={reset}>
+              <button
+                type="button"
+                className="inline-flex items-center rounded-sm border border-border bg-transparent px-3 py-1.5 text-xs hover:bg-muted transition-colors w-full justify-center"
+                onClick={reset}
+              >
                 Reset
               </button>
             </div>
           )}
         </div>
 
-        <button type="button" className="inline-flex items-center rounded-sm bg-primary text-primary-foreground px-3 py-1.5 text-xs hover:opacity-90 transition-colors font-medium" onClick={apply} tabIndex={showFilters ? -1 : undefined}>
+        <button
+          type="button"
+          className="inline-flex items-center rounded-sm bg-primary text-primary-foreground px-3 py-1.5 text-xs hover:opacity-90 transition-colors font-medium"
+          onClick={apply}
+          tabIndex={showFilters ? -1 : undefined}
+        >
           Apply
         </button>
 
@@ -331,8 +345,8 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
           <div className="flex items-center justify-center p-8">
             <p className="text-sm font-semibold">{user}</p>
             <p>
-              Total usage <strong>{formatSize(selectedMeta.used)}</strong>. This account has no
-              per-directory breakdown in the report.
+              Total usage <strong>{formatSize(selectedMeta.used)}</strong>. This account has no per-directory breakdown
+              in the report.
             </p>
           </div>
         ) : !detail ? (
@@ -340,122 +354,137 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
         ) : (
           <div className={`grid grid-cols-1 md:grid-cols-2 gap-3 ${loading ? 'opacity-50 pointer-events-none' : ''}`}>
             <section className="rounded-lg border border-border bg-surface/50 shadow-sm flex flex-col min-h-0">
-            <header className="flex items-center gap-2 border-b border-border/40 px-3 py-2 shrink-0">
-              <h2 className="text-sm font-semibold flex-1">Top directories</h2>
-              <span className="text-[10px] text-muted-foreground">
-                {formatCount(detail.dirs.total ?? selectedMeta?.dirs ?? 0)} dirs, {formatSize(detail.userTotal)} total for {user}
-              </span>
-            </header>
+              <header className="flex items-center gap-2 border-b border-border/40 px-3 py-2 shrink-0">
+                <h2 className="text-sm font-semibold flex-1">Top directories</h2>
+                <span className="text-[10px] text-muted-foreground">
+                  {formatCount(detail.dirs.total ?? selectedMeta?.dirs ?? 0)} dirs, {formatSize(detail.userTotal)} total
+                  for {user}
+                </span>
+              </header>
 
-            <div className="flex-1 min-h-0 overflow-auto">
-            {detail.dirsSuppressed ? (
-              <p className="text-xs text-muted-foreground p-4 text-center">
-                Directory sizes cover every extension, so they are hidden while an extension
-                filter is active. Clear it to see them.
-              </p>
-            ) : detail.dirs.rows.length === 0 ? (
-              <p className="text-xs text-muted-foreground p-4 text-center">No directory matched the current filter.</p>
-            ) : (
-              <ul className="divide-y divide-border/30 text-sm">
-                {detail.dirs.rows.map((d) => {
-                  const share = detail.userTotal > 0 ? d.used / detail.userTotal : 0
-                  const barColor = share > 0.7 ? 'bg-rose-500' : share > 0.4 ? 'bg-amber-400' : 'bg-emerald-500'
-                  return (
-                    <li className="flex items-center gap-2 px-3 py-2 min-h-[34px] hover:bg-white/[0.03] transition-colors" key={`${d.id}-${d.path}`}>
-                      <span className="rounded-sm bg-muted/50 px-1.5 text-[11px] font-mono text-muted-foreground shrink-0 w-10 text-center truncate leading-tight">
-                        ▸
-                      </span>
-                      <button
-                        type="button"
-                        className="flex-1 truncate text-left font-mono text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-                        onClick={() => void copyPath(d.path)}
-                        data-tooltip={`${d.path} — click to copy`}
-                      >
-                        {d.path}
-                      </button>
-                      <span className="h-1.5 w-12 rounded-full bg-muted overflow-hidden shrink-0">
-                        <span className={`block h-full rounded-full ${barColor}`} style={{ width: `${Math.min(100, share * 100)}%` }} />
-                      </span>
-                      <span className="text-right tabular-nums text-[11px] text-muted-foreground w-12 shrink-0">
-                        {formatPercent(d.used, detail.userTotal)}
-                      </span>
-                      <span className="text-right tabular-nums text-[11px] font-medium shrink-0 w-16">{formatSize(d.used)}</span>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-            </div>
+              <div className="flex-1 min-h-0 overflow-auto">
+                {detail.dirsSuppressed ? (
+                  <p className="text-xs text-muted-foreground p-4 text-center">
+                    Directory sizes cover every extension, so they are hidden while an extension filter is active. Clear
+                    it to see them.
+                  </p>
+                ) : detail.dirs.rows.length === 0 ? (
+                  <p className="text-xs text-muted-foreground p-4 text-center">
+                    No directory matched the current filter.
+                  </p>
+                ) : (
+                  <ul className="divide-y divide-border/30 text-sm">
+                    {detail.dirs.rows.map((d) => {
+                      const share = detail.userTotal > 0 ? d.used / detail.userTotal : 0
+                      const barColor = share > 0.7 ? 'bg-rose-500' : share > 0.4 ? 'bg-amber-400' : 'bg-emerald-500'
+                      return (
+                        <li
+                          className="flex items-center gap-2 px-3 py-2 min-h-[34px] hover:bg-white/[0.03] transition-colors"
+                          key={`${d.id}-${d.path}`}
+                        >
+                          <span className="rounded-sm bg-muted/50 px-1.5 text-[11px] font-mono text-muted-foreground shrink-0 w-10 text-center truncate leading-tight">
+                            ▸
+                          </span>
+                          <button
+                            type="button"
+                            className="flex-1 truncate text-left font-mono text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                            onClick={() => void copyPath(d.path)}
+                            data-tooltip={`${d.path} — click to copy`}
+                          >
+                            {d.path}
+                          </button>
+                          <span className="h-1.5 w-12 rounded-full bg-muted overflow-hidden shrink-0">
+                            <span
+                              className={`block h-full rounded-full ${barColor}`}
+                              style={{ width: `${Math.min(100, share * 100)}%` }}
+                            />
+                          </span>
+                          <span className="text-right tabular-nums text-[11px] text-muted-foreground w-12 shrink-0">
+                            {formatPercent(d.used, detail.userTotal)}
+                          </span>
+                          <span className="text-right tabular-nums text-[11px] font-medium shrink-0 w-16">
+                            {formatSize(d.used)}
+                          </span>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </div>
 
-            <StepPager
-              page={dirStack.length}
-              hasPrev={dirStack.length > 1}
-              hasNext={detail.dirs.hasMore}
-              busy={loading}
-              onPrev={() => setDirStack((s) => (s.length > 1 ? s.slice(0, -1) : s))}
-              onNext={() =>
-                setDirStack((s) =>
-                  detail.dirs.nextCursor !== null ? [...s, detail.dirs.nextCursor] : s,
-                )
-              }
-            />
-          </section>
+              <StepPager
+                page={dirStack.length}
+                hasPrev={dirStack.length > 1}
+                hasNext={detail.dirs.hasMore}
+                busy={loading}
+                onPrev={() => setDirStack((s) => (s.length > 1 ? s.slice(0, -1) : s))}
+                onNext={() =>
+                  setDirStack((s) => (detail.dirs.nextCursor !== null ? [...s, detail.dirs.nextCursor] : s))
+                }
+              />
+            </section>
 
-          <section className="rounded-lg border border-border bg-surface/50 shadow-sm flex flex-col min-h-0">
-            <header className="flex items-center gap-2 border-b border-border/40 px-3 py-2 shrink-0">
-              <h2 className="text-sm font-semibold flex-1">Top files</h2>
-              <span className="text-[10px] text-muted-foreground">
-                {formatCount(detail.files.total ?? selectedMeta?.files ?? 0)} files, {formatSize(detail.files.pageTotal)} on this page
-              </span>
-            </header>
+            <section className="rounded-lg border border-border bg-surface/50 shadow-sm flex flex-col min-h-0">
+              <header className="flex items-center gap-2 border-b border-border/40 px-3 py-2 shrink-0">
+                <h2 className="text-sm font-semibold flex-1">Top files</h2>
+                <span className="text-[10px] text-muted-foreground">
+                  {formatCount(detail.files.total ?? selectedMeta?.files ?? 0)} files,{' '}
+                  {formatSize(detail.files.pageTotal)} on this page
+                </span>
+              </header>
 
-            <div className="flex-1 min-h-0 overflow-auto">
-            {detail.files.rows.length === 0 ? (
-              <p className="text-xs text-muted-foreground p-4 text-center">No file matched the current filter.</p>
-            ) : (
-              <ul className="divide-y divide-border/30 text-sm">
-                {detail.files.rows.map((f) => {
-                  const share =
-                    detail.files.pageTotal > 0 ? f.size / detail.files.pageTotal : 0
-                  return (
-                    <li className="flex items-center gap-2 px-3 py-2 min-h-[34px] hover:bg-white/[0.03] transition-colors" key={f.path}>
-                      <span className="rounded-sm bg-muted/50 px-1.5 text-[11px] font-mono text-muted-foreground shrink-0 w-14 text-center truncate leading-tight">
-                        {f.ext || '—'}
-                      </span>
-                      <button
-                        type="button"
-                        className="flex-1 truncate text-left font-mono text-[11px] text-muted-foreground hover:text-foreground transition-colors"
-                        onClick={() => void copyPath(f.path)}
-                        data-tooltip={`${f.path} — click to copy`}
-                      >
-                        {f.path}
-                      </button>
-                      <span className="h-1.5 w-12 rounded-full bg-muted overflow-hidden shrink-0">
-                        <span className="block h-full rounded-full bg-emerald-500/60" style={{ width: `${Math.min(100, share * 100)}%` }} />
-                      </span>
-                      <span className="text-right tabular-nums text-[11px] text-muted-foreground w-12 shrink-0">
-                        {share > 0.01 ? `${(share * 100).toFixed(1)}%` : '<0.1%'}
-                      </span>
-                      <span className="text-right tabular-nums text-[11px] font-medium shrink-0 w-16">{formatSize(f.size)}</span>
-                    </li>
-                  )
-                })}
-              </ul>
-            )}
-            </div>
+              <div className="flex-1 min-h-0 overflow-auto">
+                {detail.files.rows.length === 0 ? (
+                  <p className="text-xs text-muted-foreground p-4 text-center">No file matched the current filter.</p>
+                ) : (
+                  <ul className="divide-y divide-border/30 text-sm">
+                    {detail.files.rows.map((f) => {
+                      const share = detail.files.pageTotal > 0 ? f.size / detail.files.pageTotal : 0
+                      return (
+                        <li
+                          className="flex items-center gap-2 px-3 py-2 min-h-[34px] hover:bg-white/[0.03] transition-colors"
+                          key={f.path}
+                        >
+                          <span className="rounded-sm bg-muted/50 px-1.5 text-[11px] font-mono text-muted-foreground shrink-0 w-14 text-center truncate leading-tight">
+                            {f.ext || '—'}
+                          </span>
+                          <button
+                            type="button"
+                            className="flex-1 truncate text-left font-mono text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                            onClick={() => void copyPath(f.path)}
+                            data-tooltip={`${f.path} — click to copy`}
+                          >
+                            {f.path}
+                          </button>
+                          <span className="h-1.5 w-12 rounded-full bg-muted overflow-hidden shrink-0">
+                            <span
+                              className="block h-full rounded-full bg-emerald-500/60"
+                              style={{ width: `${Math.min(100, share * 100)}%` }}
+                            />
+                          </span>
+                          <span className="text-right tabular-nums text-[11px] text-muted-foreground w-12 shrink-0">
+                            {share > 0.01 ? `${(share * 100).toFixed(1)}%` : '<0.1%'}
+                          </span>
+                          <span className="text-right tabular-nums text-[11px] font-medium shrink-0 w-16">
+                            {formatSize(f.size)}
+                          </span>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </div>
 
-            <StepPager
-              page={fileStack.length}
-              hasPrev={fileStack.length > 1}
-              hasNext={detail.files.hasMore}
-              busy={loading}
-              onPrev={() => setFileStack((s) => (s.length > 1 ? s.slice(0, -1) : s))}
-              onNext={() =>
-                setFileStack((s) =>
-                  detail.files.nextCursor !== null ? [...s, detail.files.nextCursor] : s,
-                )
-              }
-            />
+              <StepPager
+                page={fileStack.length}
+                hasPrev={fileStack.length > 1}
+                hasNext={detail.files.hasMore}
+                busy={loading}
+                onPrev={() => setFileStack((s) => (s.length > 1 ? s.slice(0, -1) : s))}
+                onNext={() =>
+                  setFileStack((s) => (detail.files.nextCursor !== null ? [...s, detail.files.nextCursor] : s))
+                }
+              />
             </section>
           </div>
         )}

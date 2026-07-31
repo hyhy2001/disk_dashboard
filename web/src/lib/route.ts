@@ -14,13 +14,7 @@
 // in the URL. Segments are percent-encoded.
 
 /** Detail sub-tabs, in the order the tab bar shows them. */
-export const DETAIL_TABS = [
-  'treemap',
-  'history',
-  'detail-user',
-  'permissions',
-  'inodes',
-] as const
+export const DETAIL_TABS = ['treemap', 'history', 'detail-user', 'permissions', 'inodes'] as const
 
 export type DetailTab = (typeof DETAIL_TABS)[number]
 
@@ -45,7 +39,11 @@ function isDetailTab(value: string): value is DetailTab {
 }
 
 function decodeSeg(s: string): string {
-  try { return decodeURIComponent(s) } catch { return s }
+  try {
+    return decodeURIComponent(s)
+  } catch {
+    return s
+  }
 }
 
 /**
@@ -62,7 +60,10 @@ export function parsePath(pathname: string): Route {
     return { space: null, disk: null, page: 'admin', tab: DEFAULT_ROUTE.tab }
   }
 
-  const parts = raw.split('/').filter((p) => p.length > 0).map(decodeSeg)
+  const parts = raw
+    .split('/')
+    .filter((p) => p.length > 0)
+    .map(decodeSeg)
 
   const space = parts[0] ?? null
   const disk = parts[1] ?? null

@@ -23,23 +23,34 @@ export function Toasts(): JSX.Element {
   useEffect(() => subscribe(setItems), [])
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-[100] mx-auto flex max-w-[420px] flex-col gap-2 px-4" aria-live="polite" aria-atomic="false">
+    <div
+      className="pointer-events-none fixed inset-x-0 bottom-4 z-[100] mx-auto flex max-w-[420px] flex-col gap-2 px-4"
+      aria-live="polite"
+      aria-atomic="false"
+    >
       {items.map((t) => (
         <div
           key={t.id}
           className={`pointer-events-auto flex items-start gap-3 rounded-sm border border-border bg-card px-4 py-3 shadow-md animate-slide-up ${COLORS[t.kind]} border-l-4`}
           role={t.kind === 'error' ? 'alert' : 'status'}
         >
-          <span className={`text-sm font-bold ${ICON_COLORS[t.kind]}`} aria-hidden="true">{GLYPH[t.kind]}</span>
+          <span className={`text-sm font-bold ${ICON_COLORS[t.kind]}`} aria-hidden="true">
+            {GLYPH[t.kind]}
+          </span>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium leading-tight">{t.title}</p>
             {t.message && <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{t.message}</p>}
             {t.progress !== undefined && (
               <div className="mt-2 flex items-center gap-2">
                 <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
-                  <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${t.progress * 100}%` }} />
+                  <div
+                    className="h-full rounded-full bg-primary transition-all"
+                    style={{ width: `${t.progress * 100}%` }}
+                  />
                 </div>
-                {t.progressLabel && <span className="text-[10px] tabular-nums text-muted-foreground shrink-0">{t.progressLabel}</span>}
+                {t.progressLabel && (
+                  <span className="text-[10px] tabular-nums text-muted-foreground shrink-0">{t.progressLabel}</span>
+                )}
               </div>
             )}
           </div>

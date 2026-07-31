@@ -49,7 +49,10 @@ describe('squarify', () => {
   })
 
   it('keeps tiles reasonably square for evenly sized input', () => {
-    const out = layout(Array.from({ length: 24 }, () => 100), { x: 0, y: 0, w: 900, h: 500 })
+    const out = layout(
+      Array.from({ length: 24 }, () => 100),
+      { x: 0, y: 0, w: 900, h: 500 },
+    )
     const worst = Math.max(...out.map((t) => Math.max(t.w / t.h, t.h / t.w)))
     // Slice-and-dice would give ~37 here; squarified stays near square.
     expect(worst).toBeLessThan(3)

@@ -7,9 +7,12 @@ import { formatCount, formatPercent, formatTimestamp } from '../lib/format.js'
 import { Input } from '@/components/ui/input.js'
 import { cn } from '@/lib/utils.js'
 
-interface Props { target: string }
+interface Props {
+  target: string
+}
 
-const WARM = 65; const HOT = 85
+const WARM = 65
+const HOT = 85
 
 function tone(pct: number): string {
   if (pct > HOT) return 'text-rose-400'
@@ -18,7 +21,10 @@ function tone(pct: number): string {
 }
 
 function InodeRing({ total, used, scanned }: { total: number; used: number; scanned: number }) {
-  const sz = 148; const sw = sz * 0.14; const r = (sz - sw) / 2; const circ = 2 * Math.PI * r
+  const sz = 148
+  const sw = sz * 0.14
+  const r = (sz - sw) / 2
+  const circ = 2 * Math.PI * r
   const walked = Math.min(scanned, used)
   const gap = Math.max(0, used - walked)
   const free = Math.max(0, total - used)
@@ -26,26 +32,54 @@ function InodeRing({ total, used, scanned }: { total: number; used: number; scan
     { name: 'Scanned', value: walked, color: 'var(--emerald-500)' },
     { name: 'Used, not scanned', value: gap, color: 'var(--amber-400)' },
     { name: 'Free', value: free, color: 'var(--sky-400)' },
-  ].filter(s => s.value > 0)
+  ].filter((s) => s.value > 0)
   let off = 0
   return (
     <div className="flex items-center gap-3">
-      <svg viewBox={`0 0 ${sz} ${sz}`} className="w-[148px] h-[148px] shrink-0" role="img" aria-label={`${formatPercent(used, total)} of ${formatCount(total)} inodes used`}>
+      <svg
+        viewBox={`0 0 ${sz} ${sz}`}
+        className="w-[148px] h-[148px] shrink-0"
+        role="img"
+        aria-label={`${formatPercent(used, total)} of ${formatCount(total)} inodes used`}
+      >
         <g transform={`rotate(-90 ${sz / 2} ${sz / 2})`}>
-          {slices.map(s => {
-            const len = (s.value / total) * circ; const el = (
-              <circle key={s.name} cx={sz/2} cy={sz/2} r={r} fill="none" stroke={s.color} strokeWidth={sw}
-                strokeDasharray={`${len} ${circ - len}`} strokeDashoffset={-off}>
+          {slices.map((s) => {
+            const len = (s.value / total) * circ
+            const el = (
+              <circle
+                key={s.name}
+                cx={sz / 2}
+                cy={sz / 2}
+                r={r}
+                fill="none"
+                stroke={s.color}
+                strokeWidth={sw}
+                strokeDasharray={`${len} ${circ - len}`}
+                strokeDashoffset={-off}
+              >
                 <title>{`${s.name}: ${formatCount(s.value)}`}</title>
               </circle>
-            ); off += len; return el
+            )
+            off += len
+            return el
           })}
         </g>
-        <text className="fill-foreground" x={sz/2} y={sz/2-4} textAnchor="middle" fontSize={sz*0.15} fontWeight={600}>{formatPercent(used, total)}</text>
-        <text className="fill-muted-foreground" x={sz/2} y={sz/2+14} textAnchor="middle" fontSize={sz*0.08}>used</text>
+        <text
+          className="fill-foreground"
+          x={sz / 2}
+          y={sz / 2 - 4}
+          textAnchor="middle"
+          fontSize={sz * 0.15}
+          fontWeight={600}
+        >
+          {formatPercent(used, total)}
+        </text>
+        <text className="fill-muted-foreground" x={sz / 2} y={sz / 2 + 14} textAnchor="middle" fontSize={sz * 0.08}>
+          used
+        </text>
       </svg>
       <div className="space-y-1 text-[11px]">
-        {slices.map(s => (
+        {slices.map((s) => (
           <div key={s.name} className="flex items-center gap-1.5">
             <span className="size-2 rounded-full shrink-0" style={{ background: s.color }} />
             <span className="text-muted-foreground">{s.name}</span>
@@ -63,23 +97,37 @@ export function InodesTab({ target }: Props): JSX.Element {
   const [query, setQuery] = useState('')
 
   useEffect(() => {
-    const ctrl = new AbortController(); setError(null); setData(null)
-    fetchInodes(target, ctrl.signal).then(setData).catch((err: unknown) => {
-      if (!ctrl.signal.aborted) setError(err instanceof Error ? err.message : String(err))
-    })
+    const ctrl = new AbortController()
+    setError(null)
+    setData(null)
+    fetchInodes(target, ctrl.signal)
+      .then(setData)
+      .catch((err: unknown) => {
+        if (!ctrl.signal.aborted) setError(err instanceof Error ? err.message : String(err))
+      })
     return () => ctrl.abort()
   }, [target])
 
-  useEffect(() => { setQuery('') }, [target])
+  useEffect(() => {
+    setQuery('')
+  }, [target])
 
   const shown = useMemo(() => {
     if (!data) return []
     const q = query.trim().toLowerCase()
     if (!q) return data.users
-    return data.users.filter(u => u.name.toLowerCase().includes(q))
+    return data.users.filter((u) => u.name.toLowerCase().includes(q))
   }, [data, query])
 
-  if (error) return <div className="flex items-center justify-center h-64"><div className="text-center space-y-2"><p className="text-sm font-semibold text-destructive">Could not load inode usage</p><p className="text-xs text-muted-foreground">{error}</p></div></div>
+  if (error)
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="text-center space-y-2">
+          <p className="text-sm font-semibold text-destructive">Could not load inode usage</p>
+          <p className="text-xs text-muted-foreground">{error}</p>
+        </div>
+      </div>
+    )
   if (!data) return <div className="h-64 w-full rounded-md bg-muted animate-pulse m-4" />
 
   const { total, used, free, scanned, users } = data
@@ -93,26 +141,44 @@ export function InodesTab({ target }: Props): JSX.Element {
       <section className="w-[340px] shrink-0 border-r border-border p-4 space-y-4 overflow-auto">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold">System inodes</h2>
-          <span className="text-[10px] text-muted-foreground">{data.timestamp > 0 ? formatTimestamp(data.timestamp) : 'no snapshot'}</span>
+          <span className="text-[10px] text-muted-foreground">
+            {data.timestamp > 0 ? formatTimestamp(data.timestamp) : 'no snapshot'}
+          </span>
         </div>
 
         {total === null ? (
           <div className="text-xs text-muted-foreground space-y-1">
             <p className="font-medium text-foreground">No filesystem inode figures</p>
-            <p>{data.systemAvailable ? 'This filesystem does not report a fixed inode table (btrfs, XFS dynamic, NFS).' : 'Rescan the target to fill these in.'}</p>
+            <p>
+              {data.systemAvailable
+                ? 'This filesystem does not report a fixed inode table (btrfs, XFS dynamic, NFS).'
+                : 'Rescan the target to fill these in.'}
+            </p>
           </div>
         ) : (
           <>
             <div className="grid grid-cols-2 gap-2">
               {[
                 { label: 'Total', value: formatCount(total) },
-                { label: 'Used', value: formatCount(used ?? 0), tone: usedPct !== null ? tone(usedPct) : '', title: usedPct !== null ? `${usedPct.toFixed(1)}%` : '' },
-                { label: 'Scanned', value: formatCount(scanned), good: true, title: unscanned !== null && unscanned > 0 ? `${formatCount(unscanned)} not walked` : 'All covered' },
+                {
+                  label: 'Used',
+                  value: formatCount(used ?? 0),
+                  tone: usedPct !== null ? tone(usedPct) : '',
+                  title: usedPct !== null ? `${usedPct.toFixed(1)}%` : '',
+                },
+                {
+                  label: 'Scanned',
+                  value: formatCount(scanned),
+                  good: true,
+                  title: unscanned !== null && unscanned > 0 ? `${formatCount(unscanned)} not walked` : 'All covered',
+                },
                 { label: 'Free', value: formatCount(free ?? 0), good: true },
-              ].map(f => (
+              ].map((f) => (
                 <div key={f.label} className="rounded-sm border border-border p-2.5" title={f.title}>
                   <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{f.label}</p>
-                  <p className={cn('text-lg font-bold tabular-nums', f.tone, f.good && 'text-emerald-500')}>{f.value}</p>
+                  <p className={cn('text-lg font-bold tabular-nums', f.tone, f.good && 'text-emerald-500')}>
+                    {f.value}
+                  </p>
                 </div>
               ))}
             </div>
@@ -125,25 +191,43 @@ export function InodesTab({ target }: Props): JSX.Element {
       <section className="flex-1 flex flex-col min-w-0">
         <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
           <h2 className="text-sm font-semibold">Per-user inodes</h2>
-          <span className="text-[10px] text-muted-foreground">{formatCount(shown.length)}{shown.length !== users.length ? ` of ${formatCount(users.length)}` : ''} account{users.length !== 1 ? 's' : ''}</span>
+          <span className="text-[10px] text-muted-foreground">
+            {formatCount(shown.length)}
+            {shown.length !== users.length ? ` of ${formatCount(users.length)}` : ''} account
+            {users.length !== 1 ? 's' : ''}
+          </span>
           <div className="flex-1" />
-          <Input placeholder="Search users…" value={query} onChange={e => setQuery(e.target.value)} className="h-7 w-48 text-xs" />
+          <Input
+            placeholder="Search users…"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="h-7 w-48 text-xs"
+          />
         </div>
         <div className="flex-1 overflow-auto p-2">
           {shown.length === 0 ? (
-            <p className="text-xs text-muted-foreground p-4 text-center">{users.length === 0 ? 'No account owns any file in this report.' : `No account matches "${query.trim()}".`}</p>
+            <p className="text-xs text-muted-foreground p-4 text-center">
+              {users.length === 0
+                ? 'No account owns any file in this report.'
+                : `No account matches "${query.trim()}".`}
+            </p>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-              {shown.map(u => {
+              {shown.map((u) => {
                 const walkPct = walked > 0 ? (u.inodes / walked) * 100 : 0
                 return (
                   <div key={u.name} className="rounded-sm border border-border p-3 hover:bg-muted/30 transition-colors">
                     <div className="flex items-center justify-between gap-2 mb-2">
-                      <span className="text-sm font-medium truncate" title={u.name}>{u.name}</span>
+                      <span className="text-sm font-medium truncate" title={u.name}>
+                        {u.name}
+                      </span>
                       <span className="text-sm font-bold tabular-nums">{formatCount(u.inodes)}</span>
                     </div>
                     <div className="h-1.5 rounded-full bg-muted mb-2">
-                      <div className="h-full rounded-full bg-primary/60" style={{ width: `${Math.min(100, walkPct)}%` }} />
+                      <div
+                        className="h-full rounded-full bg-primary/60"
+                        style={{ width: `${Math.min(100, walkPct)}%` }}
+                      />
                     </div>
                     <div className="flex justify-between text-[10px] text-muted-foreground tabular-nums">
                       <span>{formatPercent(u.inodes, walked)} of scanned</span>

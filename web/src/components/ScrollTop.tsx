@@ -34,9 +34,7 @@ export function ScrollTop({ targetRef }: Props): JSX.Element | null {
       onClick={() =>
         targetRef.current?.scrollTo({
           top: 0,
-          behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
-            ? 'auto'
-            : 'smooth',
+          behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
         })
       }
     >

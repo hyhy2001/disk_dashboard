@@ -15,23 +15,26 @@ interface StepProps {
 }
 
 /** Prev / page / Next, for cursor-paginated lists. */
-export function StepPager({
-  page,
-  hasPrev,
-  hasNext,
-  onPrev,
-  onNext,
-  busy = false,
-}: StepProps): JSX.Element | null {
+export function StepPager({ page, hasPrev, hasNext, onPrev, onNext, busy = false }: StepProps): JSX.Element | null {
   if (!hasPrev && !hasNext) return null
 
   return (
     <nav className="flex items-center justify-center gap-3 border-t border-border/30 py-2.5" aria-label="Pagination">
-      <button type="button" className="inline-flex items-center gap-1 rounded-sm border border-border bg-transparent px-2.5 py-1 text-xs hover:bg-muted transition-colors disabled:opacity-30" onClick={onPrev} disabled={!hasPrev || busy}>
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 rounded-sm border border-border bg-transparent px-2.5 py-1 text-xs hover:bg-muted transition-colors disabled:opacity-30"
+        onClick={onPrev}
+        disabled={!hasPrev || busy}
+      >
         ← Prev
       </button>
       <span className="text-[11px] text-muted-foreground tabular-nums">Page {page}</span>
-      <button type="button" className="inline-flex items-center gap-1 rounded-sm border border-border bg-transparent px-2.5 py-1 text-xs hover:bg-muted transition-colors disabled:opacity-30" onClick={onNext} disabled={!hasNext || busy}>
+      <button
+        type="button"
+        className="inline-flex items-center gap-1 rounded-sm border border-border bg-transparent px-2.5 py-1 text-xs hover:bg-muted transition-colors disabled:opacity-30"
+        onClick={onNext}
+        disabled={!hasNext || busy}
+      >
         Next →
       </button>
     </nav>
@@ -93,7 +96,11 @@ export function NumberPager({ page, pageCount, onGo, busy = false }: NumberProps
 
       {pageWindow(page, pageCount).map((p, i) =>
         p === '…' ? (
-          <span className="inline-flex size-7 items-center justify-center text-xs text-muted-foreground" key={`gap${i}`} aria-hidden="true">
+          <span
+            className="inline-flex size-7 items-center justify-center text-xs text-muted-foreground"
+            key={`gap${i}`}
+            aria-hidden="true"
+          >
             …
           </span>
         ) : (

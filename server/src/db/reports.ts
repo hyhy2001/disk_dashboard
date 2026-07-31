@@ -130,9 +130,7 @@ export function readCapacity(db: Database.Database): Capacity | null {
         ORDER BY s.scan_date DESC
         LIMIT 1`,
     )
-    .get() as
-    | { total: number | null; used: number | null; available: number | null; scanned: number }
-    | undefined
+    .get() as { total: number | null; used: number | null; available: number | null; scanned: number } | undefined
 
   if (!row || row.total === null || row.total === 0) return null
   return {

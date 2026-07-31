@@ -26,11 +26,13 @@ export function NoTargets({ health, reason }: Props): JSX.Element {
           <div className="flex justify-center gap-2">
             {health?.needsSetup ? (
               <p className="text-xs text-muted-foreground italic">
-                Click <Shield className="inline size-3 align-text-bottom" /> <strong>Admin</strong> in the sidebar to create the first account.
+                Click <Shield className="inline size-3 align-text-bottom" /> <strong>Admin</strong> in the sidebar to
+                create the first account.
               </p>
             ) : (
               <p className="text-xs text-muted-foreground italic">
-                Click <Shield className="inline size-3 align-text-bottom" /> <strong>Admin</strong> in the sidebar and add a Space → Disk.
+                Click <Shield className="inline size-3 align-text-bottom" /> <strong>Admin</strong> in the sidebar and
+                add a Space → Disk.
               </p>
             )}
           </div>
@@ -48,11 +50,14 @@ export function NoTargets({ health, reason }: Props): JSX.Element {
         <div>
           <p className="text-sm font-semibold">No scan data yet</p>
           <p className="mt-1 text-xs text-muted-foreground">
-            The disk is configured but no <code className="rounded-sm bg-muted px-1.5 py-0.5 text-[11px]">report.db</code> was found at the configured path.
+            The disk is configured but no{' '}
+            <code className="rounded-sm bg-muted px-1.5 py-0.5 text-[11px]">report.db</code> was found at the configured
+            path.
           </p>
         </div>
         <p className="text-xs text-muted-foreground italic">
-          Run <code className="rounded-sm bg-muted px-1.5 py-0.5 text-[11px]">duscan run --target &lt;name&gt;</code> to produce a scan report.
+          Run <code className="rounded-sm bg-muted px-1.5 py-0.5 text-[11px]">duscan run --target &lt;name&gt;</code> to
+          produce a scan report.
         </p>
       </div>
     </div>

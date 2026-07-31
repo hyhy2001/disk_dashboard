@@ -3,7 +3,7 @@
 
 import type { FastifyInstance, FastifyReply } from 'fastify'
 import Database from 'better-sqlite3'
-import { existsSync, statSync } from 'node:fs'
+import { statSync } from 'node:fs'
 import { join } from 'node:path'
 import type {
   ApiResponse,
@@ -22,7 +22,6 @@ import type {
   UsageRow,
   UserDetail,
 } from '../../../shared/api.js'
-import type { Config } from '../config.js'
 import {
   isSafeTargetName,
   openTargetReport,
@@ -41,7 +40,7 @@ import { readHistorySeries } from '../db/history.js'
 import { readInodeStats } from '../db/inodes.js'
 import { searchNames } from '../db/search.js'
 import { readScanStatusAt } from '../db/status.js'
-import { listSpacesWithDisks, listDiskTeams, diskBySlug } from '../db/admin.js'
+import { listDiskTeams, diskBySlug } from '../db/admin.js'
 
 function ok<T>(data: T): ApiResponse<T> {
   return { status: 'success', data }
@@ -99,12 +98,7 @@ function sizeParam(raw: string | undefined): number | undefined {
 }
 
 /** Build a DetailFilter from query params, omitting fields the caller left out. */
-function detailFilterFrom(q: {
-  query?: string
-  ext?: string
-  minSize?: string
-  maxSize?: string
-}): DetailFilter {
+function detailFilterFrom(q: { query?: string; ext?: string; minSize?: string; maxSize?: string }): DetailFilter {
   const query = splitTerms(q.query)
   const ext = splitTerms(q.ext)
   const minSize = sizeParam(q.minSize)
@@ -169,7 +163,7 @@ function applyAdminTeams(slug: string, overview: Overview): Overview {
   }
 }
 
-export function registerApi(app: FastifyInstance, config: Config): void {
+export function registerApi(app: FastifyInstance): void {
   app.get('/api/health', async (): Promise<ApiResponse<HealthInfo>> => {
     const adminCfg = getPublicConfig()
     const diskCount = adminCfg.spaces.reduce((s, sp) => s + sp.disks.length, 0)
@@ -219,9 +213,9 @@ export function registerApi(app: FastifyInstance, config: Config): void {
     const adminCfg = getPublicConfig()
     const groups: TargetGroup[] = []
     for (const space of adminCfg.spaces) {
-        const members: Target[] = []
-        for (const disk of space.disks) {
-          const rp = join(disk.path, REPORT_FILE)
+      const members: Target[] = []
+      for (const disk of space.disks) {
+        const rp = join(disk.path, REPORT_FILE)
         const info = openReportAt(rp)
         if (info) {
           const meta = readMeta(info.db)
@@ -232,17 +226,17 @@ export function registerApi(app: FastifyInstance, config: Config): void {
             name: disk.name,
             slug: disk.slug,
             scanRoot: meta.scan_root ?? disk.path,
-              scanTimestamp: Number(meta.scan_timestamp ?? 0),
-              totalFiles: Number(meta.total_files ?? 0),
-              totalDirs: Number(meta.total_dirs ?? 0),
-              totalSize: Number(meta.total_size ?? 0),
-              dbSizeBytes: dbSize,
-              capacity: cap ?? null,
-            })
-          }
+            scanTimestamp: Number(meta.scan_timestamp ?? 0),
+            totalFiles: Number(meta.total_files ?? 0),
+            totalDirs: Number(meta.total_dirs ?? 0),
+            totalSize: Number(meta.total_size ?? 0),
+            dbSizeBytes: dbSize,
+            capacity: cap ?? null,
+          })
         }
-        if (members.length > 0) groups.push({ name: space.name, targets: members })
       }
+      if (members.length > 0) groups.push({ name: space.name, targets: members })
+    }
     return ok(groups)
   })
 
@@ -292,59 +286,56 @@ export function registerApi(app: FastifyInstance, config: Config): void {
       files?: string
       limit?: string
     }
-  }>(
-    '/api/treemap/:target',
-    async (request, reply): Promise<ApiResponse<TreemapLevel>> => {
-      const { target } = request.params
-      if (!isSafeTargetName(target)) {
-        return fail(reply, 400, 'invalid target name')
-      }
+  }>('/api/treemap/:target', async (request, reply): Promise<ApiResponse<TreemapLevel>> => {
+    const { target } = request.params
+    if (!isSafeTargetName(target)) {
+      return fail(reply, 400, 'invalid target name')
+    }
 
-      /** Parse a non-negative integer query param, or null when absent. */
-      const intParam = (raw: string | undefined): number | null | 'bad' => {
-        if (raw === undefined || raw === '') return null
-        const n = Number(raw)
-        // Anything else is a malformed link rather than a missing node, so
-        // reject instead of silently falling back to a default.
-        if (!Number.isInteger(n) || n < 0) return 'bad'
-        return n
-      }
+    /** Parse a non-negative integer query param, or null when absent. */
+    const intParam = (raw: string | undefined): number | null | 'bad' => {
+      if (raw === undefined || raw === '') return null
+      const n = Number(raw)
+      // Anything else is a malformed link rather than a missing node, so
+      // reject instead of silently falling back to a default.
+      if (!Number.isInteger(n) || n < 0) return 'bad'
+      return n
+    }
 
-      const parent = intParam(request.query.parent)
-      if (parent === 'bad') return fail(reply, 400, 'parent must be a non-negative integer')
+    const parent = intParam(request.query.parent)
+    if (parent === 'bad') return fail(reply, 400, 'parent must be a non-negative integer')
 
-      const childOffset = intParam(request.query.childOffset)
-      if (childOffset === 'bad') {
-        return fail(reply, 400, 'childOffset must be a non-negative integer')
-      }
+    const childOffset = intParam(request.query.childOffset)
+    if (childOffset === 'bad') {
+      return fail(reply, 400, 'childOffset must be a non-negative integer')
+    }
 
-      const fileOffset = intParam(request.query.fileOffset)
-      if (fileOffset === 'bad') {
-        return fail(reply, 400, 'fileOffset must be a non-negative integer')
-      }
+    const fileOffset = intParam(request.query.fileOffset)
+    if (fileOffset === 'bad') {
+      return fail(reply, 400, 'fileOffset must be a non-negative integer')
+    }
 
-      const db = openTargetReport(target)
-      if (!db) {
-        return fail(reply, 404, `no report found for target '${target}'`)
-      }
+    const db = openTargetReport(target)
+    if (!db) {
+      return fail(reply, 404, `no report found for target '${target}'`)
+    }
 
-      // sizeParam drops an unusable value rather than failing: a bad limit is a
-      // display preference, and defaulting it is friendlier than a 400.
-      const limit = sizeParam(request.query.limit)
+    // sizeParam drops an unusable value rather than failing: a bad limit is a
+    // display preference, and defaulting it is friendlier than a 400.
+    const limit = sizeParam(request.query.limit)
 
-      const level = readTreemapLevel(db, parent, {
-        childOffset: childOffset ?? 0,
-        // Files cost an extra skip-scan, so the client opts in.
-        withFiles: request.query.files === '1',
-        fileOffset: fileOffset ?? 0,
-        ...(limit !== undefined ? { limit } : {}),
-      })
-      if (!level) {
-        return fail(reply, 404, 'directory not found in this report')
-      }
-      return ok(level)
-    },
-  )
+    const level = readTreemapLevel(db, parent, {
+      childOffset: childOffset ?? 0,
+      // Files cost an extra skip-scan, so the client opts in.
+      withFiles: request.query.files === '1',
+      fileOffset: fileOffset ?? 0,
+      ...(limit !== undefined ? { limit } : {}),
+    })
+    if (!level) {
+      return fail(reply, 404, 'directory not found in this report')
+    }
+    return ok(level)
+  })
 
   /**
    * Open a target's report, or produce the error response for it.
@@ -386,34 +377,27 @@ export function registerApi(app: FastifyInstance, config: Config): void {
       minSize?: string
       maxSize?: string
     }
-  }>(
-    '/api/detail/:target/:user',
-    async (request, reply): Promise<ApiResponse<UserDetail>> => {
-      const opened = withReport(request.params.target, reply)
-      if ('err' in opened) return opened.err
+  }>('/api/detail/:target/:user', async (request, reply): Promise<ApiResponse<UserDetail>> => {
+    const opened = withReport(request.params.target, reply)
+    if ('err' in opened) return opened.err
 
-      // The username comes from the URL path, so it arrives percent-decoded by
-      // Fastify but may still be any string; it is only ever used as a bound
-      // parameter, never interpolated.
-      const user = request.params.user
-      const uid = findUid(opened.db, user)
-      if (uid === null) return fail(reply, 404, `no such user '${user}' in this report`)
+    // The username comes from the URL path, so it arrives percent-decoded by
+    // Fastify but may still be any string; it is only ever used as a bound
+    // parameter, never interpolated.
+    const user = request.params.user
+    const uid = findUid(opened.db, user)
+    if (uid === null) return fail(reply, 404, `no such user '${user}' in this report`)
 
-      const limit = sizeParam(request.query.limit)
-      return ok(
-        readUserDetail(opened.db, user, uid, {
-          ...(request.query.dirCursor !== undefined
-            ? { dirCursor: request.query.dirCursor }
-            : {}),
-          ...(request.query.fileCursor !== undefined
-            ? { fileCursor: request.query.fileCursor }
-            : {}),
-          ...(limit !== undefined ? { limit } : {}),
-          filter: detailFilterFrom(request.query),
-        }),
-      )
-    },
-  )
+    const limit = sizeParam(request.query.limit)
+    return ok(
+      readUserDetail(opened.db, user, uid, {
+        ...(request.query.dirCursor !== undefined ? { dirCursor: request.query.dirCursor } : {}),
+        ...(request.query.fileCursor !== undefined ? { fileCursor: request.query.fileCursor } : {}),
+        ...(limit !== undefined ? { limit } : {}),
+        filter: detailFilterFrom(request.query),
+      }),
+    )
+  })
 
   // Permission issues, offset-paginated because the UI shows numbered pages.
   app.get<{
@@ -425,31 +409,28 @@ export function registerApi(app: FastifyInstance, config: Config): void {
       itemType?: string
       path?: string
     }
-  }>(
-    '/api/permissions/:target',
-    async (request, reply): Promise<ApiResponse<PermPage>> => {
-      const opened = withReport(request.params.target, reply)
-      if ('err' in opened) return opened.err
+  }>('/api/permissions/:target', async (request, reply): Promise<ApiResponse<PermPage>> => {
+    const opened = withReport(request.params.target, reply)
+    if ('err' in opened) return opened.err
 
-      const users = splitTerms(request.query.users)
-      const itemType = request.query.itemType
-      const path = request.query.path
-      const offset = sizeParam(request.query.offset)
-      const limit = sizeParam(request.query.limit)
+    const users = splitTerms(request.query.users)
+    const itemType = request.query.itemType
+    const path = request.query.path
+    const offset = sizeParam(request.query.offset)
+    const limit = sizeParam(request.query.limit)
 
-      return ok(
-        readPermIssues(opened.db, {
-          ...(users.length > 0 ? { users } : {}),
-          // Anything other than the two known values is a malformed link; ignore
-          // it rather than returning an empty list that looks like "no issues".
-          ...(itemType === 'file' || itemType === 'directory' ? { itemType } : {}),
-          ...(path !== undefined && path !== '' ? { path } : {}),
-          ...(offset !== undefined ? { offset } : {}),
-          ...(limit !== undefined ? { limit } : {}),
-        }),
-      )
-    },
-  )
+    return ok(
+      readPermIssues(opened.db, {
+        ...(users.length > 0 ? { users } : {}),
+        // Anything other than the two known values is a malformed link; ignore
+        // it rather than returning an empty list that looks like "no issues".
+        ...(itemType === 'file' || itemType === 'directory' ? { itemType } : {}),
+        ...(path !== undefined && path !== '' ? { path } : {}),
+        ...(offset !== undefined ? { offset } : {}),
+        ...(limit !== undefined ? { limit } : {}),
+      }),
+    )
+  })
 
   // Whole-target timeline plus one series per user, for the History tab.
   app.get<{ Params: { target: string } }>(
@@ -475,22 +456,19 @@ export function registerApi(app: FastifyInstance, config: Config): void {
   app.get<{
     Params: { target: string }
     Querystring: { q?: string; kind?: string; limit?: string }
-  }>(
-    '/api/search/:target',
-    async (request, reply): Promise<ApiResponse<SearchResult>> => {
-      const opened = withReport(request.params.target, reply)
-      if ('err' in opened) return opened.err
+  }>('/api/search/:target', async (request, reply): Promise<ApiResponse<SearchResult>> => {
+    const opened = withReport(request.params.target, reply)
+    if ('err' in opened) return opened.err
 
-      const kind = request.query.kind
-      const limit = sizeParam(request.query.limit)
-      return ok(
-        searchNames(opened.db, request.query.q ?? '', {
-          ...(kind === 'dir' || kind === 'file' ? { kind } : {}),
-          ...(limit !== undefined ? { limit } : {}),
-        }),
-      )
-    },
-  )
+    const kind = request.query.kind
+    const limit = sizeParam(request.query.limit)
+    return ok(
+      searchNames(opened.db, request.query.q ?? '', {
+        ...(kind === 'dir' || kind === 'file' ? { kind } : {}),
+        ...(limit !== undefined ? { limit } : {}),
+      }),
+    )
+  })
 
   // Report freshness. Polled, so it must stay a stat() plus one small read — no
   // caching header is set because a cached response would defeat the point.

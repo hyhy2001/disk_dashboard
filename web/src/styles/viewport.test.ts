@@ -158,12 +158,7 @@ describe('Overview fits one viewport', () => {
  * Same navigation reason as openOverview: the root URL shows the space comparison,
  * so a disk has to be picked before a Detail tab exists.
  */
-async function openTab(
-  tab: string,
-  ready: string,
-  width: number,
-  height: number,
-): Promise<import('playwright').Page> {
+async function openTab(tab: string, ready: string, width: number, height: number): Promise<import('playwright').Page> {
   if (!browser) throw new Error('browser not launched')
   const page = await browser.newPage({ viewport: { width, height } })
   await page.goto(URL, { waitUntil: 'networkidle' })
@@ -341,9 +336,7 @@ describe('list tabs fit one viewport', () => {
 
     const rowsAt = async (height: number): Promise<number> => {
       const page = await openTab('Detail User', '.ud__body', 1600, height)
-      const n = await page.evaluate(
-        () => document.querySelectorAll('.ud__list:first-of-type .ud__row').length,
-      )
+      const n = await page.evaluate(() => document.querySelectorAll('.ud__list:first-of-type .ud__row').length)
       await page.close()
       return n
     }
@@ -353,9 +346,7 @@ describe('list tabs fit one viewport', () => {
 
     // The point of measuring: a fixed page size would return the same count for both.
     expect(short).toBeGreaterThan(0)
-    expect(tall, `expected more rows at 1080px (${tall}) than at 700px (${short})`).toBeGreaterThan(
-      short,
-    )
+    expect(tall, `expected more rows at 1080px (${tall}) than at 700px (${short})`).toBeGreaterThan(short)
   }, 60_000)
 })
 

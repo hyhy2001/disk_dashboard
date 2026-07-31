@@ -63,10 +63,7 @@ export function Treemap({ level, onOpen }: Props): JSX.Element {
     return list
   }, [level])
 
-  const layout = useMemo(
-    () => squarify(cells, (c) => c.size, { x: 0, y: 0, w: WIDTH, h: HEIGHT }),
-    [cells],
-  )
+  const layout = useMemo(() => squarify(cells, (c) => c.size, { x: 0, y: 0, w: WIDTH, h: HEIGHT }), [cells])
 
   if (cells.length === 0) {
     return (
@@ -91,10 +88,7 @@ export function Treemap({ level, onOpen }: Props): JSX.Element {
       >
         {layout.map(({ item, x, y, w, h }) => {
           const clickable = item.node !== null && item.node.hasChildren
-          const label = `${item.name} — ${formatSize(item.size)} (${formatPercent(
-            item.size,
-            level.node.size,
-          )})`
+          const label = `${item.name} — ${formatSize(item.size)} (${formatPercent(item.size, level.node.size)})`
 
           return (
             <g

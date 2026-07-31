@@ -74,10 +74,7 @@ describe('readScanStatus', () => {
 
   it('surfaces the stage and message from a status file', () => {
     const targetDir = makeReport('Test')
-    writeFileSync(
-      join(targetDir, STATUS_FILE),
-      JSON.stringify({ stage: 'treemap', message: 'Building treemap' }),
-    )
+    writeFileSync(join(targetDir, STATUS_FILE), JSON.stringify({ stage: 'treemap', message: 'Building treemap' }))
     const status = readScanStatus(dir, 'Test')
     expect(status?.stage).toBe('treemap')
     expect(status?.message).toBe('Building treemap')

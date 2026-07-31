@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { HealthInfo } from '../../../shared/api.js'
 import { Modal } from './Modal.js'
+import { ChangelogModal } from './Changelog.js'
 
 interface Props {
   theme: 'dark' | 'light'
@@ -17,15 +18,10 @@ interface Props {
   health: HealthInfo | null
 }
 
-export function SettingsMenu({
-  theme,
-  onToggleTheme,
-  collapsed,
-  onToggleCollapsed,
-  health,
-}: Props): JSX.Element {
+export function SettingsMenu({ theme, onToggleTheme, collapsed, onToggleCollapsed, health }: Props): JSX.Element {
   const [open, setOpen] = useState(false)
   const [about, setAbout] = useState(false)
+  const [changelog, setChangelog] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -48,7 +44,7 @@ export function SettingsMenu({
     <div className="relative" ref={wrapRef}>
       <button
         type="button"
-            className="inline-flex items-center justify-center size-6 rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        className="inline-flex items-center justify-center size-6 rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
         aria-expanded={open}
         aria-haspopup="menu"
         onClick={() => setOpen((v) => !v)}
@@ -58,7 +54,10 @@ export function SettingsMenu({
       </button>
 
       {open && (
-        <div className="absolute bottom-full left-0 mb-1 z-30 glass rounded-sm shadow-md py-1 min-w-[180px]" role="menu">
+        <div
+          className="absolute bottom-full left-0 mb-1 z-30 glass rounded-sm shadow-md py-1 min-w-[180px]"
+          role="menu"
+        >
           <button
             type="button"
             className="flex items-center gap-2 w-full px-3 py-1.5 text-xs hover:bg-muted transition-colors text-left"
@@ -90,6 +89,19 @@ export function SettingsMenu({
             className="flex items-center gap-2 w-full px-3 py-1.5 text-xs hover:bg-muted transition-colors text-left"
             role="menuitem"
             onClick={() => {
+              setChangelog(true)
+              setOpen(false)
+            }}
+          >
+            <span className="w-4 text-center">≡</span>
+            Change log
+          </button>
+
+          <button
+            type="button"
+            className="flex items-center gap-2 w-full px-3 py-1.5 text-xs hover:bg-muted transition-colors text-left"
+            role="menuitem"
+            onClick={() => {
               setAbout(true)
               setOpen(false)
             }}
@@ -100,15 +112,13 @@ export function SettingsMenu({
         </div>
       )}
 
+      {changelog && <ChangelogModal onClose={() => setChangelog(false)} />}
+
       {about && (
-        <Modal
-          title="About"
-          onClose={() => setAbout(false)}
-          footer={<span>Press Esc to close</span>}
-        >
+        <Modal title="About" onClose={() => setAbout(false)} footer={<span>Press Esc to close</span>}>
           <p className="text-xs text-muted-foreground mb-4">
-            Reads duscan <code className="rounded-sm bg-muted px-1.5 py-0.5 text-[11px]">report.db</code> files directly. Nothing is written back — the
-            dashboard cannot start a scan or modify a report.
+            Reads duscan <code className="rounded-sm bg-muted px-1.5 py-0.5 text-[11px]">report.db</code> files
+            directly. Nothing is written back — the dashboard cannot start a scan or modify a report.
           </p>
 
           {health ? (
@@ -123,11 +133,7 @@ export function SettingsMenu({
               <dd>{health.targetsFound}</dd>
 
               <dt className="text-muted-foreground">Space config</dt>
-              <dd>
-                {health.groupConfigLoaded
-                  ? 'teams.json loaded'
-                  : 'no teams.json — every target is in one space'}
-              </dd>
+              <dd>{health.groupConfigLoaded ? 'teams.json loaded' : 'no teams.json — every target is in one space'}</dd>
 
               <dt className="text-muted-foreground">SQLite</dt>
               <dd>

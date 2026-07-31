@@ -105,7 +105,9 @@ export function UserPicker({ users, selected, onSelect }: Props): JSX.Element {
               }
             }}
           >
-            {visible.length === 0 && <li className="text-[11px] text-muted-foreground p-3 text-center">No user matches.</li>}
+            {visible.length === 0 && (
+              <li className="text-[11px] text-muted-foreground p-3 text-center">No user matches.</li>
+            )}
 
             {visible.map((u) => (
               <li key={u.name}>

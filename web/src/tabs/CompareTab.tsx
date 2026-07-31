@@ -55,10 +55,7 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
   }
 
   // Fullest first: the disk that needs attention leads.
-  const rows = useMemo(
-    () => [...targets].sort((a, b) => (usedPercent(b) ?? -1) - (usedPercent(a) ?? -1)),
-    [targets],
-  )
+  const rows = useMemo(() => [...targets].sort((a, b) => (usedPercent(b) ?? -1) - (usedPercent(a) ?? -1)), [targets])
 
   const withCapacity = rows.filter((t) => t.capacity !== null)
   const unknown = rows.length - withCapacity.length
@@ -109,12 +106,19 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
     <>
       <div className="flex items-center gap-3 px-4 py-3 border-b border-border/30">
         {bands.map((b) => (
-          <div className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] ${
-            b.id === 'critical' ? 'bg-rose-500/10 text-rose-400' :
-            b.id === 'warning' ? 'bg-amber-500/10 text-amber-400' :
-            b.id === 'healthy' ? 'bg-emerald-500/10 text-emerald-400' :
-            'bg-muted/50 text-muted-foreground'
-          }`} key={b.id} data-tooltip={b.hint}>
+          <div
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] ${
+              b.id === 'critical'
+                ? 'bg-rose-500/10 text-rose-400'
+                : b.id === 'warning'
+                  ? 'bg-amber-500/10 text-amber-400'
+                  : b.id === 'healthy'
+                    ? 'bg-emerald-500/10 text-emerald-400'
+                    : 'bg-muted/50 text-muted-foreground'
+            }`}
+            key={b.id}
+            data-tooltip={b.hint}
+          >
             <span className="font-bold tabular-nums">{b.count}</span>
             <span className="opacity-70">{b.label}</span>
           </div>
@@ -129,15 +133,16 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
         <header className="flex items-center gap-2 border-b border-border/40 px-3 py-2">
           <h2 className="text-sm font-semibold flex-1">{spaceName} — capacity by disk</h2>
           <span className="text-[10px] text-muted-foreground tabular-nums">
-            {formatSize(spaceUsed)} of {formatSize(spaceTotal)} used ·{' '}
-            {formatSize(spaceScanned)} attributed
+            {formatSize(spaceUsed)} of {formatSize(spaceTotal)} used · {formatSize(spaceScanned)} attributed
           </span>
           <div className="flex rounded-sm border border-border overflow-hidden" role="group" aria-label="Chart mode">
             {MODES.map((m) => (
               <button
                 type="button"
                 className={`px-2 py-1 text-[10px] font-medium transition-colors ${
-                  mode === m.id ? 'bg-muted text-foreground' : 'bg-transparent text-muted-foreground hover:text-foreground'
+                  mode === m.id
+                    ? 'bg-muted text-foreground'
+                    : 'bg-transparent text-muted-foreground hover:text-foreground'
                 }`}
                 key={m.id}
                 aria-pressed={mode === m.id}
@@ -160,7 +165,11 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
 
             return (
               <li className="flex items-center gap-3 px-4 py-2.5 hover:bg-white/[0.02] transition-colors" key={t.name}>
-                <button type="button" className="text-sm font-semibold truncate hover:text-emerald-400 transition-colors min-w-[100px]" onClick={() => onSelect(t.slug)}>
+                <button
+                  type="button"
+                  className="text-sm font-semibold truncate hover:text-emerald-400 transition-colors min-w-[100px]"
+                  onClick={() => onSelect(t.slug)}
+                >
                   {t.name}
                 </button>
 
@@ -188,7 +197,9 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
                   )}
                 </div>
 
-                <span className="text-xs tabular-nums font-medium w-12 text-right">{pct === null ? '—' : `${pct.toFixed(0)}%`}</span>
+                <span className="text-xs tabular-nums font-medium w-12 text-right">
+                  {pct === null ? '—' : `${pct.toFixed(0)}%`}
+                </span>
                 <span className="text-[11px] text-muted-foreground tabular-nums w-32 text-right shrink-0">
                   {cap ? `${formatSize(cap.used)} / ${formatSize(cap.total)}` : formatSize(t.totalSize)}
                 </span>
@@ -199,8 +210,7 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
 
         {unknown > 0 && (
           <p className="text-[10px] text-muted-foreground px-4 py-2 border-t border-border/20">
-            {unknown} disk{unknown === 1 ? '' : 's'} report no filesystem capacity and are shown
-            without a bar.
+            {unknown} disk{unknown === 1 ? '' : 's'} report no filesystem capacity and are shown without a bar.
           </p>
         )}
 

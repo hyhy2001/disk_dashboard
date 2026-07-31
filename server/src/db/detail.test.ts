@@ -26,13 +26,7 @@ function aliceUid(): number {
 describe('listUsers', () => {
   it('orders by usage, largest first', () => {
     db = createFixture()
-    expect(listUsers(db).map((u) => u.name)).toEqual([
-      'root',
-      'alice',
-      'syslog',
-      'nobody',
-      'empty',
-    ])
+    expect(listUsers(db).map((u) => u.name)).toEqual(['root', 'alice', 'syslog', 'nobody', 'empty'])
   })
 
   it('marks a user with no files or dirs as having no detail', () => {
@@ -136,11 +130,7 @@ describe('readUserFiles', () => {
   it('joins the directory path and basename into a full path', () => {
     db = createFixture()
     const page = readUserFiles(db, aliceUid())
-    expect(page.rows.map((r) => r.path)).toEqual([
-      '/home/mid.bin',
-      '/home/a.dat',
-      '/home/b.dat',
-    ])
+    expect(page.rows.map((r) => r.path)).toEqual(['/home/mid.bin', '/home/a.dat', '/home/b.dat'])
   })
 
   it('does not double the separator for a file in the root', () => {

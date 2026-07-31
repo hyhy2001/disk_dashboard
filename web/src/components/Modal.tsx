@@ -45,10 +45,7 @@ export function Modal({ title, onClose, children, footer }: Props): JSX.Element 
   }, [onClose])
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
-      onClick={onClose}
-    >
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={onClose}>
       <div
         className="glass rounded-lg shadow-md w-[500px] max-w-[90vw] max-h-[85vh] flex flex-col"
         role="dialog"
@@ -72,7 +69,9 @@ export function Modal({ title, onClose, children, footer }: Props): JSX.Element 
 
         <div className="flex-1 overflow-auto p-4">{children}</div>
 
-        {footer && <footer className="px-4 py-2 border-t border-border text-[10px] text-muted-foreground">{footer}</footer>}
+        {footer && (
+          <footer className="px-4 py-2 border-t border-border text-[10px] text-muted-foreground">{footer}</footer>
+        )}
       </div>
     </div>
   )

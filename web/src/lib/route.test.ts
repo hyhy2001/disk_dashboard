@@ -83,9 +83,7 @@ describe('buildPath', () => {
   })
 
   it('builds a full detail path', () => {
-    expect(
-      buildPath({ space: 'Dev', disk: 'api', page: 'detail', tab: 'inodes' }),
-    ).toBe('/Dev/api/detail/inodes')
+    expect(buildPath({ space: 'Dev', disk: 'api', page: 'detail', tab: 'inodes' })).toBe('/Dev/api/detail/inodes')
   })
 
   it('encodes characters that are not valid in a URL segment', () => {

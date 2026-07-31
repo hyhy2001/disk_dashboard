@@ -85,9 +85,17 @@ function Stat({
   return (
     <div className={`flex flex-col items-center gap-0.5 ${className}`} title={title}>
       <div className="flex items-baseline gap-1">
-        <span className={`text-lg font-bold tabular-nums ${
-          tone === 'used' ? 'text-amber-400' : tone === 'scanned' ? 'text-emerald-400' : tone === 'hot' ? 'text-rose-400' : 'text-foreground'
-        }`}>
+        <span
+          className={`text-lg font-bold tabular-nums ${
+            tone === 'used'
+              ? 'text-amber-400'
+              : tone === 'scanned'
+                ? 'text-emerald-400'
+                : tone === 'hot'
+                  ? 'text-rose-400'
+                  : 'text-foreground'
+          }`}
+        >
           {shown.toFixed(2)}
         </span>
         <span className="text-[10px] text-muted-foreground">{unit}</span>

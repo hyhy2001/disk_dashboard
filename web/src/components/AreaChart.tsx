@@ -67,16 +67,22 @@ export function AreaChart({ points, showLegend }: Props): JSX.Element {
   const measured = size && size.width > 0 && size.height > 0
 
   if (points.length === 0) {
-    return <div ref={box} className="chartbox"><p className="empty">No history yet — the timeline needs at least one scan.</p></div>
+    return (
+      <div ref={box} className="chartbox">
+        <p className="empty">No history yet — the timeline needs at least one scan.</p>
+      </div>
+    )
   }
 
   if (points.length === 1) {
     const only = points[0] as HistoryPoint
     return (
-      <div ref={box} className="chartbox"><p className="empty">
-        Only one snapshot so far ({formatScanDate(only.date)}: {formatSize(only.usedSize)} used,{' '}
-        {formatSize(only.scannedSize)} scanned). The trend appears after the next scan.
-      </p></div>
+      <div ref={box} className="chartbox">
+        <p className="empty">
+          Only one snapshot so far ({formatScanDate(only.date)}: {formatSize(only.usedSize)} used,{' '}
+          {formatSize(only.scannedSize)} scanned). The trend appears after the next scan.
+        </p>
+      </div>
     )
   }
 
@@ -133,12 +139,7 @@ export function AreaChart({ points, showLegend }: Props): JSX.Element {
   // past the right edge, so it never leaves the plot.
   const TIP_W = 168
   const tipH = 20 + SERIES.length * 16
-  const tipX =
-    hover === null
-      ? 0
-      : x(hover) + 12 + TIP_W > width - PAD_R
-        ? x(hover) - 12 - TIP_W
-        : x(hover) + 12
+  const tipX = hover === null ? 0 : x(hover) + 12 + TIP_W > width - PAD_R ? x(hover) - 12 - TIP_W : x(hover) + 12
   const tipY = Math.min(Math.max(PAD_T, (cursorY ?? PAD_T) - tipH / 2), PAD_T + plotH - tipH)
 
   return (
@@ -146,163 +147,127 @@ export function AreaChart({ points, showLegend }: Props): JSX.Element {
       {/* The measured box holds only the svg — the legend below it is normal flow
           content and must not count toward the plot's height. */}
       <div className="chartbox" ref={box}>
-      <svg
-        className="chart"
-        viewBox={`0 0 ${width} ${height}`}
-        preserveAspectRatio="xMinYMin meet"
-        role="img"
-        aria-label={`Capacity across ${points.length} scans`}
-        onMouseMove={pick}
-        onMouseLeave={() => setHover(null)}
-      >
-        <defs>
-          {/* Gradient under the Used line, denser in light mode where a faint
+        <svg
+          className="chart"
+          viewBox={`0 0 ${width} ${height}`}
+          preserveAspectRatio="xMinYMin meet"
+          role="img"
+          aria-label={`Capacity across ${points.length} scans`}
+          onMouseMove={pick}
+          onMouseLeave={() => setHover(null)}
+        >
+          <defs>
+            {/* Gradient under the Used line, denser in light mode where a faint
               wash would disappear against the paper background. */}
-          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#fbbf24" stopOpacity={light ? 0.55 : 0.26} />
-            <stop offset="65%" stopColor="#fbbf24" stopOpacity={light ? 0.15 : 0.06} />
-            <stop offset="100%" stopColor="#fbbf24" stopOpacity={light ? 0.03 : 0.02} />
-          </linearGradient>
-        </defs>
+            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#fbbf24" stopOpacity={light ? 0.55 : 0.26} />
+              <stop offset="65%" stopColor="#fbbf24" stopOpacity={light ? 0.15 : 0.06} />
+              <stop offset="100%" stopColor="#fbbf24" stopOpacity={light ? 0.03 : 0.02} />
+            </linearGradient>
+          </defs>
 
-        {ticks.map((t) => {
-          const gy = PAD_T + plotH - t * plotH
-          return (
-            <g key={t}>
-              <line className="chart__grid" x1={PAD_L} y1={gy} x2={width - PAD_R} y2={gy} />
-              {/* Axis labels on the right, as legacy positioned them. */}
-              <text className="chart__axis chart__axis--mono" x={width - PAD_R + 8} y={gy + 3}>
-                {formatSize(maxY * t)}
-              </text>
-            </g>
-          )
-        })}
+          {ticks.map((t) => {
+            const gy = PAD_T + plotH - t * plotH
+            return (
+              <g key={t}>
+                <line className="chart__grid" x1={PAD_L} y1={gy} x2={width - PAD_R} y2={gy} />
+                {/* Axis labels on the right, as legacy positioned them. */}
+                <text className="chart__axis chart__axis--mono" x={width - PAD_R + 8} y={gy + 3}>
+                  {formatSize(maxY * t)}
+                </text>
+              </g>
+            )
+          })}
 
-        <path d={area} fill={`url(#${gradId})`} />
+          <path d={area} fill={`url(#${gradId})`} />
 
-        {SERIES.map((s) => (
-          <path
-            key={s.key}
-            className="chart__line"
-            d={pathFor(s.key)}
-            stroke={s.color}
-            strokeDasharray={s.dash || undefined}
-            strokeWidth={s.width}
-          />
-        ))}
-
-        {/* Reference line at the latest used value, so the current level reads
-            off the axis at a glance. */}
-        <line
-          className="chart__ref"
-          x1={PAD_L}
-          y1={y(latest.usedSize)}
-          x2={width - PAD_R}
-          y2={y(latest.usedSize)}
-        />
-
-        {hover !== null && active && (
-          <g pointerEvents="none">
-            {/* Vertical line, snapped to the hovered scan. */}
-            <line
-              className="chart__cross-line"
-              x1={x(hover)}
-              y1={PAD_T}
-              x2={x(hover)}
-              y2={PAD_T + plotH}
+          {SERIES.map((s) => (
+            <path
+              key={s.key}
+              className="chart__line"
+              d={pathFor(s.key)}
+              stroke={s.color}
+              strokeDasharray={s.dash || undefined}
+              strokeWidth={s.width}
             />
-            {/* One marker per series, so the crosshair shows where each line sits
+          ))}
+
+          {/* Reference line at the latest used value, so the current level reads
+            off the axis at a glance. */}
+          <line className="chart__ref" x1={PAD_L} y1={y(latest.usedSize)} x2={width - PAD_R} y2={y(latest.usedSize)} />
+
+          {hover !== null && active && (
+            <g pointerEvents="none">
+              {/* Vertical line, snapped to the hovered scan. */}
+              <line className="chart__cross-line" x1={x(hover)} y1={PAD_T} x2={x(hover)} y2={PAD_T + plotH} />
+              {/* One marker per series, so the crosshair shows where each line sits
                 at this scan rather than only the Used value. */}
-            {SERIES.map((s) => (
-              <circle
-                key={s.key}
-                cx={x(hover)}
-                cy={y(active[s.key])}
-                r={3.5}
-                className="chart__dot"
-                stroke={s.color}
-              />
-            ))}
+              {SERIES.map((s) => (
+                <circle
+                  key={s.key}
+                  cx={x(hover)}
+                  cy={y(active[s.key])}
+                  r={3.5}
+                  className="chart__dot"
+                  stroke={s.color}
+                />
+              ))}
 
-            {/* Date pill below the x axis. */}
-            <g className="chart__pill">
-              <rect
-                x={x(hover) - 34}
-                y={PAD_T + plotH + 4}
-                width={68}
-                height={17}
-                rx={4}
-              />
-              <text x={x(hover)} y={PAD_T + plotH + 16} textAnchor="middle">
-                {formatScanDate(active.date)}
-              </text>
-            </g>
+              {/* Date pill below the x axis. */}
+              <g className="chart__pill">
+                <rect x={x(hover) - 34} y={PAD_T + plotH + 4} width={68} height={17} rx={4} />
+                <text x={x(hover)} y={PAD_T + plotH + 16} textAnchor="middle">
+                  {formatScanDate(active.date)}
+                </text>
+              </g>
 
-            {/* Horizontal line following the cursor, with the value it points at
+              {/* Horizontal line following the cursor, with the value it points at
                 on the y axis — this answers "how much is this height?" for any
                 position, not just at a data point. */}
-            {cursorY !== null && valueAtCursor !== null && (
-              <>
-                <line
-                  className="chart__cross-line"
-                  x1={PAD_L}
-                  y1={cursorY}
-                  x2={width - PAD_R}
-                  y2={cursorY}
-                />
-                <g className="chart__pill">
-                  <rect x={width - PAD_R + 4} y={cursorY - 9} width={PAD_R - 8} height={18} rx={4} />
-                  <text x={width - PAD_R + 8} y={cursorY + 4}>
-                    {formatSize(valueAtCursor)}
-                  </text>
-                </g>
-              </>
-            )}
+              {cursorY !== null && valueAtCursor !== null && (
+                <>
+                  <line className="chart__cross-line" x1={PAD_L} y1={cursorY} x2={width - PAD_R} y2={cursorY} />
+                  <g className="chart__pill">
+                    <rect x={width - PAD_R + 4} y={cursorY - 9} width={PAD_R - 8} height={18} rx={4} />
+                    <text x={width - PAD_R + 8} y={cursorY + 4}>
+                      {formatSize(valueAtCursor)}
+                    </text>
+                  </g>
+                </>
+              )}
 
-            {/* Tooltip box listing every series at the hovered scan, as legacy's
+              {/* Tooltip box listing every series at the hovered scan, as legacy's
                 index-mode tooltip did. */}
-            <g className="chart__tip">
-              <rect x={tipX} y={tipY} width={TIP_W} height={tipH} rx={6} />
-              <text className="chart__tip-title" x={tipX + 10} y={tipY + 15}>
-                {formatScanDate(active.date)}
-              </text>
-              {SERIES.map((s, i) => (
-                <g key={s.key}>
-                  <rect
-                    x={tipX + 10}
-                    y={tipY + 24 + i * 16}
-                    width={8}
-                    height={8}
-                    rx={2}
-                    fill={s.color}
-                  />
-                  <text className="chart__tip-row" x={tipX + 24} y={tipY + 32 + i * 16}>
-                    {s.label}
-                  </text>
-                  <text
-                    className="chart__tip-val"
-                    x={tipX + TIP_W - 10}
-                    y={tipY + 32 + i * 16}
-                    textAnchor="end"
-                  >
-                    {formatSize(active[s.key])}
-                  </text>
-                </g>
-              ))}
+              <g className="chart__tip">
+                <rect x={tipX} y={tipY} width={TIP_W} height={tipH} rx={6} />
+                <text className="chart__tip-title" x={tipX + 10} y={tipY + 15}>
+                  {formatScanDate(active.date)}
+                </text>
+                {SERIES.map((s, i) => (
+                  <g key={s.key}>
+                    <rect x={tipX + 10} y={tipY + 24 + i * 16} width={8} height={8} rx={2} fill={s.color} />
+                    <text className="chart__tip-row" x={tipX + 24} y={tipY + 32 + i * 16}>
+                      {s.label}
+                    </text>
+                    <text className="chart__tip-val" x={tipX + TIP_W - 10} y={tipY + 32 + i * 16} textAnchor="end">
+                      {formatSize(active[s.key])}
+                    </text>
+                  </g>
+                ))}
+              </g>
             </g>
-          </g>
-        )}
+          )}
 
-        {points.map((p, i) => (
-          <g key={`${p.date}-${i}`}>
-            {i % labelEvery === 0 && (
-              <text className="chart__axis" x={x(i)} y={height - 8} textAnchor="middle">
-                {formatScanDate(p.date)}
-              </text>
-            )}
-          </g>
-        ))}
-      </svg>
+          {points.map((p, i) => (
+            <g key={`${p.date}-${i}`}>
+              {i % labelEvery === 0 && (
+                <text className="chart__axis" x={x(i)} y={height - 8} textAnchor="middle">
+                  {formatScanDate(p.date)}
+                </text>
+              )}
+            </g>
+          ))}
+        </svg>
       </div>
 
       {showLegend !== false && (
@@ -329,25 +294,13 @@ export function AreaChart({ points, showLegend }: Props): JSX.Element {
   )
 }
 
-export function ChartLegend({
-  series = SERIES,
-}: {
-  series?: typeof SERIES
-}) {
+export function ChartLegend({ series = SERIES }: { series?: typeof SERIES }) {
   return (
     <div className="chart__legend">
       {series.map((s) => (
         <span className="chart__key" key={s.key}>
           <svg width="16" height="6" aria-hidden="true">
-            <line
-              x1="0"
-              y1="3"
-              x2="16"
-              y2="3"
-              stroke={s.color}
-              strokeWidth="2"
-              strokeDasharray={s.dash || undefined}
-            />
+            <line x1="0" y1="3" x2="16" y2="3" stroke={s.color} strokeWidth="2" strokeDasharray={s.dash || undefined} />
           </svg>
           {s.label}
         </span>

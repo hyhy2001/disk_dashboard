@@ -109,11 +109,7 @@ export async function exportUserList(
  * This list is offset-paginated server-side, so the cursor here is just the next
  * offset encoded as a string — the CSV writer does not care what a cursor means.
  */
-export async function exportPermissions(
-  target: string,
-  filter: PermQuery,
-  scope: 'filtered' | 'all',
-): Promise<void> {
+export async function exportPermissions(target: string, filter: PermQuery, scope: 'filtered' | 'all'): Promise<void> {
   const label = scope === 'all' ? 'All permission issues' : 'Filtered permission issues'
   const toastId = startProgress('Exporting permission issues', target)
 

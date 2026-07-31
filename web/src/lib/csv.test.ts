@@ -98,10 +98,7 @@ describe('exportCsv (blob fallback)', () => {
     const result = await exportCsv({
       filename: 'perms_Test',
       headers: ['User', 'Path'],
-      fetchPage: pager([
-        [['root', '/proc/1/fd']],
-        [['alice', '/home/alice/.ssh']],
-      ]),
+      fetchPage: pager([[['root', '/proc/1/fd']], [['alice', '/home/alice/.ssh']]]),
     })
 
     expect(result).toEqual({
@@ -194,7 +191,10 @@ describe('exportCsv splitting', () => {
       filename: 'files_root',
       headers: ['Path'],
       chunkRows: 2,
-      fetchPage: pager([[['a'], ['b'], ['c']], [['d'], ['e']]]),
+      fetchPage: pager([
+        [['a'], ['b'], ['c']],
+        [['d'], ['e']],
+      ]),
     })
 
     expect(result).toMatchObject({ kind: 'downloaded', rows: 5, files: 3 })

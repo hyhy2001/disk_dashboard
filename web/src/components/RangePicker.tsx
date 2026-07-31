@@ -50,10 +50,7 @@ export function RangePicker({ value, onChange, available }: Props): JSX.Element 
  * sample rather than "now", so a target that stopped being scanned still shows
  * its final window instead of going blank.
  */
-export function filterByRange<T extends { timestamp: number }>(
-  points: T[],
-  days: RangeDays,
-): T[] {
+export function filterByRange<T extends { timestamp: number }>(points: T[], days: RangeDays): T[] {
   if (days === 'all' || points.length === 0) return points
   const last = points[points.length - 1]
   if (!last) return points

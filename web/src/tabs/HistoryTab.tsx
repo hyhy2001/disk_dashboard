@@ -35,11 +35,7 @@ const MAX_SELECTED = 12
 /** duscan stores dates as yyyymmdd; compare them as dates, not integers. */
 function toDate(yyyymmdd: number): Date {
   const s = String(yyyymmdd)
-  return new Date(
-    Number(s.slice(0, 4)),
-    Number(s.slice(4, 6)) - 1,
-    Number(s.slice(6, 8)),
-  )
+  return new Date(Number(s.slice(0, 4)), Number(s.slice(4, 6)) - 1, Number(s.slice(6, 8)))
 }
 
 /** yyyy-mm-dd from an <input type="date"> to the yyyymmdd integer form. */
@@ -162,7 +158,12 @@ export function HistoryTab({ target }: Props): JSX.Element {
   }
 
   if (!series) {
-    return <div className="h-32 w-full rounded-lg border border-border/50 bg-surface/50 animate-pulse" style={{ minHeight: '420px' }} />
+    return (
+      <div
+        className="h-32 w-full rounded-lg border border-border/50 bg-surface/50 animate-pulse"
+        style={{ minHeight: '420px' }}
+      />
+    )
   }
 
   if (series.snapshots.length === 0) {
@@ -237,7 +238,9 @@ export function HistoryTab({ target }: Props): JSX.Element {
           />
 
           <ul className="overflow-auto max-h-[500px] space-y-0.5">
-            {shownUsers.length === 0 && <li className="text-xs text-muted-foreground p-4 text-center">No user matches.</li>}
+            {shownUsers.length === 0 && (
+              <li className="text-xs text-muted-foreground p-4 text-center">No user matches.</li>
+            )}
             {shownUsers.map((r) => {
               const on = selected.includes(r.name)
               return (
@@ -259,9 +262,7 @@ export function HistoryTab({ target }: Props): JSX.Element {
                         r.delta > 0 ? 'text-rose-400' : r.delta < 0 ? 'text-emerald-400' : 'text-muted-foreground'
                       }`}
                     >
-                      {r.delta === 0
-                        ? '—'
-                        : `${r.delta > 0 ? '+' : '−'}${formatSize(Math.abs(r.delta))}`}
+                      {r.delta === 0 ? '—' : `${r.delta > 0 ? '+' : '−'}${formatSize(Math.abs(r.delta))}`}
                     </span>
                   </button>
                 </li>
@@ -277,7 +278,11 @@ export function HistoryTab({ target }: Props): JSX.Element {
             >
               Top {MAX_SELECTED}
             </button>
-            <button type="button" className="inline-flex items-center rounded-sm border border-border bg-transparent px-3 py-1.5 text-xs hover:bg-muted transition-colors" onClick={() => setSelected([])}>
+            <button
+              type="button"
+              className="inline-flex items-center rounded-sm border border-border bg-transparent px-3 py-1.5 text-xs hover:bg-muted transition-colors"
+              onClick={() => setSelected([])}
+            >
               Clear
             </button>
           </div>

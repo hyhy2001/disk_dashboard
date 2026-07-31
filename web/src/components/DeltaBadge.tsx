@@ -28,9 +28,15 @@ export function DeltaBadge({ points }: Props): JSX.Element | null {
   return (
     <span className="flex items-center gap-2">
       <span className="text-sm font-semibold tabular-nums">{formatSize(latest.usedSize)}</span>
-      <span className={`inline-flex items-center gap-0.5 rounded-sm px-1.5 py-0.5 text-[10px] font-medium ${
-        dir === 'up' ? 'bg-rose-500/15 text-rose-400' : dir === 'down' ? 'bg-emerald-500/15 text-emerald-400' : 'bg-muted text-muted-foreground'
-      }`}>
+      <span
+        className={`inline-flex items-center gap-0.5 rounded-sm px-1.5 py-0.5 text-[10px] font-medium ${
+          dir === 'up'
+            ? 'bg-rose-500/15 text-rose-400'
+            : dir === 'down'
+              ? 'bg-emerald-500/15 text-emerald-400'
+              : 'bg-muted text-muted-foreground'
+        }`}
+      >
         {dir === 'up' ? '▲' : dir === 'down' ? '▼' : '='} {formatSize(Math.abs(diff))}
         {prev.usedSize > 0 && ` (${diff >= 0 ? '+' : '−'}${Math.abs(pct).toFixed(2)}%)`}
       </span>

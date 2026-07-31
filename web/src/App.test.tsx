@@ -4,13 +4,32 @@ import { App } from './App.js'
 
 vi.mock('./lib/api.js', () => ({
   fetchHealth: () => Promise.resolve({ live: true, targets: 3, version: '0.1.0' }),
-  fetchGroups: () => Promise.resolve([{ name: 'Prod', targets: [{ name: 'web-01', slug: 'web-01', scanRoot: '/data/web', scanTimestamp: 0, totalFiles: 0, totalDirs: 0, totalSize: 0, dbSizeBytes: 0, capacity: null }] }]),
+  fetchGroups: () =>
+    Promise.resolve([
+      {
+        name: 'Prod',
+        targets: [
+          {
+            name: 'web-01',
+            slug: 'web-01',
+            scanRoot: '/data/web',
+            scanTimestamp: 0,
+            totalFiles: 0,
+            totalDirs: 0,
+            totalSize: 0,
+            dbSizeBytes: 0,
+            capacity: null,
+          },
+        ],
+      },
+    ]),
   fetchOverview: () => Promise.resolve(null),
   clearApiCache: () => {},
 }))
 
 vi.mock('./lib/adminApi.js', () => ({
-  fetchAuthStatus: () => Promise.resolve({ loggedIn: false, user: null, needsSetup: false, rateLimit: { captcha: false, attempts: 0 } }),
+  fetchAuthStatus: () =>
+    Promise.resolve({ loggedIn: false, user: null, needsSetup: false, rateLimit: { captcha: false, attempts: 0 } }),
 }))
 
 afterEach(cleanup)

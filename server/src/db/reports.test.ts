@@ -16,16 +16,7 @@ describe('isSafeTargetName', () => {
   })
 
   it('rejects traversal and separators', () => {
-    for (const name of [
-      '..',
-      '.',
-      '../etc',
-      '../../etc/passwd',
-      'a/b',
-      'a\\b',
-      '/abs',
-      './rel',
-    ]) {
+    for (const name of ['..', '.', '../etc', '../../etc/passwd', 'a/b', 'a\\b', '/abs', './rel']) {
       expect(isSafeTargetName(name)).toBe(false)
     }
   })

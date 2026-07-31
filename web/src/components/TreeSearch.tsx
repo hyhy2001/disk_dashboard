@@ -183,7 +183,11 @@ export function TreeSearch({ target, onOpen }: Props): JSX.Element {
             <ul className="divide-y divide-border/20">
               {visible.map((h) => (
                 <li key={`${h.kind}-${h.id}-${h.path}`}>
-                  <button type="button" className="flex items-center gap-2 w-full px-3 py-1.5 text-[11px] hover:bg-muted transition-colors text-left" onClick={() => pick(h)}>
+                  <button
+                    type="button"
+                    className="flex items-center gap-2 w-full px-3 py-1.5 text-[11px] hover:bg-muted transition-colors text-left"
+                    onClick={() => pick(h)}
+                  >
                     <span className="text-muted-foreground shrink-0" aria-hidden="true">
                       {h.kind === 'dir' ? '▣' : '▤'}
                     </span>
@@ -194,7 +198,10 @@ export function TreeSearch({ target, onOpen }: Props): JSX.Element {
                 </li>
               ))}
               {showCount < allHits.length && (
-                <div ref={sentinelRef} className="flex items-center justify-center py-2 text-[10px] text-muted-foreground">
+                <div
+                  ref={sentinelRef}
+                  className="flex items-center justify-center py-2 text-[10px] text-muted-foreground"
+                >
                   Scroll for more
                 </div>
               )}

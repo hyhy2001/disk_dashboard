@@ -14,12 +14,7 @@
 // what breadcrumbs() does.
 
 import type Database from 'better-sqlite3'
-import type {
-  TreemapCrumb,
-  TreemapFile,
-  TreemapLevel,
-  TreemapNode,
-} from '../../../shared/api.js'
+import type { TreemapCrumb, TreemapFile, TreemapLevel, TreemapNode } from '../../../shared/api.js'
 
 /**
  * Children returned per page.
@@ -50,9 +45,8 @@ interface ChildRow {
  * is the single row with parent_id IS NULL.
  */
 function rootId(db: Database.Database): number | null {
-  const row = db
-    .prepare('SELECT id FROM treemap_dirs WHERE parent_id IS NULL LIMIT 1')
-    .get() as { id: number } | undefined
+  const row = db.prepare('SELECT id FROM treemap_dirs WHERE parent_id IS NULL LIMIT 1').get() as
+    { id: number } | undefined
   return row?.id ?? null
 }
 
@@ -217,8 +211,7 @@ export function readTreemapLevel(
 
   // has_files is exact, so skip the file query entirely when there are none —
   // detail_files has no dir_id index and the skip-scan is not free.
-  const files =
-    withFiles && node.has_files === 1 ? readFiles(db, id, fileOffset, pageSize) : []
+  const files = withFiles && node.has_files === 1 ? readFiles(db, id, fileOffset, pageSize) : []
 
   return {
     node: toNode(node),

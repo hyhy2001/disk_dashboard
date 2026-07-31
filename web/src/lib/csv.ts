@@ -22,9 +22,7 @@ export type Row = (string | number)[]
  * `cursor` is whatever the previous call returned; undefined asks for the first
  * page. Returning a null cursor ends the export.
  */
-export type PageFetcher = (
-  cursor: string | undefined,
-) => Promise<{ rows: Row[]; nextCursor: string | null }>
+export type PageFetcher = (cursor: string | undefined) => Promise<{ rows: Row[]; nextCursor: string | null }>
 
 export interface ExportOptions {
   /** File name without an extension; the strategy appends .csv or .csv.gz. */
@@ -147,8 +145,7 @@ async function streamExport(opts: ExportOptions): Promise<ExportResult> {
       cursor = page.nextCursor ?? undefined
 
       // Kick off the next fetch before compressing this page.
-      const more: boolean =
-        page.nextCursor !== null && (opts.maxRows === undefined || rows < opts.maxRows)
+      const more: boolean = page.nextCursor !== null && (opts.maxRows === undefined || rows < opts.maxRows)
       pending = more ? opts.fetchPage(cursor) : null
 
       let chunk = ''

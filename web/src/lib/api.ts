@@ -125,11 +125,7 @@ export function fetchTreemap(target: string, q: TreemapQuery): Promise<TreemapLe
   const qs = params.toString()
   // Cached: drilling in and back out re-requests a level already loaded, and a
   // report's tree cannot change without the file being replaced.
-  return get<TreemapLevel>(
-    `/api/treemap/${encodeURIComponent(target)}${qs ? `?${qs}` : ''}`,
-    undefined,
-    true,
-  )
+  return get<TreemapLevel>(`/api/treemap/${encodeURIComponent(target)}${qs ? `?${qs}` : ''}`, undefined, true)
 }
 
 export function fetchUsers(target: string): Promise<DetailUser[]> {
@@ -184,11 +180,7 @@ export interface PermQuery {
   path?: string
 }
 
-export function fetchPermissions(
-  target: string,
-  q: PermQuery = {},
-  signal?: AbortSignal,
-): Promise<PermPage> {
+export function fetchPermissions(target: string, q: PermQuery = {}, signal?: AbortSignal): Promise<PermPage> {
   const base = `/api/permissions/${encodeURIComponent(target)}`
   return get<PermPage>(withParams(base, { ...q }), signal)
 }

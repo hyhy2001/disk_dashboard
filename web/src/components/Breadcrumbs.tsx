@@ -26,7 +26,10 @@ export function Breadcrumbs({ path, onNavigate }: Props): JSX.Element {
 
   return (
     <div className="flex items-center gap-1 min-w-0 flex-1">
-      <nav className="flex items-center gap-0.5 text-[11px] text-muted-foreground min-w-0 flex-1 flex-wrap" aria-label="Directory path">
+      <nav
+        className="flex items-center gap-0.5 text-[11px] text-muted-foreground min-w-0 flex-1 flex-wrap"
+        aria-label="Directory path"
+      >
         {shown.map((c, i) => {
           const last = i === shown.length - 1
           if (!c) {
@@ -43,7 +46,11 @@ export function Breadcrumbs({ path, onNavigate }: Props): JSX.Element {
                   {c.name === '/' ? '' : c.name}
                 </span>
               ) : (
-                <button type="button" className="hover:text-foreground transition-colors" onClick={() => onNavigate(c.id)}>
+                <button
+                  type="button"
+                  className="hover:text-foreground transition-colors"
+                  onClick={() => onNavigate(c.id)}
+                >
                   {c.name === '/' ? '' : c.name}
                 </button>
               )}
@@ -52,10 +59,25 @@ export function Breadcrumbs({ path, onNavigate }: Props): JSX.Element {
           )
         })}
       </nav>
-      <button type="button" className="shrink-0 inline-flex size-5 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors" onClick={() => void copyPath(fullPath(path))} aria-label="Copy full path" data-tooltip="Copy full path">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
-          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+      <button
+        type="button"
+        className="shrink-0 inline-flex size-5 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        onClick={() => void copyPath(fullPath(path))}
+        aria-label="Copy full path"
+        data-tooltip="Copy full path"
+      >
+        <svg
+          width="12"
+          height="12"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
         </svg>
       </button>
     </div>

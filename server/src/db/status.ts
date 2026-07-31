@@ -15,7 +15,7 @@
 import { existsSync, readFileSync, statSync } from 'node:fs'
 import { basename, join } from 'node:path'
 import type { ScanStatus } from '../../../shared/api.js'
-import { openReport, openReportAt, readMeta, reportPath } from './reports.js'
+import { openReportAt, readMeta, reportPath } from './reports.js'
 
 /** duscan writes progress here while a scan is running, then removes it. */
 export const STATUS_FILE = 'scan_status.json'

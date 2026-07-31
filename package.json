@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "description": "Web dashboard for duscan report.db files",
+  "type": "module",
   "workspaces": [
     "server",
     "web"
@@ -14,12 +15,21 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "vitest run web/src/styles/viewport.test.ts",
+    "lint": "eslint \"{server,web,shared}/**/*.{ts,tsx}\"",
+    "lint:fix": "eslint \"{server,web,shared}/**/*.{ts,tsx}\" --fix",
+    "format": "prettier --write \"{server,web,shared}/**/*.{ts,tsx}\"",
+    "format:check": "prettier --check \"{server,web,shared}/**/*.{ts,tsx}\"",
     "start": "npm run start --workspace=server"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@testing-library/react": "16.1.0",
+    "eslint": "^10.8.0",
+    "eslint-config-prettier": "^10.1.8",
     "jsdom": "25.0.1",
     "playwright": "1.49.1",
+    "prettier": "^3.9.6",
+    "typescript-eslint": "^8.65.0",
     "vitest": "2.1.8"
   }
 }

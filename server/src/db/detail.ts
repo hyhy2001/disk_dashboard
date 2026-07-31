@@ -24,14 +24,7 @@
 // the alternative would be an index we cannot add to a readonly report.
 
 import type Database from 'better-sqlite3'
-import type {
-  DetailFilter,
-  DetailUser,
-  Page,
-  UserDetail,
-  UserDir,
-  UserFile,
-} from '../../../shared/api.js'
+import type { DetailFilter, DetailUser, Page, UserDetail, UserDir, UserFile } from '../../../shared/api.js'
 
 /** Rows per page. Legacy used 500; the same value keeps scroll depth familiar. */
 export const PAGE_SIZE = 500
@@ -96,9 +89,8 @@ function decodeCursor<T>(raw: string | undefined, keys: (keyof T)[]): T | null {
 
 /** Look up a username's uid. Returns null for an unknown user. */
 export function findUid(db: Database.Database, username: string): number | null {
-  const row = db
-    .prepare('SELECT uid FROM detail_users WHERE username = ? LIMIT 1')
-    .get(username) as { uid: number } | undefined
+  const row = db.prepare('SELECT uid FROM detail_users WHERE username = ? LIMIT 1').get(username) as
+    { uid: number } | undefined
   return row?.uid ?? null
 }
 
@@ -159,9 +151,7 @@ function buildFilter(filter: DetailFilter, pathExpr: string, extColumn: string |
   }
 
   if (extColumn) {
-    const exts = (filter.ext ?? [])
-      .map((e) => e.trim().replace(/^\./, '').toLowerCase())
-      .filter((e) => e.length > 0)
+    const exts = (filter.ext ?? []).map((e) => e.trim().replace(/^\./, '').toLowerCase()).filter((e) => e.length > 0)
     if (exts.length > 0) {
       parts.push(`${extColumn} IN (${exts.map(() => '?').join(', ')})`)
       params.push(...exts)
@@ -200,11 +190,7 @@ function clampLimit(limit: number | undefined): number {
  * or the same size with a larger id. Writing it as a lexicographic comparison
  * (rather than `OFFSET`) is what keeps page 500 as cheap as page 1.
  */
-export function readUserDirs(
-  db: Database.Database,
-  uid: number,
-  opts: PageOptions = {},
-): Page<UserDir> {
+export function readUserDirs(db: Database.Database, uid: number, opts: PageOptions = {}): Page<UserDir> {
   const limit = clampLimit(opts.limit)
   const cursor = decodeCursor<DirCursor>(opts.cursor, ['size', 'id'])
   const filter = buildFilter(opts.filter ?? {}, 'path', null)
@@ -240,9 +226,9 @@ export function readUserDirs(
 
   const total = hasFilter
     ? (
-        db
-          .prepare(`SELECT COUNT(*) AS cnt FROM detail_dirs WHERE uid = ?${filter.sql}`)
-          .get(uid, ...filter.params) as { cnt: number }
+        db.prepare(`SELECT COUNT(*) AS cnt FROM detail_dirs WHERE uid = ?${filter.sql}`).get(uid, ...filter.params) as {
+          cnt: number
+        }
       ).cnt
     : (opts.totalHint ?? 0)
 
@@ -263,11 +249,7 @@ export function readUserDirs(
  * returned row and nothing per scanned row — the joins are on the page, not on
  * the range.
  */
-export function readUserFiles(
-  db: Database.Database,
-  uid: number,
-  opts: PageOptions = {},
-): Page<UserFile> {
+export function readUserFiles(db: Database.Database, uid: number, opts: PageOptions = {}): Page<UserFile> {
   const limit = clampLimit(opts.limit)
   const cursor = decodeCursor<FileCursor>(opts.cursor, ['size', 'dirId', 'nameId'])
   const filter = buildFilter(opts.filter ?? {}, 'd.path', 'f.ext')
@@ -278,9 +260,7 @@ export function readUserFiles(
             OR (f.size = ? AND f.dir_id > ?)
             OR (f.size = ? AND f.dir_id = ? AND f.name_id > ?))`
     : ''
-  const keysetParams = cursor
-    ? [cursor.size, cursor.size, cursor.dirId, cursor.size, cursor.dirId, cursor.nameId]
-    : []
+  const keysetParams = cursor ? [cursor.size, cursor.size, cursor.dirId, cursor.size, cursor.dirId, cursor.nameId] : []
 
   // The path filter reads d.path, so the dirs join has to happen before the
   // predicate; it is a primary-key lookup either way.
@@ -334,10 +314,7 @@ export function readUserFiles(
       size: r.size,
       ext: r.ext,
     })),
-    nextCursor:
-      hasMore && last
-        ? encodeCursor({ size: last.size, dirId: last.dir_id, nameId: last.name_id })
-        : null,
+    nextCursor: hasMore && last ? encodeCursor({ size: last.size, dirId: last.dir_id, nameId: last.name_id }) : null,
     hasMore,
     pageTotal: page.reduce((sum, r) => sum + r.size, 0),
     total,
@@ -360,20 +337,12 @@ export interface DetailOptions {
  * which would turn an indexed range scan into a full aggregate. Legacy made the
  * same call and hid the card.
  */
-export function readUserDetail(
-  db: Database.Database,
-  user: string,
-  uid: number,
-  opts: DetailOptions = {},
-): UserDetail {
+export function readUserDetail(db: Database.Database, user: string, uid: number, opts: DetailOptions = {}): UserDetail {
   const filter = opts.filter ?? {}
   const dirsSuppressed = (filter.ext ?? []).some((e) => e.trim().length > 0)
 
-  const totals = db
-    .prepare('SELECT total_size, total_dirs, total_files FROM detail_users WHERE uid = ?')
-    .get(uid) as
-    | { total_size: number; total_dirs: number; total_files: number }
-    | undefined
+  const totals = db.prepare('SELECT total_size, total_dirs, total_files FROM detail_users WHERE uid = ?').get(uid) as
+    { total_size: number; total_dirs: number; total_files: number } | undefined
 
   const empty: Page<UserDir> = { rows: [], nextCursor: null, hasMore: false, pageTotal: 0 }
 

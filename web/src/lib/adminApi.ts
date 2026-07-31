@@ -36,9 +36,16 @@ export async function fetchAuthStatus(): Promise<AuthInfo> {
   return res.data
 }
 
-export function clearAuthCache(): void { _authCache = null }
+export function clearAuthCache(): void {
+  _authCache = null
+}
 
-export async function login(username: string, password: string, captchaId?: string, captchaAnswer?: number): Promise<AuthInfo['user']> {
+export async function login(
+  username: string,
+  password: string,
+  captchaId?: string,
+  captchaAnswer?: number,
+): Promise<AuthInfo['user']> {
   const body: any = { username, password }
   if (captchaId !== undefined && captchaAnswer !== undefined) {
     body.captchaId = captchaId
@@ -173,7 +180,8 @@ export async function fetchDiskTeams(diskId: number): Promise<DiskTeam[]> {
 
 export async function importDiskTeams(diskId: number): Promise<{ imported: number; teams: DiskTeam[] }> {
   const res = await fetchJson<{ status: string; data: { imported: number; teams: DiskTeam[] } }>(
-    `/api/admin/disks/${diskId}/import-teams`, { method: 'POST' }
+    `/api/admin/disks/${diskId}/import-teams`,
+    { method: 'POST' },
   )
   return res.data
 }

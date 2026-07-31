@@ -37,9 +37,7 @@ const ROW_HEIGHT = 38
 const CHROME = 66
 
 export function TreemapTab({ target, totalSize }: Props): JSX.Element {
-  const [view, setView] = useState<View>(() =>
-    readString(VIEW_KEY) === 'treemap' ? 'treemap' : 'list',
-  )
+  const [view, setView] = useState<View>(() => (readString(VIEW_KEY) === 'treemap' ? 'treemap' : 'list'))
   const [openId, setOpenId] = useState<number | null>(null)
   const [level, setLevel] = useState<TreemapLevel | null>(null)
   /** Rows accumulated across "Load more" presses for the current directory. */
@@ -129,7 +127,11 @@ export function TreemapTab({ target, totalSize }: Props): JSX.Element {
         <p className="text-sm font-semibold">Could not load this directory</p>
         <p>{error}</p>
         {openId !== null && (
-          <button type="button" className="inline-flex items-center rounded-sm border border-border bg-transparent px-3 py-1.5 text-xs hover:bg-muted transition-colors" onClick={() => setOpenId(null)}>
+          <button
+            type="button"
+            className="inline-flex items-center rounded-sm border border-border bg-transparent px-3 py-1.5 text-xs hover:bg-muted transition-colors"
+            onClick={() => setOpenId(null)}
+          >
             Back to root
           </button>
         )}
@@ -188,8 +190,7 @@ export function TreemapTab({ target, totalSize }: Props): JSX.Element {
         </div>
 
         <span className="text-[11px] text-muted-foreground tabular-nums">
-          {formatCount(node.dirCount)} dirs · {formatCount(node.fileCount)} files ·{' '}
-          {formatSize(node.size)}
+          {formatCount(node.dirCount)} dirs · {formatCount(node.fileCount)} files · {formatSize(node.size)}
         </span>
 
         <TreeSearch target={target} onOpen={setOpenId} />

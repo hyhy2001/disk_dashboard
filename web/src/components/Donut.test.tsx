@@ -42,12 +42,7 @@ describe('Donut slices', () => {
   it('keeps Other and Unknown as separate slices', () => {
     // used 1200 = teams 900 + other 200 + unknown 100
     const ui = render(<Donut rows={teams} totalUsed={1200} otherUsed={200} />)
-    expect(slices(ui).map((s) => s.name)).toEqual([
-      'ALPHA',
-      'BETA',
-      OTHER_SLICE,
-      UNKNOWN_SLICE,
-    ])
+    expect(slices(ui).map((s) => s.name)).toEqual(['ALPHA', 'BETA', OTHER_SLICE, UNKNOWN_SLICE])
   })
 
   it('does not count Other toward Unknown', () => {
@@ -70,9 +65,7 @@ describe('Donut slices', () => {
   })
 
   it('makes Other clickable but not Unknown', () => {
-    const ui = render(
-      <Donut rows={teams} totalUsed={1200} otherUsed={200} onSelect={() => {}} />,
-    )
+    const ui = render(<Donut rows={teams} totalUsed={1200} otherUsed={200} onSelect={() => {}} />)
     const found = slices(ui)
 
     // Other has a concrete user list behind it; Unknown has nobody to list.

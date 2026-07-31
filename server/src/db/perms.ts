@@ -94,9 +94,8 @@ function buildWhere(filter: PermFilter): Clause {
  * the client would show as a failed request.
  */
 export function hasPermTable(db: Database.Database): boolean {
-  const row = db
-    .prepare("SELECT 1 AS ok FROM sqlite_master WHERE type = 'table' AND name = 'perm_issues'")
-    .get() as { ok: number } | undefined
+  const row = db.prepare("SELECT 1 AS ok FROM sqlite_master WHERE type = 'table' AND name = 'perm_issues'").get() as
+    { ok: number } | undefined
   return row !== undefined
 }
 
@@ -139,16 +138,13 @@ export function readPermIssues(db: Database.Database, opts: PermOptions = {}): P
     return { rows: [], total: 0, offset: 0, hasMore: false, userCounts: [], errorCounts: [] }
   }
 
-  const limit = Math.min(
-    Math.max(1, Math.floor(opts.limit ?? PERM_PAGE)),
-    MAX_PERM_PAGE,
-  )
+  const limit = Math.min(Math.max(1, Math.floor(opts.limit ?? PERM_PAGE)), MAX_PERM_PAGE)
   const offset = Math.max(0, Math.floor(opts.offset ?? 0))
   const where = buildWhere(opts)
 
-  const totalRow = db
-    .prepare(`SELECT COUNT(*) AS n FROM perm_issues ${where.sql}`)
-    .get(...where.params) as { n: number }
+  const totalRow = db.prepare(`SELECT COUNT(*) AS n FROM perm_issues ${where.sql}`).get(...where.params) as {
+    n: number
+  }
 
   const rows = db
     .prepare(

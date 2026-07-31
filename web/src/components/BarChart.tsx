@@ -51,15 +51,18 @@ export function BarChart({ rows, limit = 10, logScale = false }: Props): JSX.Ele
   const data = ranked.slice(0, Math.min(limit, fits))
 
   if (data.length === 0) {
-    return <div ref={box} className="chartbox"><p className="empty">No users to chart.</p></div>
+    return (
+      <div ref={box} className="chartbox">
+        <p className="empty">No users to chart.</p>
+      </div>
+    )
   }
 
   const max = data[0]?.used ?? 1
   const trackW = Math.max(60, width - LABEL_W - VALUE_W)
   // Floor the row height so rows*rowH never exceeds the box; otherwise
   // preserveAspectRatio scales the drawing down and shrinks the text with it.
-  const rowH =
-    avail > 0 ? Math.max(MIN_ROW_H, Math.min(ROW_H, Math.floor(avail / data.length))) : ROW_H
+  const rowH = avail > 0 ? Math.max(MIN_ROW_H, Math.min(ROW_H, Math.floor(avail / data.length))) : ROW_H
   const barH = Math.max(8, Math.min(BAR_H, rowH - 9))
   const height = data.length * rowH
 
@@ -96,23 +99,8 @@ export function BarChart({ rows, limit = 10, logScale = false }: Props): JSX.Ele
               <text className="chart__axis" x={LABEL_W - 8} y={mid} textAnchor="end">
                 {r.name.length > 16 ? `${r.name.slice(0, 15)}…` : r.name}
               </text>
-              <rect
-                x={LABEL_W}
-                y={y + 2}
-                width={trackW}
-                height={barH}
-                rx={4}
-                fill="var(--bg-hover)"
-              />
-              <rect
-                className="chart__bar"
-                x={LABEL_W}
-                y={y + 2}
-                width={w}
-                height={barH}
-                rx={4}
-                fill="var(--sky-400)"
-              >
+              <rect x={LABEL_W} y={y + 2} width={trackW} height={barH} rx={4} fill="var(--bg-hover)" />
+              <rect className="chart__bar" x={LABEL_W} y={y + 2} width={w} height={barH} rx={4} fill="var(--sky-400)">
                 <title>{`${r.name}: ${formatSize(r.used)}`}</title>
               </rect>
               <text className="chart__axis chart__axis--mono" x={LABEL_W + trackW + 8} y={mid}>

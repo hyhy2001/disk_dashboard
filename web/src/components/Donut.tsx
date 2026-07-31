@@ -115,14 +115,7 @@ function buildSlices(rows: UsageRow[], totalUsed?: number, otherUsed?: number): 
   return out
 }
 
-export function Donut({
-  rows,
-  size = 148,
-  onSelect,
-  selected,
-  totalUsed,
-  otherUsed,
-}: Props): JSX.Element {
+export function Donut({ rows, size = 148, onSelect, selected, totalUsed, otherUsed }: Props): JSX.Element {
   const slices = buildSlices(rows, totalUsed, otherUsed)
   const total = slices.reduce((sum, s) => sum + s.used, 0)
 
@@ -166,11 +159,7 @@ export function Donut({
                 strokeWidth={selected === s.name ? stroke + 4 : stroke}
                 strokeDasharray={dash}
                 strokeDashoffset={-offset}
-                onClick={
-                  clickable
-                    ? () => onSelect(selected === s.name ? null : s.name)
-                    : undefined
-                }
+                onClick={clickable ? () => onSelect(selected === s.name ? null : s.name) : undefined}
               >
                 <title>
                   {`${s.name}: ${formatSize(s.used)} (${formatPercent(s.used, total)})${
@@ -186,22 +175,10 @@ export function Donut({
         {/* Legacy's two-line centre: bold 22px figure, 12px caption. Sizes are in
             viewBox units and `size` is the viewBox, so they scale with the ring
             and stay proportionate at any rendered size. */}
-        <text
-          className="donut__total"
-          x={size / 2}
-          y={size / 2 - 5}
-          textAnchor="middle"
-          fontSize={size * 0.15}
-        >
+        <text className="donut__total" x={size / 2} y={size / 2 - 5} textAnchor="middle" fontSize={size * 0.15}>
           {formatSize(total)}
         </text>
-        <text
-          className="donut__caption"
-          x={size / 2}
-          y={size / 2 + 14}
-          textAnchor="middle"
-          fontSize={size * 0.082}
-        >
+        <text className="donut__caption" x={size / 2} y={size / 2 + 14} textAnchor="middle" fontSize={size * 0.082}>
           used
         </text>
       </svg>
@@ -225,9 +202,7 @@ export function Donut({
               {clickable ? (
                 <button
                   type="button"
-                  className={`legend__item legend__item--click${
-                    selected === s.name ? ' legend__item--on' : ''
-                  }`}
+                  className={`legend__item legend__item--click${selected === s.name ? ' legend__item--on' : ''}`}
                   onClick={() => onSelect(selected === s.name ? null : s.name)}
                   aria-pressed={selected === s.name}
                 >

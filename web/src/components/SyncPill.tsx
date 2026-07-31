@@ -77,21 +77,25 @@ export function SyncPill({ target, status, onStale, refreshing }: Props): JSX.El
   return (
     <div className="flex items-center gap-2 text-[11px]">
       {/* Dot */}
-      <span className={cn(
-        'inline-block size-1.5 rounded-full shrink-0',
-        running ? 'bg-amber-400 animate-pulse' : failed ? 'bg-rose-500' : stale ? 'bg-amber-400' : 'bg-emerald-500',
-      )} />
+      <span
+        className={cn(
+          'inline-block size-1.5 rounded-full shrink-0',
+          running ? 'bg-amber-400 animate-pulse' : failed ? 'bg-rose-500' : stale ? 'bg-amber-400' : 'bg-emerald-500',
+        )}
+      />
 
       {/* Text */}
       <div className="flex items-center gap-1.5 min-w-0">
-        <span className={cn(
-          'font-medium truncate',
-          running ? 'text-amber-400' : failed ? 'text-rose-400' : stale ? 'text-amber-400' : 'text-muted-foreground',
-        )}>
+        <span
+          className={cn(
+            'font-medium truncate',
+            running ? 'text-amber-400' : failed ? 'text-rose-400' : stale ? 'text-amber-400' : 'text-muted-foreground',
+          )}
+        >
           {running
-            ? (status?.stage ? STAGE_LABEL[status.stage] : undefined) ?? 'Working'
+            ? ((status?.stage ? STAGE_LABEL[status.stage] : undefined) ?? 'Working')
             : failed
-              ? status?.message ?? 'Scan failed'
+              ? (status?.message ?? 'Scan failed')
               : stale
                 ? 'New report available'
                 : 'Up to date'}

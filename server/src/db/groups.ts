@@ -37,9 +37,7 @@ function parse(text: string): Mapping {
   const out: Mapping = []
   for (const entry of data as RawGroup[]) {
     if (typeof entry?.name !== 'string' || !entry.name.trim()) continue
-    const targets = Array.isArray(entry.targets)
-      ? entry.targets.filter((t): t is string => typeof t === 'string')
-      : []
+    const targets = Array.isArray(entry.targets) ? entry.targets.filter((t): t is string => typeof t === 'string') : []
     out.push({ name: entry.name.trim(), targets })
   }
   return out

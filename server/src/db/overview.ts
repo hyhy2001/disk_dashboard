@@ -99,14 +99,8 @@ function readTeams(db: Database.Database, snapshotId: number | null): UsageRow[]
  * Top users from the current scan, split by whether they map to a team.
  * `hasTeam` selects the group: legacy called the unmapped ones "other".
  */
-function readUsers(
-  db: Database.Database,
-  hasTeam: boolean,
-  snapshotId: number | null,
-): UsageRow[] {
-  const teamClause = hasTeam
-    ? "u.team_id IS NOT NULL AND u.team_id <> ''"
-    : "(u.team_id IS NULL OR u.team_id = '')"
+function readUsers(db: Database.Database, hasTeam: boolean, snapshotId: number | null): UsageRow[] {
+  const teamClause = hasTeam ? "u.team_id IS NOT NULL AND u.team_id <> ''" : "(u.team_id IS NULL OR u.team_id = '')"
 
   // detail_users.team_id is a text id; the display name only exists in
   // hist_team_usage. They match by value (text '1' = integer 1), so the join is

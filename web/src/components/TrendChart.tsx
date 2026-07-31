@@ -77,10 +77,7 @@ export function TrendChart({ trends, dates, logScale }: Props): JSX.Element {
     return { name: t.name, values: dates.map((d) => map.get(d)) }
   })
 
-  const maxY = Math.max(
-    ...byUser.flatMap((u) => u.values.map((v) => v ?? 0)),
-    1,
-  )
+  const maxY = Math.max(...byUser.flatMap((u) => u.values.map((v) => v ?? 0)), 1)
 
   const x = (i: number): number => PAD_L + (i / (dates.length - 1)) * plotW
 
@@ -142,12 +139,7 @@ export function TrendChart({ trends, dates, logScale }: Props): JSX.Element {
 
   const TIP_W = 190
   const tipH = 20 + rows.length * 16
-  const tipX =
-    hover === null
-      ? 0
-      : x(hover) + 12 + TIP_W > width - PAD_R
-        ? x(hover) - 12 - TIP_W
-        : x(hover) + 12
+  const tipX = hover === null ? 0 : x(hover) + 12 + TIP_W > width - PAD_R ? x(hover) - 12 - TIP_W : x(hover) + 12
   const tipY = Math.min(PAD_T, PAD_T + plotH - tipH)
 
   return (
@@ -187,22 +179,9 @@ export function TrendChart({ trends, dates, logScale }: Props): JSX.Element {
 
           {hover !== null && (
             <g pointerEvents="none">
-              <line
-                className="chart__cross-line"
-                x1={x(hover)}
-                y1={PAD_T}
-                x2={x(hover)}
-                y2={PAD_T + plotH}
-              />
+              <line className="chart__cross-line" x1={x(hover)} y1={PAD_T} x2={x(hover)} y2={PAD_T + plotH} />
               {rows.map((r) => (
-                <circle
-                  key={r.name}
-                  cx={x(hover)}
-                  cy={y(r.value)}
-                  r={3}
-                  className="chart__dot"
-                  stroke={r.color}
-                />
+                <circle key={r.name} cx={x(hover)} cy={y(r.value)} r={3} className="chart__dot" stroke={r.color} />
               ))}
 
               <g className="chart__pill">
@@ -220,23 +199,11 @@ export function TrendChart({ trends, dates, logScale }: Props): JSX.Element {
                   </text>
                   {rows.map((r, i) => (
                     <g key={r.name}>
-                      <rect
-                        x={tipX + 10}
-                        y={tipY + 24 + i * 16}
-                        width={8}
-                        height={8}
-                        rx={2}
-                        fill={r.color}
-                      />
+                      <rect x={tipX + 10} y={tipY + 24 + i * 16} width={8} height={8} rx={2} fill={r.color} />
                       <text className="chart__tip-row" x={tipX + 24} y={tipY + 32 + i * 16}>
                         {r.name}
                       </text>
-                      <text
-                        className="chart__tip-val"
-                        x={tipX + TIP_W - 10}
-                        y={tipY + 32 + i * 16}
-                        textAnchor="end"
-                      >
+                      <text className="chart__tip-val" x={tipX + TIP_W - 10} y={tipY + 32 + i * 16} textAnchor="end">
                         {formatSize(r.value)}
                       </text>
                     </g>
@@ -248,13 +215,7 @@ export function TrendChart({ trends, dates, logScale }: Props): JSX.Element {
 
           {dates.map((d, i) =>
             i % labelEvery === 0 ? (
-              <text
-                className="chart__axis"
-                key={`${d}-${i}`}
-                x={x(i)}
-                y={height - 8}
-                textAnchor="middle"
-              >
+              <text className="chart__axis" key={`${d}-${i}`} x={x(i)} y={height - 8} textAnchor="middle">
                 {formatScanDate(d)}
               </text>
             ) : null,
@@ -266,14 +227,7 @@ export function TrendChart({ trends, dates, logScale }: Props): JSX.Element {
         {trends.map((t, i) => (
           <span className="chart__key" key={t.name}>
             <svg width="16" height="6" aria-hidden="true">
-              <line
-                x1="0"
-                y1="3"
-                x2="16"
-                y2="3"
-                stroke={PALETTE[i % PALETTE.length]}
-                strokeWidth="2"
-              />
+              <line x1="0" y1="3" x2="16" y2="3" stroke={PALETTE[i % PALETTE.length]} strokeWidth="2" />
             </svg>
             {t.name}
           </span>

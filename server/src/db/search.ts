@@ -164,11 +164,7 @@ export interface SearchOptions {
  * leads regardless of which table it came from — that is what a viewer hunting
  * for space wants first.
  */
-export function searchNames(
-  db: Database.Database,
-  query: string,
-  opts: SearchOptions = {},
-): SearchResult {
+export function searchNames(db: Database.Database, query: string, opts: SearchOptions = {}): SearchResult {
   const trimmed = query.trim()
   if (trimmed.length < MIN_QUERY) {
     return { hits: [], hasMore: false, searched: { dirs: false, files: false } }

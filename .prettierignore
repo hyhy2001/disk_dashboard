@@ -1,0 +1,6 @@
+node_modules
+dist
+server/admin.db
+server/admin.db-shm
+server/admin.db-wal
+*.config.ts

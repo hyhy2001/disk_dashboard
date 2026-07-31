@@ -41,12 +41,7 @@ describe('readPermIssues', () => {
     db = createFixture()
     const page = readPermIssues(db)
     expect(page.total).toBe(4)
-    expect(page.rows.map((r) => r.path)).toEqual([
-      '/proc/1/fd',
-      '/proc/1/mem',
-      '/home/alice/.ssh',
-      '/mnt/nfs/gone',
-    ])
+    expect(page.rows.map((r) => r.path)).toEqual(['/proc/1/fd', '/proc/1/mem', '/home/alice/.ssh', '/mnt/nfs/gone'])
   })
 
   it('buckets an empty username under the unknown sentinel', () => {

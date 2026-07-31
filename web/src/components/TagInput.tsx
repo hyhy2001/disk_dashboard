@@ -21,20 +21,10 @@ export function splitTerms(value: string): string[] {
 function committedTerms(value: string): string[] {
   const parts = value.split(/[,\t\n]/)
   const endsWithSep = /[,\t\n]$/.test(value)
-  return (endsWithSep ? parts : parts.slice(0, -1))
-    .map((p) => p.trim())
-    .filter((p) => p.length > 0)
+  return (endsWithSep ? parts : parts.slice(0, -1)).map((p) => p.trim()).filter((p) => p.length > 0)
 }
 
-export function TagInput({
-  id,
-  label,
-  placeholder,
-  value,
-  onChange,
-  onSubmit,
-  className,
-}: Props): JSX.Element {
+export function TagInput({ id, label, placeholder, value, onChange, onSubmit, className }: Props): JSX.Element {
   const chips = committedTerms(value)
   const currentInput = value.split(/[,\t\n]/).pop() ?? ''
   const inputRef = useRef<HTMLInputElement>(null)

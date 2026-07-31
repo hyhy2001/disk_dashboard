@@ -68,7 +68,8 @@ CREATE TABLE IF NOT EXISTS disks (
   name       TEXT    NOT NULL,
   path       TEXT    NOT NULL,
   slug       TEXT    NOT NULL UNIQUE,
-  sort_order INTEGER NOT NULL DEFAULT 0
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  UNIQUE(space_id, name)
 );
 
 CREATE TABLE IF NOT EXISTS disk_teams (
@@ -100,6 +101,8 @@ export function adminDb(): Database.Database {
   migrateRoles(_db)
   // Add the unique route slug to disks for DBs that predate it.
   migrateDisksSlug(_db)
+  // Enforce unique disk names within a space (duplicates renamed on migration).
+  migrateDiskSpaceName(_db)
   return _db
 }
 
@@ -131,8 +134,32 @@ function migrateDisksSlug(db: Database.Database): void {
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS ux_disks_slug ON disks(slug)')
 }
 
+/**
+ * Enforce unique disk names within a space. DBs that predate the UNIQUE
+ * (space_id, name) constraint get their duplicates renamed to `name (N)` so the
+ * index can be created without data loss.
+ */
+function migrateDiskSpaceName(db: Database.Database): void {
+  const dups = db
+    .prepare(
+      `SELECT d.id, d.name FROM disks d
+     JOIN disks d2 ON d2.space_id = d.space_id AND d2.name = d.name AND d2.id < d.id`,
+    )
+    .all() as { id: number; name: string }[]
+  const seen = new Map<number, number>()
+  for (const { id, name } of dups) {
+    const n = (seen.get(id) ?? 0) + 1
+    seen.set(id, n)
+    db.prepare('UPDATE disks SET name = ? WHERE id = ?').run(`${name} (${n})`, id)
+  }
+  db.exec('CREATE UNIQUE INDEX IF NOT EXISTS ux_disks_space_name ON disks(space_id, name)')
+}
+
 export function closeAdminDb(): void {
-  if (_db) { _db.close(); _db = null }
+  if (_db) {
+    _db.close()
+    _db = null
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -185,7 +212,9 @@ export function verifySession(token: string): string | null {
   const expected = createHmac('sha256', sessionKey()).update(payload).digest('hex')
   try {
     if (timingSafeEqual(Buffer.from(hmac, 'hex'), Buffer.from(expected, 'hex'))) return payload
-  } catch { /* ignore */ }
+  } catch {
+    /* ignore */
+  }
   return null
 }
 
@@ -193,7 +222,7 @@ export function verifySession(token: string): string | null {
 // Rate limiting
 // ---------------------------------------------------------------------------
 
-const RATE_WINDOW = 300   // 5 minutes
+const RATE_WINDOW = 300 // 5 minutes
 const RATE_MAX = 10
 const RATE_CAPTCHA = 5
 
@@ -207,7 +236,9 @@ export function rateLimitCheck(ip: string): { allowed: boolean; attempts: number
 }
 
 export function rateLimitRecord(ip: string): void {
-  adminDb().prepare('INSERT INTO login_attempts(ip, ts) VALUES (?, ?)').run(ip, Math.floor(Date.now() / 1000))
+  adminDb()
+    .prepare('INSERT INTO login_attempts(ip, ts) VALUES (?, ?)')
+    .run(ip, Math.floor(Date.now() / 1000))
 }
 
 export function rateLimitClear(ip: string): void {
@@ -233,22 +264,35 @@ export function createCaptcha(): CaptchaChallenge {
   let answer: number
   let question: string
   switch (op) {
-    case '+': answer = a + b; question = `${a} + ${b} = ?`; break
-    case '-': answer = Math.max(a, b) - Math.min(a, b); question = `${Math.max(a, b)} - ${Math.min(a, b)} = ?`; break
-    default: answer = a * b; question = `${a} × ${b} = ?`; break
+    case '+':
+      answer = a + b
+      question = `${a} + ${b} = ?`
+      break
+    case '-':
+      answer = Math.max(a, b) - Math.min(a, b)
+      question = `${Math.max(a, b)} - ${Math.min(a, b)} = ?`
+      break
+    default:
+      answer = a * b
+      question = `${a} × ${b} = ?`
+      break
   }
   const id = randomBytes(8).toString('hex')
   const db = adminDb()
-  db.prepare('INSERT INTO captcha_challenges (id, answer, expires) VALUES (?, ?, ?)').run(id, answer, Date.now() + CAPTCHA_TTL)
+  db.prepare('INSERT INTO captcha_challenges (id, answer, expires) VALUES (?, ?, ?)').run(
+    id,
+    answer,
+    Date.now() + CAPTCHA_TTL,
+  )
   // Cleanup expired challenges
   db.prepare('DELETE FROM captcha_challenges WHERE expires < ?').run(Date.now())
   return { id, question }
 }
 
 export function verifyCaptcha(id: string, answer: number): boolean {
-  const row = adminDb().prepare(
-    'SELECT answer FROM captcha_challenges WHERE id = ? AND expires > ?'
-  ).get(id, Date.now()) as { answer: number } | undefined
+  const row = adminDb()
+    .prepare('SELECT answer FROM captcha_challenges WHERE id = ? AND expires > ?')
+    .get(id, Date.now()) as { answer: number } | undefined
   if (!row) return false
   adminDb().prepare('DELETE FROM captcha_challenges WHERE id = ?').run(id)
   return row.answer === answer
@@ -266,25 +310,25 @@ export interface AdminAccount {
 }
 
 export function getAdminByUsername(username: string): (AdminAccount & { password_hash: string }) | null {
-  const row = adminDb().prepare(
-    'SELECT id, username, password_hash, role, created_at FROM admins WHERE username = ?'
-  ).get(username) as any
+  const row = adminDb()
+    .prepare('SELECT id, username, password_hash, role, created_at FROM admins WHERE username = ?')
+    .get(username) as any
   return row ?? null
 }
 
 export function listAdmins(): AdminAccount[] {
-  return adminDb().prepare(
-    'SELECT id, username, role, created_at FROM admins ORDER BY id'
-  ).all() as AdminAccount[]
+  return adminDb().prepare('SELECT id, username, role, created_at FROM admins ORDER BY id').all() as AdminAccount[]
 }
 
 export function createAdmin(username: string, password: string, role: string = 'admin'): AdminAccount {
   const hash = hashPassword(password)
   const db = adminDb()
-  const info = db.prepare(
-    'INSERT INTO admins (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)'
-  ).run(username, hash, role, new Date().toISOString())
-  return db.prepare('SELECT id, username, role, created_at FROM admins WHERE id = ?').get(info.lastInsertRowid) as AdminAccount
+  const info = db
+    .prepare('INSERT INTO admins (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)')
+    .run(username, hash, role, new Date().toISOString())
+  return db
+    .prepare('SELECT id, username, role, created_at FROM admins WHERE id = ?')
+    .get(info.lastInsertRowid) as AdminAccount
 }
 
 export function deleteAdmin(id: number): boolean {
@@ -337,7 +381,9 @@ export function listSpaces(): Space[] {
 
 export function listSpacesWithDisks(): SpaceWithDisks[] {
   const spaces = listSpaces()
-  const disks = adminDb().prepare('SELECT id, space_id, name, path, slug, sort_order FROM disks ORDER BY sort_order, id').all() as Disk[]
+  const disks = adminDb()
+    .prepare('SELECT id, space_id, name, path, slug, sort_order FROM disks ORDER BY sort_order, id')
+    .all() as Disk[]
   const diskMap = new Map<number, Disk[]>()
   for (const d of disks) {
     const list = diskMap.get(d.space_id) ?? []
@@ -349,7 +395,9 @@ export function listSpacesWithDisks(): SpaceWithDisks[] {
 
 /** Look up a disk by its globally-unique route slug. */
 export function diskBySlug(slug: string): Disk | null {
-  const row = adminDb().prepare('SELECT id, space_id, name, path, slug, sort_order FROM disks WHERE slug = ?').get(slug) as Disk | undefined
+  const row = adminDb()
+    .prepare('SELECT id, space_id, name, path, slug, sort_order FROM disks WHERE slug = ?')
+    .get(slug) as Disk | undefined
   return row ?? null
 }
 
@@ -370,19 +418,35 @@ export function deleteSpace(id: number): boolean {
 
 export function createDisk(spaceId: number, name: string, path: string): Disk {
   const db = adminDb()
-  const maxOrder = db.prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 as n FROM disks WHERE space_id = ?').get(spaceId) as { n: number }
-  const info = db.prepare('INSERT INTO disks (space_id, name, path, slug, sort_order) VALUES (?, ?, ?, ?, ?)').run(spaceId, name, path, randomBytes(6).toString('hex'), maxOrder.n)
-  return db.prepare('SELECT id, space_id, name, path, slug, sort_order FROM disks WHERE id = ?').get(info.lastInsertRowid) as Disk
+  const maxOrder = db
+    .prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 as n FROM disks WHERE space_id = ?')
+    .get(spaceId) as { n: number }
+  const info = db
+    .prepare('INSERT INTO disks (space_id, name, path, slug, sort_order) VALUES (?, ?, ?, ?, ?)')
+    .run(spaceId, name, path, randomBytes(6).toString('hex'), maxOrder.n)
+  return db
+    .prepare('SELECT id, space_id, name, path, slug, sort_order FROM disks WHERE id = ?')
+    .get(info.lastInsertRowid) as Disk
 }
 
 export function updateDisk(id: number, fields: { name?: string; path?: string }): boolean {
   const sets: string[] = []
   const params: any[] = []
-  if (fields.name !== undefined) { sets.push('name = ?'); params.push(fields.name) }
-  if (fields.path !== undefined) { sets.push('path = ?'); params.push(fields.path) }
+  if (fields.name !== undefined) {
+    sets.push('name = ?')
+    params.push(fields.name)
+  }
+  if (fields.path !== undefined) {
+    sets.push('path = ?')
+    params.push(fields.path)
+  }
   if (sets.length === 0) return false
   params.push(id)
-  return adminDb().prepare(`UPDATE disks SET ${sets.join(', ')} WHERE id = ?`).run(...params).changes > 0
+  return (
+    adminDb()
+      .prepare(`UPDATE disks SET ${sets.join(', ')} WHERE id = ?`)
+      .run(...params).changes > 0
+  )
 }
 
 export function deleteDisk(id: number): boolean {
@@ -401,30 +465,38 @@ export interface DiskTeam {
 }
 
 export function listDiskTeams(diskId: number): DiskTeam[] {
-  const rows = adminDb().prepare(
-    'SELECT id, disk_id, name, users FROM disk_teams WHERE disk_id = ? ORDER BY name'
-  ).all(diskId) as { id: number; disk_id: number; name: string; users: string }[]
+  const rows = adminDb()
+    .prepare('SELECT id, disk_id, name, users FROM disk_teams WHERE disk_id = ? ORDER BY name')
+    .all(diskId) as { id: number; disk_id: number; name: string; users: string }[]
   return rows.map((r) => ({ ...r, users: JSON.parse(r.users) as string[] }))
 }
 
 export function createDiskTeam(diskId: number, name: string): DiskTeam {
   const db = adminDb()
-  const info = db.prepare(
-    'INSERT INTO disk_teams (disk_id, name, users) VALUES (?, ?, ?)'
-  ).run(diskId, name, '[]')
-  return db.prepare(
-    'SELECT id, disk_id, name, users FROM disk_teams WHERE id = ?'
-  ).get(info.lastInsertRowid) as DiskTeam
+  const info = db.prepare('INSERT INTO disk_teams (disk_id, name, users) VALUES (?, ?, ?)').run(diskId, name, '[]')
+  return db
+    .prepare('SELECT id, disk_id, name, users FROM disk_teams WHERE id = ?')
+    .get(info.lastInsertRowid) as DiskTeam
 }
 
 export function updateDiskTeam(id: number, fields: { name?: string; users?: string[] }): boolean {
   const sets: string[] = []
   const params: any[] = []
-  if (fields.name !== undefined) { sets.push('name = ?'); params.push(fields.name) }
-  if (fields.users !== undefined) { sets.push('users = ?'); params.push(JSON.stringify(fields.users)) }
+  if (fields.name !== undefined) {
+    sets.push('name = ?')
+    params.push(fields.name)
+  }
+  if (fields.users !== undefined) {
+    sets.push('users = ?')
+    params.push(JSON.stringify(fields.users))
+  }
   if (sets.length === 0) return false
   params.push(id)
-  return adminDb().prepare(`UPDATE disk_teams SET ${sets.join(', ')} WHERE id = ?`).run(...params).changes > 0
+  return (
+    adminDb()
+      .prepare(`UPDATE disk_teams SET ${sets.join(', ')} WHERE id = ?`)
+      .run(...params).changes > 0
+  )
 }
 
 export function deleteDiskTeam(id: number): boolean {
@@ -461,9 +533,9 @@ export function createBackup(): BackupInfo {
 
 export function listBackups(): BackupInfo[] {
   const dir = backupDir()
-  const files = readdirSync(dir).filter(f => f.startsWith('admin_backup_') && f.endsWith('.db'))
+  const files = readdirSync(dir).filter((f) => f.startsWith('admin_backup_') && f.endsWith('.db'))
   files.sort().reverse()
-  return files.slice(0, 100).map(name => {
+  return files.slice(0, 100).map((name) => {
     const st = statSync(join(dir, name))
     return { name, mtime: st.mtime.toISOString(), size: st.size }
   })
@@ -511,7 +583,11 @@ export function getSummaryStats(): SummaryStats {
   const teams = teamRows.length
   let teamUsers = 0
   for (const r of teamRows) {
-    try { teamUsers += (JSON.parse(r.users) as string[]).length } catch { /* */ }
+    try {
+      teamUsers += (JSON.parse(r.users) as string[]).length
+    } catch {
+      /* */
+    }
   }
   const accounts = (db.prepare('SELECT COUNT(*) as c FROM admins').get() as { c: number }).c
   return { spaces, disks, teams, teamUsers, accounts }

@@ -45,9 +45,7 @@ function SizeCell({ size, total }: { size: number; total: number }): JSX.Element
   const pctLabel = pct < 0.01 && pct > 0 ? '<0.01%' : `${pct.toFixed(2)}%`
   return (
     <span className="flex items-center gap-2 shrink-0 w-44">
-      <span className="tabular-nums text-[11px] font-medium text-right w-24 shrink-0">
-        {formatSize(size)}
-      </span>
+      <span className="tabular-nums text-[11px] font-medium text-right w-24 shrink-0">{formatSize(size)}</span>
       <span className="h-1 flex-1 rounded-full bg-muted overflow-hidden min-w-[16px]">
         <span
           className="block h-full rounded-full"
@@ -57,9 +55,7 @@ function SizeCell({ size, total }: { size: number; total: number }): JSX.Element
           }}
         />
       </span>
-      <span className="tabular-nums text-[10px] text-muted-foreground text-right w-14 shrink-0">
-        {pctLabel}
-      </span>
+      <span className="tabular-nums text-[10px] text-muted-foreground text-right w-14 shrink-0">{pctLabel}</span>
     </span>
   )
 }
@@ -103,7 +99,9 @@ export function EntryList({
                   <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
                 </svg>
               </span>
-              <span className="truncate font-mono text-muted-foreground hover:text-foreground transition-colors">{d.name}</span>
+              <span className="truncate font-mono text-muted-foreground hover:text-foreground transition-colors">
+                {d.name}
+              </span>
             </span>
             <span className="w-20 truncate text-muted-foreground shrink-0">{d.owner}</span>
             <SizeCell size={d.size} total={totalSize} />
@@ -134,7 +132,12 @@ export function EntryList({
           Showing {formatCount(shownCount)} of {formatCount(totalCount)} subdirectories
         </span>
         {onLoadMore && (
-          <button type="button" className="inline-flex items-center rounded-sm border border-border bg-transparent px-3 py-1.5 text-xs hover:bg-muted transition-colors" onClick={onLoadMore} disabled={loadingMore}>
+          <button
+            type="button"
+            className="inline-flex items-center rounded-sm border border-border bg-transparent px-3 py-1.5 text-xs hover:bg-muted transition-colors"
+            onClick={onLoadMore}
+            disabled={loadingMore}
+          >
             {loadingMore ? 'Loading…' : 'Load more'}
           </button>
         )}
