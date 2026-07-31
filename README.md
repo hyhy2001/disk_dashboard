@@ -31,6 +31,21 @@ make dev         # Fastify + Vite dev servers in the foreground
 
 Open http://127.0.0.1:5311.
 
+### RHEL8 / older glibc
+
+RHEL8 ships glibc 2.28 and g++ 8.x. better-sqlite3 v11 needs glibc 2.29 and
+C++20, so on RHEL8 `make setup` falls back to compiling it from source — which
+fails against the default g++ (`-std=c++20` unrecognized). Install Red Hat's
+newer toolchain and re-run:
+
+```sh
+dnf install gcc-toolset-13   # then open a new login shell so it is on PATH
+make setup
+```
+
+The Makefile automatically uses `/opt/rh/gcc-toolset-*` when present and
+`make setup` pre-checks C++20 support with a clear message before installing.
+
 For a single-process production run:
 
 ```sh

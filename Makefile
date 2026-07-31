@@ -49,8 +49,22 @@ PM2 := $(ROOT)/node_modules/.bin/pm2
 # home — the toolchain stays portable and needs nothing from a real home dir.
 LOCAL_HOME := $(TOOL)/home
 
+# RHEL8 ships g++ 8.x, which predates C++20 — better-sqlite3 v11 needs it, so
+# its node-gyp build fails with `unrecognized -std=c++20`. Red Hat's gcc-toolset
+# provides a newer compiler at /opt/rh/gcc-toolset-<N>/root/usr/bin. If one is
+# installed, put it on PATH ahead of the system g++ so native builds succeed.
+GCC_TOOLSET_DIR := $(shell for d in /opt/rh/gcc-toolset-*; do [ -x "$$d/root/usr/bin/g++" ] && echo "$$d"; done 2>/dev/null | sort -V | tail -1)
+ifneq ($(GCC_TOOLSET_DIR),)
+$(info using gcc-toolset: $(GCC_TOOLSET_DIR))
+export LD_LIBRARY_PATH := $(GCC_TOOLSET_DIR)/root/usr/lib64:$(LD_LIBRARY_PATH)
+endif
+
 export HOME := $(LOCAL_HOME)
+ifneq ($(GCC_TOOLSET_DIR),)
+export PATH := $(GCC_TOOLSET_DIR)/root/usr/bin:$(NODE_BIN):$(PY_BIN):$(PATH)
+else
 export PATH := $(NODE_BIN):$(PY_BIN):$(PATH)
+endif
 export npm_config_cache := $(CACHE)
 export npm_config_python := $(PYTHON)
 export PM2_HOME := $(PM2_HOME)
@@ -102,6 +116,14 @@ $(PY_BIN)/python3:
 	@"$(PYTHON)" --version
 
 setup: $(NODE_BIN)/node $(PY_BIN)/python3
+	@echo '==> Checking C++20 support for native modules ...'
+	@if ! echo 'int main(){return 0;}' | g++ -std=c++20 -x c++ - -o /dev/null 2>/dev/null; then \
+		echo '   The system g++ predates C++20 (RHEL8 ships 8.x). better-sqlite3 v11'; \
+		echo '   needs it. Install a newer compiler and re-run make setup:'; \
+		echo '     dnf install gcc-toolset-13'; \
+		echo '     (a login shell will put it on PATH via /etc/profile.d)'; \
+		exit 1; \
+	fi
 	@echo '==> Installing dependencies with local npm (python: $(PYTHON)) ...'
 	@"$(NPM)" install
 	@if [ ! -f "$(ROOT)/.env" ]; then \
