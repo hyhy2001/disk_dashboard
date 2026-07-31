@@ -231,7 +231,7 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
 
   return (
     <>
-      <div className="flex items-center gap-2 px-3 py-2 border-b border-border/30 bg-surface/30">
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-border/30 bg-surface/30">
         <span className="text-xs tabular-nums text-muted-foreground shrink-0">{formatCount(users.length)} users</span>
 
         <UserPicker users={users} selected={user} onSelect={setUser} />
@@ -308,7 +308,7 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
           Apply
         </button>
 
-        <div className="flex-1" />
+        <div className="flex-1 hidden md:block" />
 
         <button
           type="button"

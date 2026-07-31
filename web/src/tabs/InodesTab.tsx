@@ -136,9 +136,9 @@ export function InodesTab({ target }: Props): JSX.Element {
   const walked = users.reduce((s, u) => s + u.inodes, 0)
 
   return (
-    <div className="flex h-full">
+    <div className="flex flex-col lg:flex-row h-full">
       {/* ── System panel ── */}
-      <section className="w-[340px] shrink-0 border-r border-border p-4 space-y-4 overflow-auto">
+      <section className="lg:w-[340px] lg:shrink-0 lg:border-r lg:border-border p-4 space-y-4 overflow-auto">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold">System inodes</h2>
           <span className="text-[10px] text-muted-foreground">
@@ -189,14 +189,14 @@ export function InodesTab({ target }: Props): JSX.Element {
 
       {/* ── User panel ── */}
       <section className="flex-1 flex flex-col min-w-0">
-        <div className="flex items-center gap-2 border-b border-border px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
           <h2 className="text-sm font-semibold">Per-user inodes</h2>
           <span className="text-[10px] text-muted-foreground">
             {formatCount(shown.length)}
             {shown.length !== users.length ? ` of ${formatCount(users.length)}` : ''} account
             {users.length !== 1 ? 's' : ''}
           </span>
-          <div className="flex-1" />
+          <div className="flex-1 hidden md:block" />
           <Input
             placeholder="Search users…"
             value={query}
