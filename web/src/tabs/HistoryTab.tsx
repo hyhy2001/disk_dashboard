@@ -219,7 +219,7 @@ export function HistoryTab({ target }: Props): JSX.Element {
         </span>
       </div>
 
-      <div className="flex flex-col lg:flex-row flex-1 h-full overflow-hidden relative">
+      <div className="flex flex-col lg:flex-row flex-1 h-full overflow-y-auto lg:overflow-hidden relative">
         <aside className="lg:w-56 lg:shrink-0 lg:min-h-0 lg:border-r lg:border-border border-b lg:border-b-0 border-border/40 bg-surface/30 flex flex-col">
           <header className="flex items-center gap-2 border-b border-border/40 px-3 py-2 shrink-0">
             <h2 className="text-sm font-semibold flex-1">Users</h2>
