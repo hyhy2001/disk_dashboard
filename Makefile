@@ -79,6 +79,17 @@ export PATH := $(NODE_BIN):$(PY_BIN):$(CLEAN_PATH)
 endif
 export npm_config_cache := $(CACHE)
 export npm_config_python := $(PYTHON)
+# Pin the platform so npm installs the right native optional deps (rollup's
+# @rollup/rollup-linux-x64-gnu) even when npm's own detection is off — e.g. on
+# RHEL8 where libc detection can be wrong and the build then fails with
+# "Cannot find module @rollup/rollup-linux-x64-gnu". Only set for x86_64 glibc
+# linux; other platforms (arm, musl) keep npm's default detection.
+IS_LINUX_X64 := $(shell [ "$$(uname -s)" = Linux ] && [ "$$(uname -m)" = x86_64 ] && echo 1)
+ifneq ($(IS_LINUX_X64),)
+export npm_config_os := linux
+export npm_config_cpu := x64
+export npm_config_libc := $(shell ldd --version 2>/dev/null | grep -qi musl && echo musl || echo glibc)
+endif
 export PM2_HOME := $(PM2_HOME)
 
 .DEFAULT_GOAL := help
