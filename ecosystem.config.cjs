@@ -52,7 +52,7 @@ module.exports = {
         // The reverse proxy (nginx) proxies to this port.
         DASHBOARD_PORT: dot.DASHBOARD_PORT || '5311',
         // Loopback only: nginx terminates TLS and is the sole entry point.
-        DASHBOARD_HOST: dot.DASHBOARD_HOST || '127.0.0.1',
+        DASHBOARD_HOST: dot.DASHBOARD_HOST || '0.0.0.0',
         DASHBOARD_WEB_DIR: dot.DASHBOARD_WEB_DIR || resolve(root, 'web/dist'),
         // Secret for signing session cookies. Set it in .env so sessions survive
         // restarts; without it a fresh random key is generated per boot.

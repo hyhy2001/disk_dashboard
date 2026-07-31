@@ -178,7 +178,7 @@ setup: $(NODE_BIN)/node $(PY_BIN)/python3
 	@if [ ! -f "$(ROOT)/.env" ]; then \
 		echo '==> Writing .env (relative to this repo) ...'; \
 		SECRET=$$(head -c 32 /dev/urandom | od -An -tx1 | tr -d ' \n'); \
-		printf 'DASHBOARD_PORT=5311\nDASHBOARD_HOST=127.0.0.1\nDASHBOARD_WEB_DIR=web/dist\nDASHBOARD_ADMIN_DB=server/admin.db\nDASHBOARD_COOKIE_SECRET=%s\nDASHBOARD_LOG_LEVEL=info\n' "$$SECRET" > "$(ROOT)/.env"; \
+		printf 'DASHBOARD_PORT=5311\nDASHBOARD_HOST=0.0.0.0\nDASHBOARD_WEB_DIR=web/dist\nDASHBOARD_ADMIN_DB=server/admin.db\nDASHBOARD_COOKIE_SECRET=%s\nDASHBOARD_LOG_LEVEL=info\n' "$$SECRET" > "$(ROOT)/.env"; \
 		echo '   .env written with a random cookie secret.'; \
 	else \
 		echo '==> .env already exists — leaving it alone.'; \

@@ -60,7 +60,7 @@ export function loadConfig(): Config {
     port: envInt('DASHBOARD_PORT', 5310),
     // Loopback by default: the dashboard exposes filesystem usage and has no
     // authentication of its own, so binding 0.0.0.0 must be an explicit choice.
-    host: process.env.DASHBOARD_HOST ?? '127.0.0.1',
+    host: process.env.DASHBOARD_HOST ?? '0.0.0.0',
     webDir,
   }
 }
