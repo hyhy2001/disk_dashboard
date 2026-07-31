@@ -25,6 +25,8 @@ interface CachedDb {
 }
 
 const cache = new Map<string, CachedDb>()
+/** Same cache keyed by absolute report.db path, used by openReportAt/openTargetReport. */
+const pathCache = new Map<string, CachedDb>()
 
 function stampOf(path: string): string {
   const s = statSync(path)
@@ -44,9 +46,24 @@ export function reportPath(reportsDir: string, target: string): string {
 export function openReportAt(path: string): { db: Database.Database; name: string } | null {
   if (!existsSync(path)) return null
   try {
-    const db = new Database(path, { readonly: true })
-    db.pragma('journal_mode = OFF')
     const name = statSync(path).isDirectory() ? 'unknown' : basename(dirname(path))
+    const stamp = stampOf(path)
+    const hit = pathCache.get(path)
+    if (hit) {
+      if (hit.stamp === stamp) return { db: hit.db, name }
+      // A rescan replaced the file; drop the stale handle.
+      hit.db.close()
+      pathCache.delete(path)
+    }
+    const db = new Database(path, { readonly: true, fileMustExist: true })
+    db.pragma('journal_mode = OFF')
+    // Same read-tuning openReport applies: mmap keeps page access cheap on the
+    // large detail tables, and a bigger page cache cuts the cold-start cost of
+    // a first deep query. openTargetReport goes through here, so the Users tab
+    // (root owns 1.4M files) gets the same cache the treemap already had.
+    db.pragma('mmap_size = 268435456')
+    db.pragma('cache_size = -65536')
+    pathCache.set(path, { db, stamp })
     return { db, name }
   } catch {
     return null
@@ -91,6 +108,8 @@ export function openReport(reportsDir: string, target: string): Database.Databas
 export function closeAll(): void {
   for (const { db } of cache.values()) db.close()
   cache.clear()
+  for (const { db } of pathCache.values()) db.close()
+  pathCache.clear()
 }
 
 /** Read the whole `meta` table into a plain object. */
@@ -209,7 +228,9 @@ export function openTargetReport(slug: string): Database.Database | null {
   if (!path) return null
   const rp = join(path, REPORT_FILE)
   if (!existsSync(rp)) return null
-  // Reuse openReportAt so the cache/close logic stays in one place
+  // openReportAt caches by absolute path (reopening when a rescan replaces the
+  // file), so every per-target route reuses one handle instead of leaking a new
+  // SQLite connection per request.
   const opened = openReportAt(rp)
   return opened?.db ?? null
 }

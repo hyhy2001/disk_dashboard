@@ -74,9 +74,10 @@ export function readScanStatusAt(reportDbPath: string, targetDir: string): ScanS
 
   const st = statSync(reportDbPath)
   const target = basename(targetDir)
+  // openReportAt caches the handle by path; do not close it here or the next
+  // poll would hand back a closed connection.
   const db = openReportAt(reportDbPath)
   const meta = db ? readMeta(db.db) : {}
-  if (db) db.db.close()
   const status = readStatusFile(targetDir)
 
   const stage = str(status?.stage)

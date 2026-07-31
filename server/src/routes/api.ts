@@ -190,7 +190,6 @@ export function registerApi(app: FastifyInstance): void {
           const meta = readMeta(info.db)
           const cap = readCapacity(info.db)
           const dbSize = statSync(rp).size
-          info.db.close()
           targets.push({
             name: disk.name,
             slug: disk.slug,
@@ -221,7 +220,6 @@ export function registerApi(app: FastifyInstance): void {
           const meta = readMeta(info.db)
           const cap = readCapacity(info.db)
           const dbSize = statSync(rp).size
-          info.db.close()
           members.push({
             name: disk.name,
             slug: disk.slug,
