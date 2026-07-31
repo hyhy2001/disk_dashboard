@@ -32,6 +32,16 @@ registerAdmin(app)
 // In dev the Vite server owns the assets and proxies /api here, so a missing
 // webDir is normal rather than an error.
 if (config.webDir && existsSync(config.webDir)) {
+  // Never serve build internals or repo metadata: source maps would expose the
+  // original TS, and .git/.env/.db would leak far worse. Deny by URL shape so a
+  // file added to webDir later is covered without a config change. API routes
+  // are registered before this hook but never touch webDir, so exempt /api/.
+  const SENSITIVE = /(?:^|\.)(?:map|git|env|db|sqlite|sqlite3|log|bak|ts|tsx|svelte|vue|lock)(?:\b|$)/i
+  app.addHook('onRequest', async (request, reply) => {
+    if (!request.url.startsWith('/api/') && SENSITIVE.test(request.url)) {
+      return reply.code(404).send({ status: 'error', message: 'not found' })
+    }
+  })
   await app.register(fastifyStatic, { root: config.webDir })
   app.setNotFoundHandler(async (request, reply) => {
     if (request.url.startsWith('/api/')) {
