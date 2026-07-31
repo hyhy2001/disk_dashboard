@@ -135,7 +135,7 @@ export function PermissionsTab({ target }: Props): JSX.Element {
   const namedUsers = data.userCounts.filter((u) => u.name !== UNKNOWN)
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-1 flex-col h-full min-h-0">
       {/* ── Summary stats ── */}
       <div className="flex items-center gap-4 border-b border-border px-4 py-2.5">
         <div className="text-center">
