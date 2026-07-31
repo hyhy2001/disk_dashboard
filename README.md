@@ -9,9 +9,11 @@ depends on the schema, not on the binary.
 ## Layout
 
 ```
-shared/       API types used by both sides
-server/       Fastify + better-sqlite3, readonly access to report.db
-web/          React + TypeScript + Vite
+Makefile       portable toolchain commands (see below)
+.tooling/      local Node, npm cache, PM2 state (created by `make setup`)
+shared/        API types used by both sides
+server/        Fastify + better-sqlite3, readonly access to report.db
+web/           React + TypeScript + Vite
 ```
 
 ## Run
@@ -19,7 +21,7 @@ web/          React + TypeScript + Vite
 The toolchain is fully portable — Node, the npm cache and PM2's state all live
 inside this repository under `.tooling/`, nothing is read from `$HOME` or
 `/usr`. Move the folder to another machine and `make setup` rebuilds the
-toolchain.
+toolchain. `make` prints the full command list.
 
 ```sh
 make setup       # one-time: download local Node, npm install, write .env
@@ -50,9 +52,7 @@ make start       # equivalent to: pm2 start ecosystem.config.cjs && pm2 save
 ```
 
 `ecosystem.config.cjs` loads `.env` from this repo, so the config lives in one
-place and moves with the folder.
-
-After changing code, `make restart`.
+place and moves with the folder. After changing code, `make restart`.
 
 Do not put `make dev` behind the vhost. Vite plus `tsx watch` has no restart
 policy, so any crash leaves nginx returning 502 with nothing bringing it back.
@@ -60,7 +60,8 @@ policy, so any crash leaves nginx returning 502 with nothing bringing it back.
 ## Configuration
 
 All configuration is in `.env` (written by `make setup`, loaded by
-`ecosystem.config.cjs`):
+`ecosystem.config.cjs`). Relative paths resolve against the repo root, so the
+same `.env` works on any machine:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
@@ -71,42 +72,29 @@ All configuration is in `.env` (written by `make setup`, loaded by
 | `DASHBOARD_COOKIE_SECRET` | random (generated) | Session-cookie signing key |
 | `DASHBOARD_LOG_LEVEL` | `info` | Fastify log level |
 
-Targets are auto-discovered: any `<reportsDir>/<name>/report.db` shows up in the
-picker. No manual disk map to maintain.
+## Admin setup
 
-### Grouping targets
+The first visit to `#/admin` runs the setup flow: create an owner account, then
+use **Disk Mapping** to add spaces and disks. Each disk points at a directory
+holding a `report.db` — a "Test read" button verifies the path before it is
+saved. Spaces and disks live in `DASHBOARD_ADMIN_DB`; nothing is auto-discovered
+from the filesystem anymore.
 
-The sidebar's two-level Space → Disk navigation comes from an optional
-`teams.json` in the reports directory:
-
-```json
-[
-  { "name": "Production", "targets": ["Test", "ABC"] },
-  { "name": "System",     "targets": ["usr"] }
-]
-```
-
-Re-read whenever the file changes, so no restart is needed. Rules:
-
-- Groups appear in file order; targets keep newest-scan-first order within one.
-- A target no group names is appended under **Ungrouped** — never hidden, since a
-  target on disk must always be reachable.
-- A target listed twice belongs to the first group only.
-- A named target that has not been scanned yet is skipped, not an error.
-- No file, or an unparseable one, puts everything in one **All Targets** group.
-  `/api/health` reports `groupConfigLoaded`, which is the only way to tell a typo
-  from an intentional absence.
-
-The `DASHBOARD_REPORTS_DIR` default resolves from the repo root, not the current
-directory — `npm run dev` runs workspace scripts with cwd = `server/`, so a
-cwd-relative default would point at different places depending on how the server
-was started. `/api/health` reports the path it settled on plus whether it exists.
+Grouping is therefore Space → Disk from the admin DB, not a `teams.json` on
+disk. A target listed under no space is still reachable through the disk
+sidebar.
 
 ## Security
 
-The server has **no authentication** and exposes filesystem usage and usernames.
-It binds `127.0.0.1` by default for that reason — put it behind a reverse proxy
-that handles auth before setting `DASHBOARD_HOST` to a public interface.
+The report-reading endpoints have no authentication and expose filesystem usage
+and usernames, so the server binds `127.0.0.1` by default — put it behind a
+reverse proxy that handles auth before setting `DASHBOARD_HOST` to a public
+interface.
+
+Admin endpoints (`/api/admin/*`) have their own auth: scrypt-hashed passwords in
+`DASHBOARD_ADMIN_DB`, HMAC-signed `httpOnly` session cookies, rate limiting and a
+captcha on login, and owner/admin role separation. Set `DASHBOARD_COOKIE_SECRET`
+in `.env` (done by `make setup`) so sessions survive restarts.
 
 ## Views
 
@@ -118,9 +106,7 @@ that handles auth before setting `DASHBOARD_HOST` to a public interface.
 | History | `hist_snapshots`, `hist_user_usage` |
 | Detail User | `detail_dirs`, `detail_files`, `detail_file_names` |
 | Permission Issues | `perm_issues` |
-
-**Inodes** has no view: `report.db` carries no inode table, so there is nothing to
-read. It needs duscan to emit one first.
+| Inodes | `hist_snapshots` inode columns + `detail_users` |
 
 **Permission Issues** shows "no permission issues" on most reports, because a scan
 run as root is denied nothing. That is the healthy result, not a failure — rows
