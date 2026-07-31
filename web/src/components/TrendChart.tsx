@@ -18,9 +18,6 @@ import type { UserTrend } from '../../../shared/api.js'
 import { formatScanDate, formatSize } from '../lib/format.js'
 import { useSize } from '../lib/useSize.js'
 
-/** Fallbacks until the box is measured. */
-const WIDTH = 560
-const HEIGHT = 220
 const PAD_L = 14
 const PAD_R = 92
 const PAD_T = 12
@@ -57,15 +54,30 @@ export function TrendChart({ trends, dates, logScale }: Props): JSX.Element {
   const [hover, setHover] = useState<number | null>(null)
   const [box, size] = useSize<HTMLDivElement>()
 
+  const measured = size && size.width > 0 && size.height > 0
+
   if (trends.length === 0) {
-    return <p className="empty">Select one or more users to plot their usage over time.</p>
+    return (
+      <div ref={box} className="chartbox">
+        <p className="empty">Select one or more users to plot their usage over time.</p>
+      </div>
+    )
   }
   if (dates.length < 2) {
-    return <p className="empty">A trend needs at least two scans. Only one snapshot exists.</p>
+    return (
+      <div ref={box} className="chartbox">
+        <p className="empty">A trend needs at least two scans. Only one snapshot exists.</p>
+      </div>
+    )
   }
 
-  const width = size?.width && size.width > 0 ? size.width : WIDTH
-  const height = size?.height && size.height > 0 ? size.height : HEIGHT
+  // Wait for useSize measurement so viewBox matches real pixels — no reflow.
+  if (!measured) {
+    return <div ref={box} className="chartbox h-full min-h-[200px]" />
+  }
+
+  const width = size.width
+  const height = size.height
   const plotW = width - PAD_L - PAD_R
   const plotH = height - PAD_T - PAD_B
 
