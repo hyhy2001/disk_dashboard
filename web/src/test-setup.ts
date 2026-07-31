@@ -31,3 +31,18 @@ globalThis.matchMedia ??= ((query: string) =>
     removeEventListener: () => {},
     dispatchEvent: () => false,
   }) as MediaQueryList) as typeof globalThis.matchMedia
+
+// jsdom defaults to a 1024px window, which lands inside the sidebar auto-collapse
+// band and would make the layout tests see a collapsed rail. Pretend we are on a
+// wide desktop so the shell renders expanded, as it does on a real monitor. The
+// setup runs for server tests too (Node, no `window`), so guard it.
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'innerWidth', {
+    configurable: true,
+    value: 1600,
+  })
+  Object.defineProperty(window, 'outerWidth', {
+    configurable: true,
+    value: 1600,
+  })
+}

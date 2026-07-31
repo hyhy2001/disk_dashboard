@@ -67,7 +67,7 @@ export function App() {
   })
   const toggleTheme = useCallback(() => setTheme((t) => (t === 'dark' ? 'light' : 'dark')), [])
 
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(() => window.innerWidth < 1280 && window.innerWidth >= 768)
   const [drawer, setDrawer] = useState(false)
   const [route, setRoute] = useState<Route>(currentRoute)
   const [groups, setGroups] = useState<TargetGroup[]>([])
@@ -102,6 +102,33 @@ export function App() {
     const onPop = () => setRoute(currentRoute())
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
+  }, [])
+
+  // Auto-collapse the sidebar on narrow windows, and restore the user's manual
+  // choice once there is room again. Below 768px the sidebar is a drawer, so it
+  // must stay full-width for the drawer to open usable.
+  //
+  // Only reacts when the width crosses a threshold, so a manual expand at e.g.
+  // 900px is not undone by a one-pixel drag within the same band.
+  const manualCollapsedRef = useRef<boolean | null>(null)
+  useEffect(() => {
+    let band: 'narrow' | 'mid' | 'wide' =
+      window.innerWidth < 768 ? 'narrow' : window.innerWidth < 1280 ? 'mid' : 'wide'
+    const onResize = () => {
+      const next: typeof band =
+        window.innerWidth < 768 ? 'narrow' : window.innerWidth < 1280 ? 'mid' : 'wide'
+      if (next === band) return
+      band = next
+      if (next === 'narrow') {
+        setCollapsed(false)
+      } else if (next === 'mid') {
+        setCollapsed(true)
+      } else {
+        setCollapsed(manualCollapsedRef.current === true)
+      }
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
   }, [])
 
   useEffect(() => {
@@ -423,7 +450,10 @@ export function App() {
           </div>
           {/* Collapse toggle */}
           <button
-            onClick={() => setCollapsed((c) => !c)}
+            onClick={() => {
+              manualCollapsedRef.current = !collapsed
+              setCollapsed((c) => !c)
+            }}
             className="absolute -right-3 top-5 z-40 hidden md:flex size-5 items-center justify-center rounded-full border border-border/50 bg-surface/80 text-[10px] text-muted-foreground hover:text-foreground hover:border-border transition-colors backdrop-blur-sm"
           >
             {collapsed ? '▸' : '◂'}
@@ -460,7 +490,10 @@ export function App() {
             {/* Mobile menu button */}
             <button
               className="md:hidden -ml-1 inline-flex size-8 items-center justify-center rounded-sm hover:bg-muted"
-              onClick={() => setDrawer((d) => !d)}
+              onClick={() => {
+                setCollapsed(false)
+                setDrawer((d) => !d)
+              }}
             >
               <span className="text-sm">{drawer ? '✕' : '☰'}</span>
             </button>
