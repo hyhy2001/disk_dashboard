@@ -6,6 +6,9 @@ logs/
 .env.*
 .DS_Store
 
+# Local toolchain (Node binary, npm cache, pm2 state) — portable, never committed.
+.tooling/
+
 # Local admin database (credentials, spaces, disks) — never commit.
 server/admin.db
 server/admin.db-shm

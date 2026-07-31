@@ -16,9 +16,14 @@ web/          React + TypeScript + Vite
 
 ## Run
 
+The toolchain is fully portable — Node, the npm cache and PM2's state all live
+inside this repository under `.tooling/`, nothing is read from `$HOME` or
+`/usr`. Move the folder to another machine and `make setup` rebuilds the
+toolchain.
+
 ```sh
-npm install
-npm run dev     # Fastify on :5310, Vite on :5311 (proxies /api)
+make setup       # one-time: download local Node, npm install, write .env
+make dev         # Fastify + Vite dev servers in the foreground
 ```
 
 Open http://127.0.0.1:5311.
@@ -26,9 +31,13 @@ Open http://127.0.0.1:5311.
 For a single-process production run:
 
 ```sh
-npm run build
-DASHBOARD_WEB_DIR=web/dist npm start   # serves API + assets on :5310
+make build
+make start       # serves API + assets under local PM2
 ```
+
+Other useful targets: `make test`, `make lint`, `make typecheck`, `make logs`,
+`make restart`, `make stop`, `make status`, `make clean`. Run `make` for the
+full list.
 
 ## Deployment
 
@@ -36,24 +45,31 @@ DASHBOARD_WEB_DIR=web/dist npm start   # serves API + assets on :5310
 one pm2-managed process which handles both the API and the built assets:
 
 ```sh
-npm run build
-pm2 start ecosystem.config.cjs
-pm2 save                              # survive reboot
+make build
+make start       # equivalent to: pm2 start ecosystem.config.cjs && pm2 save
 ```
 
-After changing code, `npm run build && pm2 restart disk-dashboard`.
+`ecosystem.config.cjs` loads `.env` from this repo, so the config lives in one
+place and moves with the folder.
 
-Do not put `npm run dev` behind the vhost. Vite plus `tsx watch` has no restart
+After changing code, `make restart`.
+
+Do not put `make dev` behind the vhost. Vite plus `tsx watch` has no restart
 policy, so any crash leaves nginx returning 502 with nothing bringing it back.
 
 ## Configuration
 
+All configuration is in `.env` (written by `make setup`, loaded by
+`ecosystem.config.cjs`):
+
 | Variable | Default | Meaning |
 | --- | --- | --- |
 | `DASHBOARD_REPORTS_DIR` | `../disk_scanner/reports` | Directory holding one subdir per target |
-| `DASHBOARD_PORT` | `5310` | Listen port |
+| `DASHBOARD_PORT` | `5311` | Listen port |
 | `DASHBOARD_HOST` | `127.0.0.1` | Listen address |
-| `DASHBOARD_WEB_DIR` | unset | Built assets to serve; unset means API-only |
+| `DASHBOARD_WEB_DIR` | `web/dist` | Built assets to serve; unset means API-only |
+| `DASHBOARD_ADMIN_DB` | `server/admin.db` | Writable admin database |
+| `DASHBOARD_COOKIE_SECRET` | random (generated) | Session-cookie signing key |
 | `DASHBOARD_LOG_LEVEL` | `info` | Fastify log level |
 
 Targets are auto-discovered: any `<reportsDir>/<name>/report.db` shows up in the
