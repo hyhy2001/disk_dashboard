@@ -136,7 +136,7 @@ export function InodesTab({ target }: Props): JSX.Element {
   const walked = users.reduce((s, u) => s + u.inodes, 0)
 
   return (
-    <div className="flex flex-col lg:flex-row h-full">
+    <div className="flex flex-1 flex-col lg:flex-row h-full min-h-0">
       {/* ── System panel ── */}
       <section className="lg:w-[340px] lg:shrink-0 lg:border-r lg:border-border p-4 space-y-4 overflow-auto">
         <div className="flex items-center justify-between">
