@@ -81,13 +81,15 @@ export function BarChart({ rows, limit = 10, logScale = false }: Props): JSX.Ele
 
   return (
     <div className="chartbox" ref={box}>
-      <svg
-        className="chart"
-        viewBox={`0 0 ${width} ${height}`}
-        preserveAspectRatio="xMinYMin meet"
-        role="img"
-        aria-label={`Top ${data.length} users by disk usage${logScale ? ', logarithmic scale' : ''}`}
-      >
+      <div className="flex h-full min-h-0 items-center justify-center">
+        <svg
+          className="chart"
+          style={{ height }}
+          viewBox={`0 0 ${width} ${height}`}
+          preserveAspectRatio="xMinYMin meet"
+          role="img"
+          aria-label={`Top ${data.length} users by disk usage${logScale ? ', logarithmic scale' : ''}`}
+        >
         {data.map((r, i) => {
           const y = i * rowH
           const w = Math.max(2, widthFor(r.used))
@@ -109,7 +111,8 @@ export function BarChart({ rows, limit = 10, logScale = false }: Props): JSX.Ele
             </g>
           )
         })}
-      </svg>
+        </svg>
+      </div>
     </div>
   )
 }

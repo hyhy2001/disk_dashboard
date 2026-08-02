@@ -137,7 +137,7 @@ export function OverviewTab({ overview }: Props): JSX.Element {
           <div className="flex items-center justify-center h-full min-h-0 p-3">
             <Donut
               rows={teams}
-              size={280}
+              size={420}
               onSelect={setTeamFilter}
               selected={teamFilter}
               {...(capacity ? { totalUsed: capacity.used } : {})}
@@ -148,7 +148,7 @@ export function OverviewTab({ overview }: Props): JSX.Element {
       )}
       {expanded === 'users' && (
         <ChartModal title="Top Consuming Users — Full View" slug="users" onClose={() => setExpanded(null)}>
-          <div className="h-full min-h-0 p-3">
+          <div className="flex items-center justify-center h-full min-h-0 p-3">
             <BarChart rows={shownUsers} limit={30} logScale={logScale} />
           </div>
         </ChartModal>
