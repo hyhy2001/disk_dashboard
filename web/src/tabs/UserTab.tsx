@@ -348,7 +348,7 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
             </p>
           </div>
         ) : !detail ? (
-          <div className="h-32 w-full rounded-lg border border-border/50 bg-surface/50 animate-pulse" />
+          <div className="flex-1 min-h-0 w-full rounded-lg border border-border/50 bg-surface/50 animate-pulse" />
         ) : (
           <div
             className={`grid grid-cols-1 md:grid-cols-2 gap-3 h-full min-h-0 ${
