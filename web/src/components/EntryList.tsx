@@ -44,7 +44,7 @@ function SizeCell({ size, total }: { size: number; total: number }): JSX.Element
   const pct = pctOf(size, total)
   const pctLabel = pct < 0.01 && pct > 0 ? '<0.01%' : `${pct.toFixed(2)}%`
   return (
-    <span className="flex items-center gap-2 shrink-0 w-40">
+    <span className="flex items-center justify-end gap-2">
       <span className="tabular-nums text-[13px] font-medium text-right w-24 shrink-0">{formatSize(size)}</span>
       <span
         className="h-1 flex-1 rounded-full bg-muted overflow-hidden min-w-[24px] cursor-help"
@@ -80,23 +80,23 @@ export function EntryList({
 
   return (
     <div className="flex flex-col h-full overflow-x-auto">
-      <div className="flex items-center gap-4 px-4 py-1.5 border-b border-border/30 text-[12px] text-muted-foreground uppercase tracking-wider shrink-0 min-w-[460px]">
-        <span className="min-w-0 max-w-[560px]">Folder</span>
-        <span className="w-20 shrink-0">Owner</span>
-        <span className="w-40 shrink-0 text-right">Size</span>
-        <span className="w-8 shrink-0 text-right ml-auto">Type</span>
+      <div className="grid grid-cols-[minmax(0,1fr)_80px_160px_32px] items-center gap-4 px-4 py-1.5 border-b border-border/30 text-[12px] text-muted-foreground uppercase tracking-wider shrink-0 min-w-[460px]">
+        <span className="truncate">Folder</span>
+        <span className="truncate">Owner</span>
+        <span className="text-right">Size</span>
+        <span className="text-right">Type</span>
       </div>
 
       <div className="flex-1 overflow-auto divide-y divide-border/20 min-w-[460px]">
         {dirs.map((d) => (
           <button
             type="button"
-            className="flex items-center gap-4 w-full px-4 py-1.5 hover:bg-white/[0.03] transition-colors text-left text-[13px]"
+            className="grid grid-cols-[minmax(0,1fr)_80px_160px_32px] items-center gap-4 w-full px-4 py-1.5 hover:bg-white/[0.03] transition-colors text-left text-[13px]"
             key={`d${d.id}`}
             onClick={() => onOpen(d)}
             title={`${d.name} — ${formatCount(d.fileCount)} files, ${formatCount(d.dirCount)} subdirectories`}
           >
-            <span className="flex items-center gap-1.5 min-w-0 max-w-[560px]">
+            <span className="flex items-center gap-1.5 min-w-0">
               <span className="text-muted-foreground shrink-0">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
@@ -106,15 +106,15 @@ export function EntryList({
                 {d.name}
               </span>
             </span>
-            <span className="w-20 truncate text-muted-foreground shrink-0">{d.owner}</span>
+            <span className="truncate text-muted-foreground">{d.owner}</span>
             <SizeCell size={d.size} total={totalSize} />
-            <span className="w-8 text-right text-muted-foreground shrink-0 ml-auto">dir</span>
+            <span className="text-right text-muted-foreground">dir</span>
           </button>
         ))}
 
         {fileCount > 0 && (
-          <div className="flex items-center gap-4 px-4 py-1.5 text-[13px] text-muted-foreground">
-            <span className="flex items-center gap-1.5 min-w-0 max-w-[560px]">
+          <div className="grid grid-cols-[minmax(0,1fr)_80px_160px_32px] items-center gap-4 px-4 py-1.5 text-[13px] text-muted-foreground">
+            <span className="flex items-center gap-1.5 min-w-0">
               <span className="shrink-0 opacity-60">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -123,9 +123,9 @@ export function EntryList({
               </span>
               <span className="font-mono">[files]</span>
             </span>
-            <span className="w-20 truncate shrink-0">{formatCount(fileCount)} files</span>
+            <span className="truncate">{formatCount(fileCount)} files</span>
             <SizeCell size={filesRemainder} total={totalSize} />
-            <span className="w-8 text-right shrink-0 text-[12px] ml-auto">files</span>
+            <span className="text-right text-[12px]">files</span>
           </div>
         )}
       </div>
