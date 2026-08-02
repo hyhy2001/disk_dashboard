@@ -139,7 +139,7 @@
 .tile__name { fill: #fff; font-size: 13px; }
 .tile__size { fill: rgba(255,255,255,0.7); font-size: 12px; font-variant-numeric: tabular-nums; }
 
-.donut { display: flex; align-items: flex-start; gap: 12px; }
+.donut { display: flex; align-items: center; justify-content: center; gap: 16px; }
 .donut__svg { flex-shrink: 1; min-width: 0; }
 .donut__slice { transition: stroke-width var(--duration-fast); }
 .donut__slice--click { cursor: pointer; }
@@ -147,7 +147,7 @@
 .donut__slice--on { stroke-width: 22px; }
 .donut__total { fill: var(--text); font-weight: 700; }
 .donut__caption { fill: var(--text-muted); }
-.legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1; }
+.legend { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 0 1 auto; }
 .legend__item { display: flex; align-items: center; gap: 4px; font-size: 14px; color: var(--text-muted); width: 100%; min-width: 0; padding: 2px 4px; }
 .legend__item--click { cursor: pointer; background: none; border: none; border-radius: 4px; text-align: left; }
 .legend__item--click:hover { background: var(--bg-hover); }
