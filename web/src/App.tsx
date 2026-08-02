@@ -18,6 +18,11 @@ import { Tooltip } from './components/Tooltip.js'
 import { CompareTab } from './tabs/CompareTab.js'
 import { HistoryTab } from './tabs/HistoryTab.js'
 import { InodesTab } from './tabs/InodesTab.js'
+
+// Wall-clock at bundle evaluation. The sidebar's "Load time" measures from here
+// when the navigation timing entry is missing or its loadEventEnd is 0 (e.g.
+// served from bfcache or a prerender), so it never shows "-- ms".
+const APP_START = performance.now()
 import { OverviewTab } from './tabs/OverviewTab.js'
 import { PermissionsTab } from './tabs/PermissionsTab.js'
 import { TreemapTab } from './tabs/TreemapTab.js'
@@ -330,8 +335,10 @@ export function App() {
     if (!el) return
     const show = () => {
       const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined
-      const ms = nav ? Math.round(nav.loadEventEnd - nav.startTime) : 0
-      if (ms <= 0) return
+      // loadEventEnd is 0 when the navigation entry is absent or incomplete
+      // (bfcache, prerender) — fall back to bundle-evaluation time so the footer
+      // always shows a real number instead of "-- ms".
+      const ms = nav && nav.loadEventEnd > 0 ? Math.round(nav.loadEventEnd - nav.startTime) : Math.round(performance.now() - APP_START)
       const target = el.querySelector('[data-ms]')
       if (target) target.textContent = `${ms}ms`
     }

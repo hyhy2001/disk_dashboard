@@ -15,6 +15,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: 'v2.1',
+    date: '2026-08-02',
+    title: 'Faster search, streaming exports, and Treemap layout fixes',
+    bullets: [
+      'Name search now uses FTS5 trigram indexes, dropping typical queries from hundreds of milliseconds to tens.',
+      'Per-user CSV exports stream from the server instead of building the whole file in the browser.',
+      'Admin accounts track a session version, so changing a password immediately revokes older cookies.',
+      'New DASHBOARD_TRUST_PROXY setting — off by default so LAN clients cannot fake X-Forwarded-For past the login rate limit; turn it on only behind a proxy.',
+      'Ctrl/Cmd+K opens a command palette for jumping between spaces, disks, and views.',
+      'Treemap list keeps Folder, Owner, Size, and Type columns aligned, with the percentage moved to the size bar\u2019s tooltip.',
+      'Sidebar \u201cLoad time\u201d now always shows a real value instead of \u201c-- ms\u201d.',
+    ],
+  },
+  {
     version: 'v2.0',
     date: '2026-07-31',
     title: 'Slug-based routes and admin hardening',
