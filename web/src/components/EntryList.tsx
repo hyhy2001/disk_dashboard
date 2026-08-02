@@ -1,13 +1,13 @@
-// Table-style directory listing: Folder / Owner / Size · % / Type.
-//
-// This mirrors the legacy dashboard's "TreeMap" tab, which is a table rather than
-// a treemap. Anyone who used the old dashboard should be able to read this
+// Table-style directory listing: Folder / Owner / Size / Type.
+// Mirrors the legacy dashboard's "TreeMap" tab, which is a table rather than a
+// treemap. Anyone who used the old dashboard should be able to read this
 // without relearning anything, so the column set and the inline proportion bar
 // are kept as they were.
 //
 // Percentages are of the whole scanned target, not of the parent directory —
 // that is what legacy showed, and it lets a user compare a deeply nested folder
-// against the disk as a whole rather than against its siblings.
+// against the disk as a whole rather than against its siblings. The percentage
+// text lives on the bar's tooltip; the bar itself shows the share visually.
 
 import type { TreemapNode } from '../../../shared/api.js'
 import { formatCount, formatSize } from '../lib/format.js'
@@ -44,9 +44,13 @@ function SizeCell({ size, total }: { size: number; total: number }): JSX.Element
   const pct = pctOf(size, total)
   const pctLabel = pct < 0.01 && pct > 0 ? '<0.01%' : `${pct.toFixed(2)}%`
   return (
-    <span className="flex items-center gap-2 shrink-0 w-44">
+    <span className="flex items-center gap-2 shrink-0 w-40">
       <span className="tabular-nums text-[13px] font-medium text-right w-24 shrink-0">{formatSize(size)}</span>
-      <span className="h-1 flex-1 rounded-full bg-muted overflow-hidden min-w-[16px]">
+      <span
+        className="h-1 flex-1 rounded-full bg-muted overflow-hidden min-w-[24px] cursor-help"
+        data-tooltip={`${pctLabel} of disk`}
+        data-tooltip-pos="top"
+      >
         <span
           className="block h-full rounded-full"
           style={{
@@ -55,7 +59,6 @@ function SizeCell({ size, total }: { size: number; total: number }): JSX.Element
           }}
         />
       </span>
-      <span className="tabular-nums text-[12px] text-muted-foreground text-right w-14 shrink-0">{pctLabel}</span>
     </span>
   )
 }
@@ -80,7 +83,7 @@ export function EntryList({
       <div className="flex items-center gap-4 px-4 py-1.5 border-b border-border/30 text-[12px] text-muted-foreground uppercase tracking-wider shrink-0 min-w-[460px]">
         <span className="flex-1 max-w-[560px]">Folder</span>
         <span className="w-20 shrink-0">Owner</span>
-        <span className="w-44 shrink-0 text-right">Size · %</span>
+        <span className="w-40 shrink-0 text-right">Size</span>
         <span className="w-12 shrink-0 text-right">Type</span>
       </div>
 
