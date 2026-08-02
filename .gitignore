@@ -14,3 +14,4 @@ logs/
 server/admin.db
 server/admin.db-shm
 server/admin.db-wal
+server/backups/
