@@ -103,7 +103,7 @@ export function UserPicker({ users, selected, onSelect }: Props): JSX.Element {
         onClick={() => setOpen((v) => !v)}
       >
         <span className="flex-1 truncate">{selected ?? 'Select user…'}</span>
-        <span className="text-muted-foreground text-[10px]" aria-hidden="true">
+        <span className="text-muted-foreground text-[12px]" aria-hidden="true">
           ▾
         </span>
       </button>
@@ -135,14 +135,14 @@ export function UserPicker({ users, selected, onSelect }: Props): JSX.Element {
             }}
           >
             {visible.length === 0 && (
-              <li className="text-[11px] text-muted-foreground p-3 text-center">No user matches.</li>
+              <li className="text-[13px] text-muted-foreground p-3 text-center">No user matches.</li>
             )}
 
             {visible.map((u) => (
               <li key={u.name}>
                 <button
                   type="button"
-                  className="flex items-center gap-2 w-full px-3 py-1.5 text-[11px] hover:bg-muted transition-colors text-left aria-selected:bg-accent"
+                  className="flex items-center gap-2 w-full px-3 py-1.5 text-[13px] hover:bg-muted transition-colors text-left aria-selected:bg-accent"
                   role="option"
                   aria-selected={u.name === selected}
                   onClick={() => {
@@ -163,7 +163,7 @@ export function UserPicker({ users, selected, onSelect }: Props): JSX.Element {
             ))}
 
             {shown < filtered.length && (
-              <li className="text-[10px] text-muted-foreground p-2 text-center">
+              <li className="text-[12px] text-muted-foreground p-2 text-center">
                 Showing {formatCount(shown)} of {formatCount(filtered.length)} — scroll for more
               </li>
             )}

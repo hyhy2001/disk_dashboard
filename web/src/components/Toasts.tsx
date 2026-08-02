@@ -43,20 +43,24 @@ export function Toasts(): JSX.Element {
             {t.progress !== undefined && (
               <div className="mt-2 flex items-center gap-2">
                 <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
-                  <div
-                    className="h-full rounded-full bg-primary transition-all"
-                    style={{ width: `${t.progress * 100}%` }}
-                  />
+                  {t.progress < 0 ? (
+                    <div className="h-full w-full rounded-full bg-primary animate-pulse" />
+                  ) : (
+                    <div
+                      className="h-full rounded-full bg-primary transition-all"
+                      style={{ width: `${t.progress * 100}%` }}
+                    />
+                  )}
                 </div>
                 {t.progressLabel && (
-                  <span className="text-[10px] tabular-nums text-muted-foreground shrink-0">{t.progressLabel}</span>
+                  <span className="text-[12px] tabular-nums text-muted-foreground shrink-0">{t.progressLabel}</span>
                 )}
               </div>
             )}
           </div>
           <button
             type="button"
-            className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-[10px] text-muted-foreground hover:bg-muted transition-colors"
+            className="inline-flex size-5 shrink-0 items-center justify-center rounded-sm text-[12px] text-muted-foreground hover:bg-muted transition-colors"
             onClick={() => dismiss(t.id)}
             aria-label="Dismiss"
           >

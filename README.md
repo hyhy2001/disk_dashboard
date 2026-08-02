@@ -99,6 +99,7 @@ same `.env` works on any machine:
 | `DASHBOARD_ADMIN_DB` | `server/admin.db` | Writable admin database |
 | `DASHBOARD_COOKIE_SECRET` | random (generated) | Session-cookie signing key |
 | `DASHBOARD_LOG_LEVEL` | `info` | Fastify log level |
+| `DASHBOARD_TRUST_PROXY` | `false` | Set `true` (or a hop count) only when a reverse proxy that overwrites `X-Forwarded-For` is the sole entry point; off by default so a direct LAN client cannot spoof its IP to bypass the admin login rate limit |
 
 ## Admin setup
 
@@ -122,8 +123,11 @@ interface.
 
 Admin endpoints (`/api/admin/*`) have their own auth: scrypt-hashed passwords in
 `DASHBOARD_ADMIN_DB`, HMAC-signed `httpOnly` session cookies, rate limiting and a
-captcha on login, and owner/admin role separation. Set `DASHBOARD_COOKIE_SECRET`
-in `.env` (done by `make setup`) so sessions survive restarts.
+captcha on login, and owner/admin role separation. Every request re-checks the
+cookie against the live account row, so changing a password, demoting, or deleting
+an account revokes its outstanding sessions immediately. Set
+`DASHBOARD_COOKIE_SECRET` in `.env` (done by `make setup`) so sessions survive
+restarts.
 
 ## Views
 

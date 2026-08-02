@@ -28,7 +28,15 @@ interface AuthUser {
   role: string
 }
 
-/** Parse the session cookie and return the authenticated user, or null. */
+/**
+ * Parse the session cookie and return the authenticated user, or null.
+ *
+ * The cookie is HMAC-signed (so it cannot be forged) and carries an expiry, but
+ * neither of those revokes a session when the account is deleted, demoted, or
+ * has its password changed. Every request therefore re-checks the cookie against
+ * the live admin row: the account must still exist with the same username, role,
+ * and session_version, or the cookie is dead.
+ */
 function authUser(req: any): AuthUser | null {
   const raw = req.cookies?.[SESSION_COOKIE]
   if (!raw) return null
@@ -38,27 +46,50 @@ function authUser(req: any): AuthUser | null {
   const idStr = parts[0]!
   const role = parts[1]
   const username = parts[2]
+  const versionStr = parts[3]
   const id = Number.parseInt(idStr, 10)
   if (!id || !role || !username) return null
+
+  const admin = A.getAdminById(id)
+  if (!admin || admin.username !== username || admin.role !== role) return null
+  if (Number(versionStr) !== admin.session_version) return null
   return { id, role, username }
 }
 
-/** Require auth — sends 401 if not authenticated. */
-function requireAuth(req: any, reply: any): AuthUser {
+/**
+ * Require auth — sends 401 and returns null when not authenticated.
+ *
+ * Returns null rather than `reply` so the caller must return early: sending the
+ * response here and letting the handler send its own would call `reply.send`
+ * twice, which Fastify flags as a double-send error on every unauthenticated
+ * request.
+ */
+function requireAuth(req: any, reply: any): AuthUser | null {
   const user = authUser(req)
-  if (!user) return reply.code(401).send({ status: 'error', message: 'Unauthorized' })
-  return user as AuthUser
+  if (!user) {
+    reply.code(401).send({ status: 'error', message: 'Unauthorized' })
+    return null
+  }
+  return user
 }
 
-/** Require owner role — sends 403 if not owner. */
-function requireOwner(req: any, reply: any): AuthUser {
+/** Require owner role — sends 403 and returns null otherwise. */
+function requireOwner(req: any, reply: any): AuthUser | null {
   const user = requireAuth(req, reply)
-  if (user.role !== 'owner') return reply.code(403).send({ status: 'error', message: 'Owner access required' })
+  if (!user) return null
+  if (user.role !== 'owner') {
+    reply.code(403).send({ status: 'error', message: 'Owner access required' })
+    return null
+  }
   return user
 }
 
 function clientIp(req: any): string {
-  return (req.headers?.['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.ip || 'unknown'
+  // req.ip honors the Fastify trustProxy setting: with it off (the default) it
+  // is the socket address and the X-Forwarded-For header is ignored, so a client
+  // cannot spoof the value used for rate limiting. Behind a trusted proxy it
+  // resolves through the header instead.
+  return req.ip || 'unknown'
 }
 
 /** True when a better-sqlite3 UNIQUE constraint was violated. */
@@ -114,7 +145,7 @@ export function registerAdmin(app: FastifyInstance): void {
     const invalid = validateCredentials(username, password)
     if (invalid) return reply.code(422).send({ status: 'error', message: invalid })
     const admin = A.createAdmin(username, password, 'owner')
-    const token = A.signSession(`${admin.id}:owner:${admin.username}`)
+    const token = A.signSession(`${admin.id}:owner:${admin.username}:${admin.session_version}`)
     return reply
       .setCookie(SESSION_COOKIE, token, COOKIE_OPTS)
       .send({ status: 'success', data: { id: admin.id, username: admin.username, role: 'owner' } })
@@ -168,7 +199,7 @@ export function registerAdmin(app: FastifyInstance): void {
       })
     }
     A.rateLimitClear(ip)
-    const token = A.signSession(`${admin.id}:${admin.role}:${admin.username}`)
+    const token = A.signSession(`${admin.id}:${admin.role}:${admin.username}:${admin.session_version}`)
     return reply
       .setCookie(SESSION_COOKIE, token, COOKIE_OPTS)
       .send({ status: 'success', data: { id: admin.id, username: admin.username, role: admin.role } })
@@ -185,12 +216,12 @@ export function registerAdmin(app: FastifyInstance): void {
 
   // --- Accounts (owner only) ---
   app.get('/api/admin/accounts', async (req: any, reply) => {
-    requireOwner(req, reply)
+    if (!requireOwner(req, reply)) return
     return reply.send({ status: 'success', data: A.listAdmins() })
   })
 
   app.post('/api/admin/accounts', async (req: any, reply) => {
-    requireOwner(req, reply)
+    if (!requireOwner(req, reply)) return
     const { username, password, role } = req.body ?? {}
     const invalid = validateCredentials(username, password)
     if (invalid) return reply.code(422).send({ status: 'error', message: invalid })
@@ -202,7 +233,7 @@ export function registerAdmin(app: FastifyInstance): void {
   })
 
   app.delete('/api/admin/accounts/:id', async (req: any, reply) => {
-    requireOwner(req, reply)
+    if (!requireOwner(req, reply)) return
     const id = Number.parseInt(req.params.id, 10)
     if (!id) return reply.code(422).send({ status: 'error', message: 'Invalid id' })
     const ok = A.deleteAdmin(id)
@@ -211,7 +242,7 @@ export function registerAdmin(app: FastifyInstance): void {
   })
 
   app.post('/api/admin/accounts/:id/password', async (req: any, reply) => {
-    requireOwner(req, reply)
+    if (!requireOwner(req, reply)) return
     const id = Number.parseInt(req.params.id, 10)
     if (!id) return reply.code(422).send({ status: 'error', message: 'Invalid id' })
     const { password } = req.body ?? {}
@@ -226,6 +257,7 @@ export function registerAdmin(app: FastifyInstance): void {
   // Change own password (any auth user)
   app.post('/api/admin/me/password', async (req: any, reply) => {
     const user = requireAuth(req, reply)
+    if (!user) return
     const { currentPassword, newPassword } = req.body ?? {}
     if (!currentPassword || !newPassword || newPassword.length < 10) {
       return reply.code(422).send({ status: 'error', message: 'Invalid request' })
@@ -240,12 +272,12 @@ export function registerAdmin(app: FastifyInstance): void {
 
   // --- Spaces & Disks (admin+) ---
   app.get('/api/admin/spaces', async (req: any, reply) => {
-    requireAuth(req, reply)
+    if (!requireAuth(req, reply)) return
     return reply.send({ status: 'success', data: A.listSpacesWithDisks() })
   })
 
   app.post('/api/admin/spaces', async (req: any, reply) => {
-    requireAuth(req, reply)
+    if (!requireAuth(req, reply)) return
     const { name } = req.body ?? {}
     if (!name || typeof name !== 'string') {
       return reply.code(422).send({ status: 'error', message: 'Name required' })
@@ -258,7 +290,7 @@ export function registerAdmin(app: FastifyInstance): void {
   })
 
   app.put('/api/admin/spaces/:id', async (req: any, reply) => {
-    requireAuth(req, reply)
+    if (!requireAuth(req, reply)) return
     const id = Number.parseInt(req.params.id, 10)
     const { name } = req.body ?? {}
     if (!id || !name) return reply.code(422).send({ status: 'error', message: 'Invalid request' })
@@ -271,7 +303,7 @@ export function registerAdmin(app: FastifyInstance): void {
   })
 
   app.delete('/api/admin/spaces/:id', async (req: any, reply) => {
-    requireAuth(req, reply)
+    if (!requireAuth(req, reply)) return
     const id = Number.parseInt(req.params.id, 10)
     if (!id) return reply.code(422).send({ status: 'error', message: 'Invalid id' })
     A.deleteSpace(id)
@@ -279,7 +311,7 @@ export function registerAdmin(app: FastifyInstance): void {
   })
 
   app.post('/api/admin/disks', async (req: any, reply) => {
-    requireAuth(req, reply)
+    if (!requireAuth(req, reply)) return
     const { space_id, name, path } = req.body ?? {}
     if (!space_id || !name || !path) {
       return reply.code(422).send({ status: 'error', message: 'space_id, name, and path required' })
@@ -294,7 +326,7 @@ export function registerAdmin(app: FastifyInstance): void {
   })
 
   app.put('/api/admin/disks/:id', async (req: any, reply) => {
-    requireAuth(req, reply)
+    if (!requireAuth(req, reply)) return
     const id = Number.parseInt(req.params.id, 10)
     const { name, path } = req.body ?? {}
     if (!id) return reply.code(422).send({ status: 'error', message: 'Invalid id' })
@@ -313,7 +345,7 @@ export function registerAdmin(app: FastifyInstance): void {
   // Verify a disk path before saving the mapping: report.db presence and the
   // meta fields the dashboard will show. Readonly, so it is safe to poke.
   app.post('/api/admin/disks/test-read', async (req: any, reply) => {
-    requireAuth(req, reply)
+    if (!requireAuth(req, reply)) return
     const { path } = req.body ?? {}
     if (typeof path !== 'string' || !path) {
       return reply.code(422).send({ status: 'error', message: 'path required' })
@@ -323,7 +355,7 @@ export function registerAdmin(app: FastifyInstance): void {
 
   // Import teams from report.db into admin.db (idempotent)
   app.post('/api/admin/disks/:id/import-teams', async (req: any, reply) => {
-    requireAuth(req, reply)
+    if (!requireAuth(req, reply)) return
     const diskId = Number.parseInt(req.params.id, 10)
     if (!diskId) return reply.code(422).send({ status: 'error', message: 'Invalid disk id' })
 
@@ -381,7 +413,7 @@ export function registerAdmin(app: FastifyInstance): void {
 
   // Get all user names from report.db for a disk
   app.get('/api/admin/disks/:id/users', async (req: any, reply) => {
-    requireAuth(req, reply)
+    if (!requireAuth(req, reply)) return
     const diskId = Number.parseInt(req.params.id, 10)
     if (!diskId) return reply.code(422).send({ status: 'error', message: 'Invalid disk id' })
 
@@ -407,7 +439,7 @@ export function registerAdmin(app: FastifyInstance): void {
   })
 
   app.delete('/api/admin/disks/:id', async (req: any, reply) => {
-    requireAuth(req, reply)
+    if (!requireAuth(req, reply)) return
     const id = Number.parseInt(req.params.id, 10)
     if (!id) return reply.code(422).send({ status: 'error', message: 'Invalid id' })
     A.deleteDisk(id)
@@ -416,14 +448,14 @@ export function registerAdmin(app: FastifyInstance): void {
 
   // --- Disk Teams (admin+) ---
   app.get('/api/admin/disks/:id/teams', async (req: any, reply) => {
-    requireAuth(req, reply)
+    if (!requireAuth(req, reply)) return
     const diskId = Number.parseInt(req.params.id, 10)
     if (!diskId) return reply.code(422).send({ status: 'error', message: 'Invalid disk id' })
     return reply.send({ status: 'success', data: A.listDiskTeams(diskId) })
   })
 
   app.post('/api/admin/disks/:id/teams', async (req: any, reply) => {
-    requireAuth(req, reply)
+    if (!requireAuth(req, reply)) return
     const diskId = Number.parseInt(req.params.id, 10)
     const { name } = req.body ?? {}
     if (!diskId) return reply.code(422).send({ status: 'error', message: 'Invalid disk id' })
@@ -434,7 +466,7 @@ export function registerAdmin(app: FastifyInstance): void {
   })
 
   app.put('/api/admin/teams/:id', async (req: any, reply) => {
-    requireAuth(req, reply)
+    if (!requireAuth(req, reply)) return
     const id = Number.parseInt(req.params.id, 10)
     if (!id) return reply.code(422).send({ status: 'error', message: 'Invalid id' })
     const { name, users } = req.body ?? {}
@@ -449,7 +481,7 @@ export function registerAdmin(app: FastifyInstance): void {
   })
 
   app.delete('/api/admin/teams/:id', async (req: any, reply) => {
-    requireAuth(req, reply)
+    if (!requireAuth(req, reply)) return
     const id = Number.parseInt(req.params.id, 10)
     if (!id) return reply.code(422).send({ status: 'error', message: 'Invalid id' })
     A.deleteDiskTeam(id)
@@ -458,24 +490,24 @@ export function registerAdmin(app: FastifyInstance): void {
 
   // --- Backup & Restore (owner only) ---
   app.get('/api/admin/backups', async (req: any, reply) => {
-    requireAuth(req, reply)
+    if (!requireAuth(req, reply)) return
     return reply.send({ status: 'success', data: A.listBackups() })
   })
 
   app.post('/api/admin/backups', async (req: any, reply) => {
-    requireAuth(req, reply)
+    if (!requireAuth(req, reply)) return
     return reply.code(201).send({ status: 'success', data: A.createBackup() })
   })
 
   app.post('/api/admin/backups/:name/restore', async (req: any, reply) => {
-    requireOwner(req, reply)
+    if (!requireOwner(req, reply)) return
     const ok = A.restoreBackup(req.params.name)
     if (!ok) return reply.code(404).send({ status: 'error', message: 'Backup not found' })
     return reply.send({ status: 'success', data: null })
   })
 
   app.delete('/api/admin/backups/:name', async (req: any, reply) => {
-    requireAuth(req, reply)
+    if (!requireAuth(req, reply)) return
     const ok = A.deleteBackup(req.params.name)
     if (!ok) return reply.code(404).send({ status: 'error', message: 'Backup not found' })
     return reply.send({ status: 'success', data: null })

@@ -19,6 +19,12 @@ export interface FixtureOptions {
    * which is what reports written before that change still look like.
    */
   withInodes?: boolean
+  /**
+   * Build the FTS5 trigram search indexes a modern duscan adds. Off by default
+   * so tests exercise the plain-LIKE fallback used by reports from older
+   * scanners; the search tests turn it on to pin the FTS path.
+   */
+  withFts?: boolean
 }
 
 /**
@@ -34,7 +40,7 @@ export interface FixtureOptions {
  * fallback; var has has_files = 0, covering the skip-the-file-query path.
  */
 export function createFixture(opts: FixtureOptions = {}): Database.Database {
-  const { withHistory = true, extraChildren = 0, withInodes = false } = opts
+  const { withHistory = true, extraChildren = 0, withInodes = false, withFts = false } = opts
   const db = new Database(':memory:')
 
   db.exec(`
@@ -65,6 +71,11 @@ export function createFixture(opts: FixtureOptions = {}): Database.Database {
     );
     CREATE INDEX ix_detail_files_uid_size_dir_name
       ON detail_files(uid, size DESC, dir_id ASC, name_id ASC);
+    -- Serve the name search's join from an FTS hit back to the file rows (see
+    -- the scanner's MERGED_INDEX_DDL); ix_treemap_dirs_name_id sits with the
+    -- treemap table below.
+    CREATE INDEX ix_detail_files_name_id
+      ON detail_files(name_id, size DESC, dir_id ASC);
 
     -- detail_dirs is keyed (id, uid): the same directory appears once per user who
     -- owns bytes in it, which is why the Detail User queries can scan one user's
@@ -93,6 +104,7 @@ export function createFixture(opts: FixtureOptions = {}): Database.Database {
       has_files INTEGER NOT NULL
     );
     CREATE INDEX ix_treemap_dirs_parent_size ON treemap_dirs(parent_id, total_size DESC);
+    CREATE INDEX ix_treemap_dirs_name_id ON treemap_dirs(name_id, total_size DESC);
   `)
 
   db.exec(`
@@ -210,6 +222,28 @@ export function createFixture(opts: FixtureOptions = {}): Database.Database {
          WHERE scan_date = 20240102;
       `)
     }
+  }
+
+  // Mirrors the scanner's MERGED_FTS_DDL: external-content trigram tables over
+  // the interning tables. Built after all rows are in, exactly as the scanner
+  // does.
+  if (withFts) {
+    db.exec(`
+      CREATE VIRTUAL TABLE fts_file_names USING fts5(
+        name,
+        content='detail_file_names',
+        content_rowid='id',
+        tokenize='trigram'
+      );
+      CREATE VIRTUAL TABLE fts_dir_names USING fts5(
+        name,
+        content='treemap_names',
+        content_rowid='id',
+        tokenize='trigram'
+      );
+      INSERT INTO fts_file_names(fts_file_names) VALUES('rebuild');
+      INSERT INTO fts_dir_names(fts_dir_names) VALUES('rebuild');
+    `)
   }
 
   return db

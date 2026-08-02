@@ -45,7 +45,7 @@ function SizeCell({ size, total }: { size: number; total: number }): JSX.Element
   const pctLabel = pct < 0.01 && pct > 0 ? '<0.01%' : `${pct.toFixed(2)}%`
   return (
     <span className="flex items-center gap-2 shrink-0 w-44">
-      <span className="tabular-nums text-[11px] font-medium text-right w-24 shrink-0">{formatSize(size)}</span>
+      <span className="tabular-nums text-[13px] font-medium text-right w-24 shrink-0">{formatSize(size)}</span>
       <span className="h-1 flex-1 rounded-full bg-muted overflow-hidden min-w-[16px]">
         <span
           className="block h-full rounded-full"
@@ -55,7 +55,7 @@ function SizeCell({ size, total }: { size: number; total: number }): JSX.Element
           }}
         />
       </span>
-      <span className="tabular-nums text-[10px] text-muted-foreground text-right w-14 shrink-0">{pctLabel}</span>
+      <span className="tabular-nums text-[12px] text-muted-foreground text-right w-14 shrink-0">{pctLabel}</span>
     </span>
   )
 }
@@ -72,12 +72,12 @@ export function EntryList({
   filesRemainder,
 }: Props): JSX.Element {
   if (dirs.length === 0 && fileCount === 0) {
-    return <div className="text-center text-[11px] text-muted-foreground p-6">This directory is empty.</div>
+    return <div className="text-center text-[13px] text-muted-foreground p-6">This directory is empty.</div>
   }
 
   return (
     <div className="flex flex-col h-full overflow-x-auto">
-      <div className="flex items-center gap-4 px-4 py-1.5 border-b border-border/30 text-[10px] text-muted-foreground uppercase tracking-wider shrink-0 min-w-[460px]">
+      <div className="flex items-center gap-4 px-4 py-1.5 border-b border-border/30 text-[12px] text-muted-foreground uppercase tracking-wider shrink-0 min-w-[460px]">
         <span className="flex-1">Folder</span>
         <span className="w-20 shrink-0">Owner</span>
         <span className="w-44 shrink-0 text-right">Size · %</span>
@@ -88,7 +88,7 @@ export function EntryList({
         {dirs.map((d) => (
           <button
             type="button"
-            className="flex items-center gap-4 w-full px-4 py-1.5 hover:bg-white/[0.03] transition-colors text-left text-[11px]"
+            className="flex items-center gap-4 w-full px-4 py-1.5 hover:bg-white/[0.03] transition-colors text-left text-[13px]"
             key={`d${d.id}`}
             onClick={() => onOpen(d)}
             title={`${d.name} — ${formatCount(d.fileCount)} files, ${formatCount(d.dirCount)} subdirectories`}
@@ -110,7 +110,7 @@ export function EntryList({
         ))}
 
         {fileCount > 0 && (
-          <div className="flex items-center gap-4 px-4 py-1.5 text-[11px] text-muted-foreground">
+          <div className="flex items-center gap-4 px-4 py-1.5 text-[13px] text-muted-foreground">
             <span className="flex items-center gap-1.5 flex-1 min-w-0">
               <span className="shrink-0 opacity-60">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -122,12 +122,12 @@ export function EntryList({
             </span>
             <span className="w-20 truncate shrink-0">{formatCount(fileCount)} files</span>
             <SizeCell size={filesRemainder} total={totalSize} />
-            <span className="w-10 text-right shrink-0 text-[10px]">files</span>
+            <span className="w-10 text-right shrink-0 text-[12px]">files</span>
           </div>
         )}
       </div>
 
-      <div className="flex items-center justify-between px-4 py-1.5 border-t border-border/30 text-[10px] text-muted-foreground shrink-0">
+      <div className="flex items-center justify-between px-4 py-1.5 border-t border-border/30 text-[12px] text-muted-foreground shrink-0">
         <span className="tabular-nums">
           Showing {formatCount(shownCount)} of {formatCount(totalCount)} subdirectories
         </span>

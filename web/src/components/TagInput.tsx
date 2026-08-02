@@ -48,14 +48,14 @@ export function TagInput({ id, label, placeholder, value, onChange, onSubmit, cl
 
   return (
     <div className={`flex items-center gap-1.5 ${className ?? ''}`}>
-      <label className="text-[10px] text-muted-foreground shrink-0" htmlFor={id}>
+      <label className="text-[12px] text-muted-foreground shrink-0" htmlFor={id}>
         {label}
       </label>
-      <div className="flex items-center flex-wrap gap-0.5 min-h-6 w-full rounded-sm border border-border bg-background px-2 py-0.5 text-[11px] focus-within:ring-1 focus-within:ring-ring">
+      <div className="flex items-center flex-wrap gap-0.5 min-h-6 w-full rounded-sm border border-border bg-background px-2 py-0.5 text-[13px] focus-within:ring-1 focus-within:ring-ring">
         {chips.map((c) => (
           <button
             type="button"
-            className="inline-flex items-center gap-1 rounded-sm bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground transition-colors shrink-0 cursor-pointer"
+            className="inline-flex items-center gap-1 rounded-sm bg-muted px-1.5 py-0.5 text-[12px] text-muted-foreground hover:text-foreground transition-colors shrink-0 cursor-pointer"
             key={c}
             onClick={() => drop(c)}
             aria-label={`Remove "${c}"`}
@@ -67,7 +67,7 @@ export function TagInput({ id, label, placeholder, value, onChange, onSubmit, cl
           ref={inputRef}
           id={id}
           type="text"
-          className="flex-1 min-w-[60px] h-5 border-0 bg-transparent p-0 text-[11px] placeholder:text-muted-foreground outline-none"
+          className="flex-1 min-w-[60px] h-5 border-0 bg-transparent p-0 text-[13px] placeholder:text-muted-foreground outline-none"
           placeholder={chips.length > 0 ? '' : placeholder}
           value={currentInput}
           onChange={(e) => handleChange(e.target.value)}

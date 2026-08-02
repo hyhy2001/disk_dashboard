@@ -27,7 +27,7 @@ export function Breadcrumbs({ path, onNavigate }: Props): JSX.Element {
   return (
     <div className="flex items-center gap-1 min-w-0 flex-1">
       <nav
-        className="flex items-center gap-0.5 text-[11px] text-muted-foreground min-w-0 flex-1 flex-wrap"
+        className="flex items-center gap-0.5 text-[13px] text-muted-foreground min-w-0 flex-1 flex-wrap"
         aria-label="Directory path"
       >
         {shown.map((c, i) => {

@@ -41,8 +41,8 @@ const INLINE_CSS = `
   .chart__grid { stroke-width: 1; }
   .chart__line { fill: none; stroke-width: 2; stroke-linejoin: round; }
   .chart__ref { stroke-dasharray: 3 3; stroke-width: 1; }
-  .tile__name { font-size: 11px; font-weight: 600; fill: #fff; }
-  .tile__size { font-size: 10px; fill: rgba(255,255,255,0.85); }
+  .tile__name { font-size: 13px; font-weight: 600; fill: #fff; }
+  .tile__size { font-size: 12px; fill: rgba(255,255,255,0.85); }
 `
 
 function resolveVars(svg: SVGSVGElement, source: Element): void {

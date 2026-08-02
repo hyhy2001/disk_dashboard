@@ -22,6 +22,10 @@ const config = loadConfig()
 
 const app = Fastify({
   logger: { level: process.env.DASHBOARD_LOG_LEVEL ?? 'info' },
+  // Without this, req.ip is always the socket peer and X-Forwarded-For is
+  // ignored — so a LAN attacker hitting 0.0.0.0 directly cannot fake an IP to
+  // dodge the login rate limit. Behind nginx, set DASHBOARD_TRUST_PROXY=true.
+  trustProxy: config.trustProxy,
 })
 
 await app.register(fastifyCookie, { secret: process.env.DASHBOARD_COOKIE_SECRET || undefined })

@@ -4,22 +4,10 @@
 // a viewer can switch tabs mid-download — and because both tabs export the same way
 // and should not each own a copy of the toast choreography.
 
-import { exportCsv, fileStamp, safeName, type Row } from './csv.js'
-import { fetchPermissions, fetchUserDetail, type DetailQuery, type PermQuery } from './api.js'
+import { downloadUrl, exportCsv, fileStamp, safeName, type Row } from './csv.js'
+import { fetchPermissions, type DetailQuery, type PermQuery } from './api.js'
 import { closeProgress, failure, info, startProgress, success, updateProgress } from './toast.js'
 import { formatCount } from './format.js'
-
-/**
- * Rows per fetched page during an export, per list. Legacy's values.
- *
- * Far larger than the UI page because nobody reads these rows — the only thing that
- * matters is total wall time, and per-request overhead dominates at small sizes.
- * Measured on a 1.5M-file report: 500 file rows cost 23ms, 50,000 cost 322ms. So a
- * user's 1.4M files take 29 requests at ~322ms rather than 2,900 at ~23ms.
- *
- * Files get the bigger page because there are always more of them than directories.
- */
-const EXPORT_PAGE = { dirs: 20_000, files: 50_000 } as const
 
 /** Permission issues are a smaller list and the endpoint caps at 5000. */
 const PERM_EXPORT_PAGE = 5000
@@ -39,63 +27,44 @@ function reportOutcome(label: string, result: Awaited<ReturnType<typeof exportCs
 /**
  * Export one user's directory or file list, honouring the active filters.
  *
- * `expectedRows` is the user's unfiltered count from the picker. It drives the
- * progress bar, which is the only way to show real progress: counting the filtered
- * rows first would mean walking the whole range twice. With a filter active the
- * estimate runs high, so the bar is a floor on progress rather than an exact
- * fraction — the row count beside it is always the truth.
+ * The server streams the CSV directly (`/api/export/…`), so this never pulls
+ * JSON pages and re-encodes them — the browser gzips the raw stream to the file
+ * the user picks, or downloads it natively. There is no live row count on that
+ * path (counting would mean walking the whole range again), so the progress
+ * toast shows an indeterminate bar rather than a fraction.
  */
 export async function exportUserList(
   target: string,
   user: string,
   kind: 'dirs' | 'files',
   filter: DetailQuery,
-  expectedRows?: number,
 ): Promise<void> {
   const label = kind === 'dirs' ? 'Directories' : 'Files'
+
+  const params = new URLSearchParams()
+  params.set('kind', kind)
+  for (const [key, value] of Object.entries(filter)) {
+    if (value === undefined || value === '') continue
+    params.set(key, String(value))
+  }
+  const qs = params.toString()
+  const url = `/api/export/${encodeURIComponent(target)}/${encodeURIComponent(user)}${qs ? `?${qs}` : ''}`
+
+  const suggested = `${kind}_${safeName(user)}_${fileStamp()}`
   const toastId = startProgress(`Exporting ${label.toLowerCase()}`, `${user} on ${target}`)
-  const total = expectedRows && expectedRows > 0 ? expectedRows : 0
 
   try {
-    const result = await exportCsv({
-      filename: `${kind}_${safeName(user)}_${fileStamp()}`,
-      headers: kind === 'dirs' ? ['Path', 'Bytes', 'Files'] : ['Path', 'Bytes', 'Extension'],
-      onProgress: (n) => {
-        updateProgress(
-          toastId,
-          total > 0 ? Math.min(1, n / total) : 0,
-          total > 0 ? `${formatCount(n)} / ${formatCount(total)} rows` : `${formatCount(n)} rows`,
-        )
-      },
-      fetchPage: async (cursor) => {
-        const page = await fetchUserDetail(target, user, {
-          ...filter,
-          limit: EXPORT_PAGE[kind],
-          // Only advance the list being exported; the other one comes back at its
-          // first page and is ignored.
-          ...(kind === 'dirs'
-            ? cursor !== undefined
-              ? { dirCursor: cursor }
-              : {}
-            : cursor !== undefined
-              ? { fileCursor: cursor }
-              : {}),
-        })
-
-        if (kind === 'dirs') {
-          return {
-            rows: page.dirs.rows.map((d): Row => [d.path, d.used, d.files]),
-            nextCursor: page.dirs.nextCursor,
-          }
-        }
-        return {
-          rows: page.files.rows.map((f): Row => [f.path, f.size, f.ext]),
-          nextCursor: page.files.nextCursor,
-        }
-      },
+    const result = await downloadUrl({
+      url,
+      suggestedName: suggested,
+      onStatus: (status) => updateProgress(toastId, -1, status),
     })
 
-    reportOutcome(label, result)
+    if (result.kind === 'cancelled') {
+      info('Export cancelled', 'The save dialog was closed.')
+      return
+    }
+    success(`${label} exported`, result.kind === 'streamed' ? `${suggested}.csv.gz` : `${suggested}.csv`)
   } catch (err) {
     failure('Export failed', err instanceof Error ? err.message : String(err))
   } finally {

@@ -15,7 +15,7 @@ export interface Toast {
   kind: ToastKind
   title: string
   message?: string
-  /** 0..1 for a progress toast; absent for a normal one. */
+  /** 0..1 for a determinate bar; -1 for an indeterminate one; absent for a normal toast. */
   progress?: number
   /** Label beside the bar, e.g. "12,000 rows". */
   progressLabel?: string
@@ -95,6 +95,10 @@ export function startProgress(title: string, message?: string): string {
 /**
  * Update a progress toast. A no-op if the toast was already dismissed, so a
  * long-running job does not have to check whether the user closed it.
+ *
+ * A negative value renders an indeterminate bar ("in progress, no total yet"),
+ * which is what exports use once they stream from the server and no longer have
+ * a live row count to report.
  */
 export function updateProgress(id: string, progress: number, label?: string): void {
   let changed = false
@@ -103,7 +107,7 @@ export function updateProgress(id: string, progress: number, label?: string): vo
     changed = true
     return {
       ...t,
-      progress: Math.max(0, Math.min(1, progress)),
+      progress: progress < 0 ? -1 : Math.max(0, Math.min(1, progress)),
       ...(label !== undefined ? { progressLabel: label } : {}),
     }
   })

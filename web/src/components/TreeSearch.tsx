@@ -149,7 +149,7 @@ export function TreeSearch({ target, onOpen }: Props): JSX.Element {
     <div className="relative shrink-0" ref={wrapRef}>
       <input
         type="search"
-        className="h-6 w-56 rounded-sm border border-border bg-background px-2 text-[11px] placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+        className="h-6 w-56 rounded-sm border border-border bg-background px-2 text-[13px] placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         placeholder="Find a file or folder…"
         aria-label="Search this disk"
         value={query}
@@ -174,18 +174,18 @@ export function TreeSearch({ target, onOpen }: Props): JSX.Element {
           onMouseDown={(e) => e.stopPropagation()}
         >
           {error ? (
-            <p className="text-[11px] text-muted-foreground p-3">{error}</p>
+            <p className="text-[13px] text-muted-foreground p-3">{error}</p>
           ) : allHits.length === 0 && loading ? (
-            <p className="text-[11px] text-muted-foreground p-3">Searching…</p>
+            <p className="text-[13px] text-muted-foreground p-3">Searching…</p>
           ) : allHits.length === 0 ? (
-            <p className="text-[11px] text-muted-foreground p-3">No match for "{query.trim()}".</p>
+            <p className="text-[13px] text-muted-foreground p-3">No match for "{query.trim()}".</p>
           ) : (
             <ul className="divide-y divide-border/20">
               {visible.map((h) => (
                 <li key={`${h.kind}-${h.id}-${h.path}`}>
                   <button
                     type="button"
-                    className="flex items-center gap-2 w-full px-3 py-1.5 text-[11px] hover:bg-muted transition-colors text-left"
+                    className="flex items-center gap-2 w-full px-3 py-1.5 text-[13px] hover:bg-muted transition-colors text-left"
                     onClick={() => pick(h)}
                   >
                     <span className="text-muted-foreground shrink-0" aria-hidden="true">
@@ -200,13 +200,13 @@ export function TreeSearch({ target, onOpen }: Props): JSX.Element {
               {showCount < allHits.length && (
                 <div
                   ref={sentinelRef}
-                  className="flex items-center justify-center py-2 text-[10px] text-muted-foreground"
+                  className="flex items-center justify-center py-2 text-[12px] text-muted-foreground"
                 >
                   Scroll for more
                 </div>
               )}
               {hasMore && showCount >= allHits.length && (
-                <p className="text-[10px] text-muted-foreground text-center py-2">
+                <p className="text-[12px] text-muted-foreground text-center py-2">
                   Narrow your search for more results
                 </p>
               )}

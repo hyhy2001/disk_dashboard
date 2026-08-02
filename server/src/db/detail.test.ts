@@ -7,8 +7,17 @@
 
 import type Database from 'better-sqlite3'
 import { afterEach, describe, expect, it } from 'vitest'
+import type { DetailFilter } from '../../../shared/api.js'
 import { createFixture } from './fixture.js'
-import { findUid, listUsers, readUserDetail, readUserDirs, readUserFiles } from './detail.js'
+import {
+  findUid,
+  listUsers,
+  readUserDetail,
+  readUserDirs,
+  readUserFiles,
+  streamUserListCsv,
+  type ExportKind,
+} from './detail.js'
 
 let db: Database.Database
 
@@ -181,6 +190,68 @@ describe('readUserFiles', () => {
   })
 })
 
+describe('filtered count cache', () => {
+  it('reuses the COUNT across pages of the same filter', () => {
+    db = createFixture()
+    readUserFiles(db, aliceUid(), { filter: { query: ['home'] } }) // warm
+    let prepares = 0
+    const orig = db.prepare.bind(db)
+    db.prepare = ((sql: string) => {
+      if (sql.includes('COUNT(*)')) prepares += 1
+      return orig(sql)
+    }) as typeof db.prepare
+    // Second page of the same filtered list must not re-run the COUNT scan.
+    const page = readUserFiles(db, aliceUid(), { filter: { query: ['home'] }, cursor: undefined })
+    expect(page.total).toBe(3)
+    expect(prepares).toBe(0)
+  })
+
+  it('treats a changed filter as a different key', () => {
+    db = createFixture()
+    readUserFiles(db, aliceUid(), { filter: { query: ['home'] } }) // warm
+    let prepares = 0
+    const orig = db.prepare.bind(db)
+    db.prepare = ((sql: string) => {
+      if (sql.includes('COUNT(*)')) prepares += 1
+      return orig(sql)
+    }) as typeof db.prepare
+    readUserFiles(db, aliceUid(), { filter: { query: ['etc'] } })
+    expect(prepares).toBe(1)
+  })
+
+  it('serves the cached COUNT for dirs too', () => {
+    db = createFixture()
+    readUserDirs(db, aliceUid(), { filter: { query: ['home'] } }) // warm
+    let prepares = 0
+    const orig = db.prepare.bind(db)
+    db.prepare = ((sql: string) => {
+      if (sql.includes('COUNT(*)')) prepares += 1
+      return orig(sql)
+    }) as typeof db.prepare
+    readUserDirs(db, aliceUid(), { filter: { query: ['home'] } })
+    expect(prepares).toBe(0)
+  })
+
+  it('invalidates when the report handle changes', () => {
+    db = createFixture()
+    readUserFiles(db, aliceUid(), { filter: { query: ['home'] } }) // warm
+
+    // A fresh handle (what a rescan produces) has no cache entry, so the COUNT
+    // must re-run rather than trust a stale total.
+    db.close()
+    db = createFixture()
+    let prepares = 0
+    const orig = db.prepare.bind(db)
+    db.prepare = ((sql: string) => {
+      if (sql.includes('COUNT(*)')) prepares += 1
+      return orig(sql)
+    }) as typeof db.prepare
+    const page = readUserFiles(db, aliceUid(), { filter: { query: ['home'] } })
+    expect(page.total).toBe(3)
+    expect(prepares).toBe(1)
+  })
+})
+
 describe('readUserDetail', () => {
   it('returns both lists and the user total', () => {
     db = createFixture()
@@ -207,5 +278,64 @@ describe('readUserDetail', () => {
     // Nothing to assert on row count with a tiny fixture; what matters is that
     // the query ran instead of asking SQLite for ten million rows.
     expect(detail.files.hasMore).toBe(false)
+  })
+})
+
+describe('streamUserListCsv', () => {
+  async function collect(kind: ExportKind, filter?: DetailFilter): Promise<string> {
+    const chunks: string[] = []
+    for await (const chunk of streamUserListCsv(db, aliceUid(), kind, filter)) chunks.push(chunk)
+    return chunks.join('')
+  }
+
+  it('emits dirs as the own-directories list, largest first, with a header', async () => {
+    db = createFixture()
+    const csv = await collect('dirs')
+    expect(csv.split('\r\n')).toEqual(['Path,Bytes,Files', '/home,300,3', '/home/alice,100,1', '/home/bob,100,1', ''])
+  })
+
+  it('emits files with the full path joined and the extension column', async () => {
+    db = createFixture()
+    const csv = await collect('files')
+    expect(csv.split('\r\n').slice(0, -1)).toEqual([
+      'Path,Bytes,Extension',
+      '/home/mid.bin,150,bin',
+      '/home/a.dat,100,dat',
+      '/home/b.dat,50,dat',
+      '/etc/mid.bin,4,cnf',
+    ])
+  })
+
+  it('joins the path separator once for a file in the scan root', async () => {
+    db = createFixture()
+    const rootUid = findUid(db, 'root')
+    const csv: string[] = []
+    for await (const chunk of streamUserListCsv(db, rootUid ?? -1, 'files')) csv.push(chunk)
+    // /big.log and /small.txt live directly in the root.
+    expect(csv.join('')).toContain('/big.log,60,log')
+    expect(csv.join('')).toContain('/small.txt,40,txt')
+  })
+
+  it('applies filters exactly as the paged queries do', async () => {
+    db = createFixture()
+    const csv = await collect('files', { ext: ['dat'] })
+    expect(csv.split('\r\n').slice(1, -1)).toEqual(['/home/a.dat,100,dat', '/home/b.dat,50,dat'])
+  })
+
+  it('quotes hazardous cells, including the formula-injection guard', async () => {
+    db = createFixture()
+    // A directory whose name starts with = (a spreadsheet formula) and contains
+    // a comma and a quote. Only the owner list is exported, so give it to alice.
+    db.prepare('INSERT INTO detail_dirs (id, uid, parent_id, path, owner_uid, size, files) VALUES (?,?,?,?,?,?,?)').run(
+      50,
+      900,
+      2,
+      '=cmd|weird, "x"',
+      900,
+      1,
+      1,
+    )
+    const csv = await collect('dirs')
+    expect(csv.split('\r\n')).toContain('"\'=cmd|weird, ""x""",1,1')
   })
 })

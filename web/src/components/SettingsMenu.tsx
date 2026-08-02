@@ -117,7 +117,7 @@ export function SettingsMenu({ theme, onToggleTheme, collapsed, onToggleCollapse
       {about && (
         <Modal title="About" onClose={() => setAbout(false)} footer={<span>Press Esc to close</span>}>
           <p className="text-xs text-muted-foreground mb-4">
-            Reads duscan <code className="rounded-sm bg-muted px-1.5 py-0.5 text-[11px]">report.db</code> files
+            Reads duscan <code className="rounded-sm bg-muted px-1.5 py-0.5 text-[13px]">report.db</code> files
             directly. Nothing is written back — the dashboard cannot start a scan or modify a report.
           </p>
 
@@ -125,7 +125,7 @@ export function SettingsMenu({ theme, onToggleTheme, collapsed, onToggleCollapse
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 text-xs">
               <dt className="text-muted-foreground">Reports directory</dt>
               <dd>
-                <code className="rounded-sm bg-muted px-1.5 py-0.5 text-[11px]">{health.reportsDir}</code>
+                <code className="rounded-sm bg-muted px-1.5 py-0.5 text-[13px]">{health.reportsDir}</code>
                 {!health.reportsDirExists && ' — does not exist'}
               </dd>
 

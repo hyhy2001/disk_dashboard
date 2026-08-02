@@ -202,7 +202,8 @@ install: $(NODE_BIN)/node $(PY_BIN)/python3
 # ── Build / dev / test ──────────────────────────────────────────────────────
 
 build: $(NODE_BIN)/node
-	@bash -c 'ulimit -v unlimited 2>/dev/null || echo "  WARNING: cannot raise virtual-memory limit — WASM build may fail"; "$(NPM)" run build'
+	@echo '==> Building with NODE_ENV=production (dev React would double-mount and run slower) ...'
+	@bash -c 'ulimit -v unlimited 2>/dev/null || echo "  WARNING: cannot raise virtual-memory limit — WASM build may fail"; NODE_ENV=production "$(NPM)" run build'
 
 dev: $(NODE_BIN)/node
 	@"$(NPM)" run dev

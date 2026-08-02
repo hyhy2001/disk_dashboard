@@ -75,7 +75,7 @@ export function SyncPill({ target, status, onStale, refreshing }: Props): JSX.El
   const failed = status?.stage === 'error'
 
   return (
-    <div className="flex items-center gap-2 text-[11px]">
+    <div className="flex items-center gap-2 text-[13px]">
       {/* Dot */}
       <span
         className={cn(
@@ -111,7 +111,7 @@ export function SyncPill({ target, status, onStale, refreshing }: Props): JSX.El
         onClick={refresh}
         disabled={refreshing}
         className={cn(
-          'inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-[10px] font-medium transition-colors',
+          'inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-[12px] font-medium transition-colors',
           stale
             ? 'bg-amber-400/15 text-amber-400 hover:bg-amber-400/25'
             : 'text-muted-foreground/60 hover:text-foreground hover:bg-white/[0.04]',

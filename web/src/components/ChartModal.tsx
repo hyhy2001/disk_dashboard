@@ -77,7 +77,7 @@ export function ChartModal({ title, slug, onClose, children }: Props): JSX.Eleme
           <div className="flex items-center gap-1">
             <button
               type="button"
-              className="inline-flex items-center rounded-sm border border-border bg-transparent px-2 py-1 text-[10px] hover:bg-muted transition-colors"
+              className="inline-flex items-center rounded-sm border border-border bg-transparent px-2 py-1 text-[12px] hover:bg-muted transition-colors"
               onClick={savePng}
             >
               Save PNG
@@ -98,7 +98,7 @@ export function ChartModal({ title, slug, onClose, children }: Props): JSX.Eleme
         >
           {children}
         </div>
-        <div className="px-4 py-2 text-[10px] text-muted-foreground">
+        <div className="px-4 py-2 text-[12px] text-muted-foreground">
           {saveError ? (
             <span className="text-destructive">{saveError}</span>
           ) : (

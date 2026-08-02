@@ -13,6 +13,15 @@ export interface Config {
   host: string
   /** Directory of built web assets to serve, or null to run API-only. */
   webDir: string | null
+  /**
+   * Whether X-Forwarded-For may be trusted to name the real client. Off by
+   * default: when the server binds 0.0.0.0 (the default), trusting a header any
+   * LAN peer can set would let them spoof their IP and bypass the admin login
+   * rate limit. Turn it on only behind a reverse proxy that overwrites the
+   * header (e.g. nginx). `false` uses the socket address; a number trusts that
+   * many proxy hops.
+   */
+  trustProxy: boolean | number
 }
 
 function envInt(name: string, fallback: number): number {
@@ -55,6 +64,16 @@ export function loadConfig(): Config {
   // launched from.
   const webEnv = process.env.DASHBOARD_WEB_DIR
   const webDir = webEnv ? (isAbsolute(webEnv) ? webEnv : resolve(repoRoot(), webEnv)) : null
+  const trustProxyRaw = process.env.DASHBOARD_TRUST_PROXY
+  // 'true' trusts every hop; a positive integer trusts that many hops; anything
+  // else (absent, 'false', garbage) means trust no proxy and use the socket peer.
+  const trustProxy: boolean | number =
+    trustProxyRaw !== undefined && trustProxyRaw !== '' && trustProxyRaw.toLowerCase() !== 'false'
+      ? trustProxyRaw.toLowerCase() === 'true'
+        ? true
+        : envInt('DASHBOARD_TRUST_PROXY', 0) || 0
+      : false
+
   return {
     reportsDir,
     port: envInt('DASHBOARD_PORT', 5310),
@@ -62,5 +81,6 @@ export function loadConfig(): Config {
     // authentication of its own, so binding 0.0.0.0 must be an explicit choice.
     host: process.env.DASHBOARD_HOST ?? '0.0.0.0',
     webDir,
+    trustProxy,
   }
 }

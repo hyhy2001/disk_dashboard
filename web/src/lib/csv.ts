@@ -285,3 +285,70 @@ export function fileStamp(now = new Date()): string {
 export function safeName(value: string): string {
   return value.replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 64) || 'export'
 }
+
+// ── URL-based download (the server already produced the CSV) ──────────────
+
+export interface UrlDownloadOptions {
+  /** GET target whose body is the finished CSV, streamed by the server. */
+  url: string
+  /** File name without extension; streaming appends .csv.gz, fallback .csv. */
+  suggestedName: string
+  /** Called with status text. Server exports have no live row count to report. */
+  onStatus?: (status: string) => void
+}
+
+export type UrlDownloadResult = { kind: 'streamed' } | { kind: 'downloaded' } | { kind: 'cancelled' }
+
+/**
+ * Download a URL whose body is already the CSV.
+ *
+ * Where the File System Access API + CompressionStream are available the raw
+ * bytes are gzipped straight into the file the user picks — the server streams
+ * the CSV, so the CSV never materialises in JS and memory stays at one chunk.
+ * Everywhere else the download attribute hands the file to the browser natively
+ * (it writes it to disk); that path needs no JS buffering at all.
+ */
+export async function downloadUrl(opts: UrlDownloadOptions): Promise<UrlDownloadResult> {
+  if (canStream()) return streamUrl(opts)
+  return anchorUrl(opts)
+}
+
+async function streamUrl(opts: UrlDownloadOptions): Promise<UrlDownloadResult> {
+  const picker = (window as unknown as { showSaveFilePicker: SavePicker }).showSaveFilePicker
+  const name = `${opts.suggestedName}.csv.gz`
+  let handle: Awaited<ReturnType<SavePicker>>
+  try {
+    handle = await picker({
+      suggestedName: name,
+      types: [{ description: 'Gzipped CSV', accept: { 'application/gzip': ['.gz'] } }],
+    })
+  } catch {
+    // The only expected rejection is the user closing the dialog.
+    return { kind: 'cancelled' }
+  }
+
+  opts.onStatus?.('Preparing…')
+  const res = await fetch(opts.url, { headers: { Accept: 'text/csv' } })
+  if (!res.ok || !res.body) {
+    throw new Error(`${opts.url} returned ${res.status} ${res.statusText}`)
+  }
+
+  opts.onStatus?.('Downloading…')
+  await res.body
+    .pipeThrough(new CompressionStream('gzip'))
+    .pipeTo((await handle.createWritable()) as unknown as WritableStream<Uint8Array>)
+  return { kind: 'streamed' }
+}
+
+function anchorUrl(opts: UrlDownloadOptions): UrlDownloadResult {
+  opts.onStatus?.('Preparing…')
+  const a = document.createElement('a')
+  a.href = opts.url
+  // The download attribute matters: without it the browser would navigate to the
+  // CSV. Same-origin, so the cookie session applies and the attribute is honoured.
+  a.download = `${opts.suggestedName}.csv`
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  return { kind: 'downloaded' }
+}

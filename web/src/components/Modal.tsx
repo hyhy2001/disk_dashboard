@@ -70,7 +70,7 @@ export function Modal({ title, onClose, children, footer }: Props): JSX.Element 
         <div className="flex-1 overflow-auto p-4">{children}</div>
 
         {footer && (
-          <footer className="px-4 py-2 border-t border-border text-[10px] text-muted-foreground">{footer}</footer>
+          <footer className="px-4 py-2 border-t border-border text-[12px] text-muted-foreground">{footer}</footer>
         )}
       </div>
     </div>

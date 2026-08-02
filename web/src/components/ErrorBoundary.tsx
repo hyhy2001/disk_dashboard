@@ -31,7 +31,7 @@ export class ErrorBoundary extends Component<Props, State> {
         <div className="text-center space-y-1 max-w-md">
           <p className="text-sm font-semibold text-destructive">Something went wrong</p>
           <p className="text-xs text-muted-foreground font-mono break-all">{this.state.error.message}</p>
-          {this.props.name && <p className="text-[10px] text-muted-foreground">in {this.props.name}</p>}
+          {this.props.name && <p className="text-[12px] text-muted-foreground">in {this.props.name}</p>}
         </div>
         <button
           onClick={() => this.setState({ error: null })}

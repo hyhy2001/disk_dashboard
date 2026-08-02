@@ -107,7 +107,7 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
       <div className="flex flex-wrap items-center gap-3 px-4 py-3 border-b border-border/30">
         {bands.map((b) => (
           <div
-            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] ${
+            className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[13px] ${
               b.id === 'critical'
                 ? 'bg-rose-500/10 text-rose-400'
                 : b.id === 'warning'
@@ -123,7 +123,7 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
             <span className="opacity-70">{b.label}</span>
           </div>
         ))}
-        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[11px] bg-muted/50 text-muted-foreground">
+        <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[13px] bg-muted/50 text-muted-foreground">
           <span className="font-bold tabular-nums">{formatCount(targets.length)}</span>
           <span className="opacity-70">Disks</span>
         </div>
@@ -132,14 +132,14 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
       <section className="m-3 rounded-lg border border-border bg-surface/50 shadow-sm">
         <header className="flex flex-wrap items-center gap-2 border-b border-border/40 px-3 py-2">
           <h2 className="text-sm font-semibold flex-1 min-w-0">{spaceName} — capacity by disk</h2>
-          <span className="text-[10px] text-muted-foreground tabular-nums truncate hidden sm:inline">
+          <span className="text-[12px] text-muted-foreground tabular-nums truncate hidden sm:inline">
             {formatSize(spaceUsed)} of {formatSize(spaceTotal)} used · {formatSize(spaceScanned)} attributed
           </span>
           <div className="flex rounded-sm border border-border overflow-hidden" role="group" aria-label="Chart mode">
             {MODES.map((m) => (
               <button
                 type="button"
-                className={`px-2 py-1 text-[10px] font-medium transition-colors ${
+                className={`px-2 py-1 text-[12px] font-medium transition-colors ${
                   mode === m.id
                     ? 'bg-muted text-foreground'
                     : 'bg-transparent text-muted-foreground hover:text-foreground'
@@ -196,14 +196,14 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
                       />
                     </>
                   ) : (
-                    <span className="text-[10px] text-muted-foreground px-2 leading-4">capacity unknown</span>
+                    <span className="text-[12px] text-muted-foreground px-2 leading-4">capacity unknown</span>
                   )}
                 </div>
 
                 <span className="text-xs tabular-nums font-medium w-12 text-right">
                   {pct === null ? '—' : `${pct.toFixed(0)}%`}
                 </span>
-                <span className="text-[11px] text-muted-foreground tabular-nums w-32 text-right shrink-0">
+                <span className="text-[13px] text-muted-foreground tabular-nums w-32 text-right shrink-0">
                   {cap ? `${formatSize(cap.used)} / ${formatSize(cap.total)}` : formatSize(t.totalSize)}
                 </span>
               </li>
@@ -212,12 +212,12 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
         </ul>
 
         {unknown > 0 && (
-          <p className="text-[10px] text-muted-foreground px-4 py-2 border-t border-border/20">
+          <p className="text-[12px] text-muted-foreground px-4 py-2 border-t border-border/20">
             {unknown} disk{unknown === 1 ? '' : 's'} report no filesystem capacity and are shown without a bar.
           </p>
         )}
 
-        <div className="flex items-center gap-3 px-4 py-2 border-t border-border/30 text-[10px] text-muted-foreground">
+        <div className="flex items-center gap-3 px-4 py-2 border-t border-border/30 text-[12px] text-muted-foreground">
           <span className="flex items-center gap-1">
             <span className="size-2 rounded-sm bg-emerald-500/60" /> Attributed to users
           </span>

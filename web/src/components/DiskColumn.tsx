@@ -142,11 +142,11 @@ function DiskCard({
       >
         {active && <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded-full bg-emerald-500" />}
         <span className={cn('inline-block size-1.5 rounded-full shrink-0', dotColor)} />
-        <span className="min-w-0 flex-1 truncate text-[13px] font-medium">{t.name}</span>
+        <span className="min-w-0 flex-1 truncate text-[15px] font-medium">{t.name}</span>
         {pct > 0 && (
           <span
             className={cn(
-              'shrink-0 text-[11px] font-bold tabular-nums',
+              'shrink-0 text-[13px] font-bold tabular-nums',
               pct >= 85 ? 'text-rose-400' : pct >= 70 ? 'text-amber-400' : 'text-emerald-400',
             )}
           >
@@ -179,12 +179,12 @@ function DiskCard({
             <span className={cn('inline-block size-1.5 rounded-full shrink-0', dotColor)} />
             <p className="text-sm font-semibold truncate">{t.name}</p>
           </div>
-          <p className="text-[11px] text-muted-foreground/60 font-mono truncate mt-0.5">{t.scanRoot}</p>
+          <p className="text-[13px] text-muted-foreground/70 font-mono truncate mt-0.5">{t.scanRoot}</p>
         </div>
         {pct > 0 && (
           <span
             className={cn(
-              'shrink-0 rounded-md px-2 py-0.5 text-[11px] font-bold tabular-nums',
+              'shrink-0 rounded-md px-2 py-0.5 text-[13px] font-bold tabular-nums',
               pct >= 85
                 ? 'bg-rose-500/15 text-rose-400'
                 : pct >= 70
@@ -197,13 +197,13 @@ function DiskCard({
         )}
       </div>
 
-      <div className="mt-2 flex items-center gap-1.5 text-[11px] tabular-nums text-muted-foreground/60">
+      <div className="mt-2 flex items-center gap-1.5 text-[13px] tabular-nums text-muted-foreground/60">
         <span>{formatSize(t.totalSize)}</span>
-        <span className="text-[8px]">·</span>
+        <span className="text-[10px]">·</span>
         <span>{formatCount(t.totalFiles)} files</span>
-        <span className="text-[8px]">·</span>
+        <span className="text-[10px]">·</span>
         <span>{formatCount(t.totalDirs)} dirs</span>
-        <span className="ml-auto text-[10px] text-muted-foreground/40">{relativeTime(scanAge(t))}</span>
+        <span className="ml-auto text-[12px] text-muted-foreground/60">{relativeTime(scanAge(t))}</span>
       </div>
 
       {cap && (
@@ -224,20 +224,20 @@ function DiskCard({
           {/* Headline figures, matching legacy's extended-disk-stats. */}
           <div className="mt-2 grid grid-cols-4 gap-1.5 border-t border-border/40 pt-2">
             <div className="min-w-0">
-              <p className="text-[9px] uppercase tracking-wider text-muted-foreground/40">Total</p>
-              <p className="text-[11px] font-semibold tabular-nums truncate">{formatSize(cap.total)}</p>
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60">Total</p>
+              <p className="text-[13px] font-semibold tabular-nums truncate">{formatSize(cap.total)}</p>
             </div>
             <div className="min-w-0">
-              <p className="text-[9px] uppercase tracking-wider text-muted-foreground/40">Used</p>
-              <p className="text-[11px] font-semibold tabular-nums truncate">{formatSize(cap.used)}</p>
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60">Used</p>
+              <p className="text-[13px] font-semibold tabular-nums truncate">{formatSize(cap.used)}</p>
             </div>
             <div className="min-w-0">
-              <p className="text-[9px] uppercase tracking-wider text-muted-foreground/40">Scanned</p>
-              <p className="text-[11px] font-semibold tabular-nums truncate">{formatSize(cap.scanned)}</p>
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60">Scanned</p>
+              <p className="text-[13px] font-semibold tabular-nums truncate">{formatSize(cap.scanned)}</p>
             </div>
             <div className="min-w-0">
-              <p className="text-[9px] uppercase tracking-wider text-muted-foreground/40">Free</p>
-              <p className="text-[11px] font-semibold tabular-nums truncate">{formatSize(cap.available)}</p>
+              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60">Free</p>
+              <p className="text-[13px] font-semibold tabular-nums truncate">{formatSize(cap.available)}</p>
             </div>
           </div>
         </>
@@ -246,7 +246,7 @@ function DiskCard({
       {stageText && (
         <p
           className={cn(
-            'mt-1.5 flex items-center gap-1 text-[10px] font-medium',
+            'mt-1.5 flex items-center gap-1 text-[12px] font-medium',
             failed ? 'text-rose-400' : 'text-amber-400',
           )}
         >
@@ -313,7 +313,7 @@ export function DiskColumn({
         <div className="flex items-center justify-between gap-2">
           <div className="min-w-0">
             <h2 className="text-sm font-semibold truncate">{groupName}</h2>
-            <p className="text-[10px] text-muted-foreground/60 mt-0.5">
+            <p className="text-[12px] text-muted-foreground/60 mt-0.5">
               {visible.length} of {targets.length} disk{targets.length !== 1 ? 's' : ''}
             </p>
           </div>
@@ -334,7 +334,7 @@ export function DiskColumn({
             <select
               value={sort}
               onChange={(e) => setSort(e.target.value as DiskSort)}
-              className="h-6 rounded-md border border-border/40 bg-transparent px-1.5 text-[10px] text-muted-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500/30"
+              className="h-6 rounded-md border border-border/40 bg-transparent px-1.5 text-[12px] text-muted-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500/30"
             >
               {Object.entries(SORT_LABELS).map(([k, v]) => (
                 <option key={k} value={k}>
@@ -381,7 +381,7 @@ export function DiskColumn({
           />
         ))}
         {visible.length === 0 && (
-          <p className="px-2 py-4 text-center text-[11px] text-muted-foreground italic">No disks match “{query}”.</p>
+          <p className="px-2 py-4 text-center text-[13px] text-muted-foreground italic">No disks match “{query}”.</p>
         )}
       </div>
     </div>

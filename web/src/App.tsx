@@ -26,6 +26,7 @@ import { AdminButton } from './components/AdminMenu.js'
 import { ScrollTop } from './components/ScrollTop.js'
 import { StatBar } from './components/StatBar.js'
 import { ColumnResizer } from './components/ColumnResizer.js'
+import { CommandPalette } from './components/CommandPalette.js'
 import { KEYS, loadFilters, readString } from './lib/prefs.js'
 import {
   currentRoute,
@@ -79,6 +80,7 @@ export function App() {
   const [refreshing, setRefreshing] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showChangeLog, setShowChangeLog] = useState(false)
+  const [paletteOpen, setPaletteOpen] = useState(false)
   const mainRef = useRef<HTMLDivElement>(null)
   const settingsRef = useRef<HTMLButtonElement>(null)
 
@@ -104,6 +106,23 @@ export function App() {
     return () => window.removeEventListener('popstate', onPop)
   }, [])
 
+  // Global shortcut for the command palette, and Escape to close the mobile
+  // drawer — both are shortcuts a keyboard user needs regardless of focus.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        setDrawer(false)
+        return
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setPaletteOpen((v) => !v)
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [])
+
   // Auto-collapse the sidebar on narrow windows, and restore the user's manual
   // choice once there is room again. Below 768px the sidebar is a drawer, so it
   // must stay full-width for the drawer to open usable.
@@ -112,11 +131,9 @@ export function App() {
   // 900px is not undone by a one-pixel drag within the same band.
   const manualCollapsedRef = useRef<boolean | null>(null)
   useEffect(() => {
-    let band: 'narrow' | 'mid' | 'wide' =
-      window.innerWidth < 768 ? 'narrow' : window.innerWidth < 1280 ? 'mid' : 'wide'
+    let band: 'narrow' | 'mid' | 'wide' = window.innerWidth < 768 ? 'narrow' : window.innerWidth < 1280 ? 'mid' : 'wide'
     const onResize = () => {
-      const next: typeof band =
-        window.innerWidth < 768 ? 'narrow' : window.innerWidth < 1280 ? 'mid' : 'wide'
+      const next: typeof band = window.innerWidth < 768 ? 'narrow' : window.innerWidth < 1280 ? 'mid' : 'wide'
       if (next === band) return
       band = next
       if (next === 'narrow') {
@@ -146,6 +163,13 @@ export function App() {
   // Poll scan status for all targets as one request. Skipped while the tab is
   // hidden, and aborted on unmount so a slow poll cannot setState after the app
   // is gone. The result is handed to the disk column and the SyncPill alike.
+  //
+  // The poll runs every 3s even when nothing changed (that is the point — it is
+  // how a rescan is noticed), but a fresh object would re-render the whole shell
+  // and every disk card on every tick. So the new list is compared stamp-by-stamp
+  // against the current one and the state only updates when a target actually
+  // moved. Idle tabs then pay one tiny render for the poll itself, not one per
+  // card.
   useEffect(() => {
     const controller = new AbortController()
 
@@ -153,7 +177,26 @@ export function App() {
       if (document.hidden) return
       try {
         const list = await fetchStatuses(controller.signal)
-        setStatuses(Object.fromEntries(list.map((s) => [s.target, s])))
+        setStatuses((prev) => {
+          const next = Object.fromEntries(list.map((s) => [s.target, s]))
+          if (Object.keys(prev).length !== Object.keys(next).length) return next
+          for (const target of Object.keys(next)) {
+            const a = prev[target]
+            const b = next[target]
+            // stamp moves when the report is replaced; running/updatedAt move when
+            // a scan is in flight without touching report.db. Either changing is a
+            // visible change worth a re-render; identical objects are not.
+            if (
+              a?.stamp !== b?.stamp ||
+              a?.running !== b?.running ||
+              a?.updatedAt !== b?.updatedAt ||
+              a?.stage !== b?.stage
+            ) {
+              return next
+            }
+          }
+          return prev
+        })
       } catch (err) {
         if (!(err instanceof DOMException && err.name === 'AbortError')) return
       }
@@ -207,7 +250,9 @@ export function App() {
   // from "no data yet" matters: /some-typo should say "not found", not pretend
   // to be the first space.
   const spaceNotFound = route.space !== null && activeGroup === null && groups.length > 0
-  const diskExists = spaceNotFound ? false : route.disk === null || !!activeGroup?.targets.some((t) => t.slug === route.disk)
+  const diskExists = spaceNotFound
+    ? false
+    : route.disk === null || !!activeGroup?.targets.some((t) => t.slug === route.disk)
   const diskNotFound = !spaceNotFound && route.disk !== null && !diskExists
 
   // Redirect old bookmarks that used the disk display name in the URL instead of
@@ -245,11 +290,15 @@ export function App() {
   }, [route.disk, activeGroup, diskNotFound])
 
   const pickSpace = useCallback((name: string) => {
+    // The space list lives in the drawer on mobile; picking one must dismiss it
+    // or the drawer keeps covering the content the pick just changed.
+    setDrawer(false)
     setRoute((r) => ({ ...r, space: name, disk: null }))
   }, [])
 
   const pickDisk = useCallback(
     (slug: string) => {
+      setDrawer(false)
       setRoute((r) => ({
         ...r,
         disk: slug,
@@ -332,7 +381,10 @@ export function App() {
           <div className="flex h-14 items-center gap-2.5 border-b border-border/40 px-4">
             <a
               className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer"
-              onClick={() => setRoute(DEFAULT_ROUTE)}
+              onClick={() => {
+                setDrawer(false)
+                setRoute(DEFAULT_ROUTE)
+              }}
             >
               <div className="flex size-7 items-center justify-center rounded-md bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-sm shrink-0">
                 <HardDrive className="size-4 text-white" />
@@ -351,7 +403,7 @@ export function App() {
                 </button>
                 {showSettings && (
                   <div className="absolute right-0 top-full mt-1 w-44 rounded-md border border-border bg-secondary shadow-lg z-50 overflow-hidden">
-                    <div className="px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/50">
+                    <div className="px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/50">
                       Preferences
                     </div>
                     <button
@@ -379,7 +431,7 @@ export function App() {
             )}
           </div>
           {!collapsed && (
-            <div className="px-4 py-1 text-[10px] font-mono text-muted-foreground/50" id="sidebar-clock">
+            <div className="px-4 py-1 text-[12px] font-mono text-muted-foreground/50" id="sidebar-clock">
               <LiveClock />
             </div>
           )}
@@ -404,12 +456,12 @@ export function App() {
           <nav className="flex-1 overflow-auto px-2 py-1.5 space-y-0.5">
             {!collapsed && (
               <div className="flex items-center justify-between px-2 py-1.5">
-                <h2 className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/60">Spaces</h2>
-                <span className="text-[10px] tabular-nums text-muted-foreground/40">{groups.length}</span>
+                <h2 className="text-[12px] font-semibold uppercase tracking-widest text-muted-foreground/60">Spaces</h2>
+                <span className="text-[12px] tabular-nums text-muted-foreground/40">{groups.length}</span>
               </div>
             )}
             {!collapsed && groups.length === 0 && (
-              <p className="px-2 text-[11px] text-muted-foreground italic mt-2">
+              <p className="px-2 text-[13px] text-muted-foreground italic mt-2">
                 No spaces yet — add one from the Admin menu below.
               </p>
             )}
@@ -441,10 +493,10 @@ export function App() {
                   </div>
                   {!collapsed && (
                     <>
-                      <span className="flex-1 truncate text-left text-[13px]">{g.name}</span>
+                      <span className="flex-1 truncate text-left text-[15px]">{g.name}</span>
                       <span
                         className={cn(
-                          'text-[10px] tabular-nums',
+                          'text-[12px] tabular-nums',
                           active ? 'text-emerald-400/70' : 'text-muted-foreground/50',
                         )}
                       >
@@ -463,15 +515,18 @@ export function App() {
             <p
               id="page-load-time"
               className={cn(
-                'mt-1.5 border-t border-border/30 pt-1.5 text-center text-[10px] font-mono text-muted-foreground/50',
-                collapsed && 'mt-2 border-t-0 pt-0 text-[9px]',
+                'mt-1.5 border-t border-border/30 pt-1.5 text-center text-[12px] font-mono text-muted-foreground/50',
+                collapsed && 'mt-2 border-t-0 pt-0 text-[11px]',
               )}
             >
               {collapsed ? (
                 <span data-ms />
               ) : (
                 <>
-                  Load time: <span className="text-emerald-400/80" data-ms>-- ms</span>
+                  Load time:{' '}
+                  <span className="text-emerald-400/80" data-ms>
+                    -- ms
+                  </span>
                 </>
               )}
             </p>
@@ -482,7 +537,7 @@ export function App() {
               manualCollapsedRef.current = !collapsed
               setCollapsed((c) => !c)
             }}
-            className="absolute -right-3 top-5 z-40 hidden md:flex size-5 items-center justify-center rounded-full border border-border/50 bg-surface/80 text-[10px] text-muted-foreground hover:text-foreground hover:border-border transition-colors backdrop-blur-sm"
+            className="absolute -right-3 top-5 z-40 hidden md:flex size-5 items-center justify-center rounded-full border border-border/50 bg-surface/80 text-[12px] text-muted-foreground hover:text-foreground hover:border-border transition-colors backdrop-blur-sm"
           >
             {collapsed ? '▸' : '◂'}
           </button>
@@ -563,6 +618,7 @@ export function App() {
               onClick={toggleTheme}
               className="inline-flex size-7 items-center justify-center rounded-sm text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
               title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+              aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
             >
               {theme === 'dark' ? <Sun className="size-3.5" /> : <Moon className="size-3.5" />}
             </button>
@@ -678,6 +734,17 @@ export function App() {
         <ScrollTop targetRef={mainRef} />
       </div>
       <ChangeLogModal open={showChangeLog} onClose={() => setShowChangeLog(false)} />
+      <CommandPalette
+        open={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        groups={groups}
+        activeDisk={route.disk}
+        activeDiskName={active?.name ?? null}
+        onPickSpace={pickSpace}
+        onPickDisk={pickDisk}
+        onGoTab={setTab}
+        onToggleTheme={toggleTheme}
+      />
     </>
   )
 }
@@ -721,6 +788,13 @@ function ChangeLogModal({ open, onClose }: { open: boolean; onClose: () => void 
 }
 
 const CHANGES = [
+  {
+    date: '2026-08-01',
+    items: [
+      "Command palette via Ctrl/Cmd+K: jump to spaces, disks, and the active disk's views",
+      'Security: sessions are revoked on password change / account delete; X-Forwarded-For no longer trusted unless DASHBOARD_TRUST_PROXY is set; /api/groups and /api/targets cached by report stamp',
+    ],
+  },
   {
     date: '2026-07-31',
     items: [

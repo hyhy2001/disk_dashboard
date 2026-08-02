@@ -47,7 +47,7 @@ export function GroupList({ groups, selected, onSelect }: Props): JSX.Element {
             </span>
             <span className="flex flex-col min-w-0">
               <span className="truncate font-medium">{g.name}</span>
-              <span className="text-[10px] text-muted-foreground tabular-nums">
+              <span className="text-[12px] text-muted-foreground tabular-nums">
                 {g.targets.length} disk{g.targets.length === 1 ? '' : 's'} · {formatSize(size)}
               </span>
             </span>

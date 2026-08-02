@@ -124,8 +124,8 @@ export function Treemap({ level, onOpen }: Props): JSX.Element {
               {w >= LABEL_MIN_W && h >= LABEL_MIN_H && (
                 <>
                   <text className="tile__name" x={6} y={15}>
-                    {item.name.length > Math.floor(w / 7)
-                      ? `${item.name.slice(0, Math.max(1, Math.floor(w / 7) - 1))}…`
+                    {item.name.length > Math.floor(w / 8)
+                      ? `${item.name.slice(0, Math.max(1, Math.floor(w / 8) - 1))}…`
                       : item.name}
                   </text>
                   {h >= 40 && (

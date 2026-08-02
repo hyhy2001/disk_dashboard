@@ -50,8 +50,8 @@ export function ChangelogModal({ onClose }: { onClose: () => void }): JSX.Elemen
           <section key={entry.version}>
             <header className="flex items-baseline gap-2 mb-1">
               <h3 className="text-xs font-semibold">{entry.version}</h3>
-              <span className="text-[10px] text-muted-foreground">{entry.date}</span>
-              <span className="text-[11px] text-muted-foreground flex-1">{entry.title}</span>
+              <span className="text-[12px] text-muted-foreground">{entry.date}</span>
+              <span className="text-[13px] text-muted-foreground flex-1">{entry.title}</span>
             </header>
             <ul className="space-y-1 ml-1">
               {entry.bullets.map((b, i) => (

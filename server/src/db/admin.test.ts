@@ -3,12 +3,18 @@ import { mkdtempSync, mkdirSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
+  changePassword,
   closeAdminDb,
+  createAdmin,
   createDisk,
   createSpace,
+  deleteAdmin,
+  getAdminById,
+  signSession,
   updateDisk,
   validateDiskPath,
   testDiskRead,
+  verifySession,
 } from './admin.js'
 
 let dir: string | null = null
@@ -83,5 +89,42 @@ describe('testDiskRead', () => {
     const r = testDiskRead(p)
     expect(r.reportFound).toBe(false)
     expect(r.reportReadable).toBe(false)
+  })
+})
+
+describe('session revocation', () => {
+  it('signs and verifies a token carrying the session version', () => {
+    withTempDb()
+    const admin = createAdmin('bob', 'long-password-1', 'owner')
+    const token = signSession(`${admin.id}:${admin.role}:${admin.username}:${admin.session_version}`)
+    expect(verifySession(token)).toBe(`${admin.id}:${admin.role}:${admin.username}:${admin.session_version}`)
+  })
+
+  it('bumps the version on password change, killing old cookies', () => {
+    withTempDb()
+    const admin = createAdmin('bob', 'long-password-1', 'owner')
+    const oldVersion = admin.session_version
+    const token = signSession(`${admin.id}:${admin.role}:${admin.username}:${oldVersion}`)
+    expect(verifySession(token)).not.toBeNull()
+
+    expect(changePassword(admin.id, 'a-new-longer-password-here')).toBe(true)
+    const refreshed = getAdminById(admin.id)!
+    expect(refreshed.session_version).toBe(oldVersion + 1)
+
+    // The payload still verifies cryptographically (the HMAC is unchanged) but
+    // carries the stale version, which is exactly what the route's live-state
+    // check rejects. Simulating that check here keeps the assertion at the
+    // layer this file tests.
+    const staleVersion = Number(verifySession(token)!.split(':')[3])
+    expect(staleVersion).not.toBe(refreshed.session_version)
+  })
+
+  it('leaves a deleted account with no row to validate against', () => {
+    withTempDb()
+    const owner = createAdmin('bob', 'long-password-1', 'owner')
+    const admin = createAdmin('carol', 'long-password-2', 'admin')
+    expect(deleteAdmin(admin.id)).toBe(true)
+    expect(getAdminById(admin.id)).toBeNull()
+    expect(getAdminById(owner.id)).not.toBeNull()
   })
 })

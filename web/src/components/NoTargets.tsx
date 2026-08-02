@@ -51,12 +51,12 @@ export function NoTargets({ health, reason }: Props): JSX.Element {
           <p className="text-sm font-semibold">No scan data yet</p>
           <p className="mt-1 text-xs text-muted-foreground">
             The disk is configured but no{' '}
-            <code className="rounded-sm bg-muted px-1.5 py-0.5 text-[11px]">report.db</code> was found at the configured
+            <code className="rounded-sm bg-muted px-1.5 py-0.5 text-[13px]">report.db</code> was found at the configured
             path.
           </p>
         </div>
         <p className="text-xs text-muted-foreground italic">
-          Run <code className="rounded-sm bg-muted px-1.5 py-0.5 text-[11px]">duscan run --target &lt;name&gt;</code> to
+          Run <code className="rounded-sm bg-muted px-1.5 py-0.5 text-[13px]">duscan run --target &lt;name&gt;</code> to
           produce a scan report.
         </p>
       </div>

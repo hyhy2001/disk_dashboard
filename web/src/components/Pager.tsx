@@ -28,7 +28,7 @@ export function StepPager({ page, hasPrev, hasNext, onPrev, onNext, busy = false
       >
         ← Prev
       </button>
-      <span className="text-[11px] text-muted-foreground tabular-nums">Page {page}</span>
+      <span className="text-[13px] text-muted-foreground tabular-nums">Page {page}</span>
       <button
         type="button"
         className="inline-flex items-center gap-1 rounded-sm border border-border bg-transparent px-2.5 py-1 text-xs hover:bg-muted transition-colors disabled:opacity-30"

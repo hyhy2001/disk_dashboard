@@ -189,7 +189,7 @@ export function TreemapTab({ target, totalSize }: Props): JSX.Element {
           </button>
         </div>
 
-        <span className="text-[11px] text-muted-foreground tabular-nums">
+        <span className="text-[13px] text-muted-foreground tabular-nums">
           {formatCount(node.dirCount)} dirs · {formatCount(node.fileCount)} files · {formatSize(node.size)}
         </span>
 
@@ -200,7 +200,7 @@ export function TreemapTab({ target, totalSize }: Props): JSX.Element {
         <div className="flex rounded-sm border border-border overflow-hidden" role="group" aria-label="View mode">
           <button
             type="button"
-            className={`px-2.5 py-1 text-[11px] transition-colors ${view === 'list' ? 'bg-muted text-foreground' : 'bg-transparent text-muted-foreground hover:text-foreground'}`}
+            className={`px-2.5 py-1 text-[13px] transition-colors ${view === 'list' ? 'bg-muted text-foreground' : 'bg-transparent text-muted-foreground hover:text-foreground'}`}
             aria-pressed={view === 'list'}
             onClick={() => setView('list')}
           >
@@ -208,7 +208,7 @@ export function TreemapTab({ target, totalSize }: Props): JSX.Element {
           </button>
           <button
             type="button"
-            className={`px-2.5 py-1 text-[11px] transition-colors ${view === 'treemap' ? 'bg-muted text-foreground' : 'bg-transparent text-muted-foreground hover:text-foreground'}`}
+            className={`px-2.5 py-1 text-[13px] transition-colors ${view === 'treemap' ? 'bg-muted text-foreground' : 'bg-transparent text-muted-foreground hover:text-foreground'}`}
             aria-pressed={view === 'treemap'}
             onClick={() => setView('treemap')}
           >
@@ -237,7 +237,7 @@ export function TreemapTab({ target, totalSize }: Props): JSX.Element {
         ) : (
           <>
             <Treemap level={level} onOpen={open} />
-            <p className="text-center text-[10px] text-muted-foreground p-2">
+            <p className="text-center text-[12px] text-muted-foreground p-2">
               Click a tile to drill in. Tiles without subdirectories are not clickable.
               {level.truncated && ' Smaller entries are grouped — switch to List to page through them.'}
             </p>

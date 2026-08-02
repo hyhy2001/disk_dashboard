@@ -21,6 +21,9 @@ const VIEWPORTS = [
   { w: 1920, h: 1080, name: '1920x1080' },
 ]
 
+/** Disk cards carry data-tooltip; the column header buttons do not. */
+const DISK_CARD = '.diskcol button[data-tooltip]'
+
 let browser: Browser | null = null
 let reachable = false
 
@@ -29,16 +32,16 @@ let reachable = false
  *
  * The root URL lands on the space comparison view, because a space with no disk
  * chosen has nothing else useful to show. So these tests navigate: load the shell,
- * then click the first disk card. Clicking rather than constructing a hash keeps
+ * then click the first disk card. Clicking rather than constructing a URL keeps
  * the test independent of which targets happen to exist on the machine.
  */
 async function openOverview(width: number, height: number): Promise<import('playwright').Page> {
   if (!browser) throw new Error('browser not launched')
   const page = await browser.newPage({ viewport: { width, height } })
   await page.goto(URL, { waitUntil: 'networkidle' })
-  await page.waitForSelector('.disk', { timeout: 15_000 })
-  await page.click('.disk')
-  await page.waitForSelector('.charts', { timeout: 15_000 })
+  await page.waitForSelector(DISK_CARD, { timeout: 15_000 })
+  await page.click(DISK_CARD)
+  await page.waitForSelector('.main svg.chart', { timeout: 15_000 })
   // Let ResizeObserver deliver the first measurement before anything is measured.
   await page.waitForTimeout(500)
   return page
@@ -98,7 +101,7 @@ describe('Overview fits one viewport', () => {
     }
 
     const page = await openOverview(1440, 768)
-    await page.waitForSelector('svg.chart text', { timeout: 15_000 })
+    await page.waitForSelector('.main svg.chart text', { timeout: 15_000 })
 
     const sizes = await page.evaluate(() => {
       const out: { panel: string; rendered: number }[] = []
@@ -111,7 +114,7 @@ describe('Overview fits one viewport', () => {
         // declared size times the scale factor.
         const declared = parseFloat(getComputedStyle(text).fontSize)
         out.push({
-          panel: svg.closest('.panel')?.querySelector('.panel__title')?.textContent ?? '?',
+          panel: (svg.closest('div.rounded-lg')?.querySelector('h2')?.textContent ?? '?') as string,
           rendered: Math.round(declared * (box.width / vb.width) * 10) / 10,
         })
       }
@@ -120,7 +123,7 @@ describe('Overview fits one viewport', () => {
     await page.close()
 
     expect(sizes.length).toBeGreaterThan(1)
-    // Legacy uses one size across all charts; two panels rendering the same
+    // The chart axis text is declared at 12px; two panels rendering the same
     // declared size differently is the bug this guards.
     const distinct = [...new Set(sizes.map((s) => s.rendered))]
     expect(distinct, `mismatched chart text: ${JSON.stringify(sizes)}`).toHaveLength(1)
@@ -137,9 +140,9 @@ describe('Overview fits one viewport', () => {
 
     const offscreen = await page.evaluate(() => {
       const bad: string[] = []
-      for (const panel of document.querySelectorAll('.charts .panel')) {
+      for (const panel of document.querySelectorAll('.main .grid > div.rounded-lg')) {
         const r = panel.getBoundingClientRect()
-        const title = panel.querySelector('.panel__title')?.textContent ?? '?'
+        const title = panel.querySelector('h2')?.textContent ?? '?'
         if (r.bottom > window.innerHeight + 2) {
           bad.push(`${title} extends ${Math.round(r.bottom - window.innerHeight)}px below the fold`)
         }
@@ -162,12 +165,12 @@ async function openTab(tab: string, ready: string, width: number, height: number
   if (!browser) throw new Error('browser not launched')
   const page = await browser.newPage({ viewport: { width, height } })
   await page.goto(URL, { waitUntil: 'networkidle' })
-  await page.waitForSelector('.disk', { timeout: 15_000 })
-  await page.click('.disk')
+  await page.waitForSelector(DISK_CARD, { timeout: 15_000 })
+  await page.click(DISK_CARD)
   // Picking a disk lands on Overview by design, so the Detail page comes first —
   // the sub-tabs do not exist until it is open.
-  await page.click('.tab:text-is("Detail")')
-  await page.click(`.subtab:text-is("${tab}")`)
+  await page.click('header nav[role="tablist"] button:text-is("Detail")')
+  await page.click(`.main nav[role="tablist"] button:text-is("${tab}")`)
   await page.waitForSelector(ready, { timeout: 15_000 })
   // Let the fit measurement settle and its page land.
   await page.waitForTimeout(1200)
@@ -191,10 +194,10 @@ async function openTab(tab: string, ready: string, width: number, height: number
  */
 describe('list tabs fit one viewport', () => {
   const TABS = [
-    { tab: 'TreeMap', ready: '.ent__rows' },
-    { tab: 'Detail User', ready: '.ud__body' },
-    { tab: 'Permission Issues', ready: '.perm__body' },
-    { tab: 'Inodes Stat', ready: '.ino__body' },
+    { tab: 'Treemap', ready: 'input[aria-label="Search this disk"]' },
+    { tab: 'Users', ready: 'h2:text-is("Top directories")' },
+    { tab: 'Perms', ready: 'div[class*="divide-border/50"], p:text-is("No permission issues")' },
+    { tab: 'Inodes', ready: 'h2:text-is("System inodes")' },
   ]
 
   for (const { tab, ready } of TABS) {
@@ -238,11 +241,11 @@ describe('list tabs fit one viewport', () => {
     })
 
     await page.goto(URL, { waitUntil: 'networkidle' })
-    await page.waitForSelector('.disk', { timeout: 15_000 })
-    await page.click('.disk')
-    await page.click('.tab:text-is("Detail")')
-    await page.click('.subtab:text-is("Detail User")')
-    await page.waitForSelector('.ud__body', { timeout: 15_000 })
+    await page.waitForSelector(DISK_CARD, { timeout: 15_000 })
+    await page.click(DISK_CARD)
+    await page.click('header nav[role="tablist"] button:text-is("Detail")')
+    await page.click('.main nav[role="tablist"] button:text-is("Users")')
+    await page.waitForSelector('h2:text-is("Top directories")', { timeout: 15_000 })
     await page.waitForTimeout(2000)
     await page.close()
 
@@ -266,29 +269,25 @@ describe('list tabs fit one viewport', () => {
       return
     }
 
-    const page = await openTab('TreeMap', '.ent__rows', 1600, 900)
+    const page = await openTab('Treemap', 'input[aria-label="Search this disk"]', 1600, 900)
     const placement = await page.evaluate(() => {
-      const search = document.querySelector('.tms')
-      const crumbs = document.querySelector('.crumbs')
-      if (!search || !crumbs) return null
-      const s = search.getBoundingClientRect()
-      const c = crumbs.getBoundingClientRect()
+      const search = document.querySelector('input[aria-label="Search this disk"]')
+      if (!search) return null
       return {
-        inHeader: document.querySelector('.pagehead .tms') !== null,
-        // Same row as the breadcrumb it pairs with.
-        rowOffset: Math.abs(s.top - c.top),
+        inHeader: document.querySelector('header input[aria-label="Search this disk"]') !== null,
+        inMain: document.querySelector('.main input[aria-label="Search this disk"]') !== null,
       }
     })
 
     // And gone from a tab it does not drive.
-    await page.click('.subtab:text-is("History")')
+    await page.click('.main nav[role="tablist"] button:text-is("History")')
     await page.waitForTimeout(400)
-    const onOtherTab = await page.evaluate(() => document.querySelector('.tms') !== null)
+    const onOtherTab = await page.evaluate(() => document.querySelector('input[aria-label="Search this disk"]') !== null)
     await page.close()
 
     expect(placement).not.toBeNull()
     expect(placement!.inHeader, 'search must not live in the page header').toBe(false)
-    expect(placement!.rowOffset, 'search should sit on the breadcrumb row').toBeLessThan(30)
+    expect(placement!.inMain, 'search should live inside the main content').toBe(true)
     expect(onOtherTab, 'search should not appear on the History tab').toBe(false)
   }, 45_000)
 
@@ -298,24 +297,24 @@ describe('list tabs fit one viewport', () => {
       return
     }
 
-    const page = await openTab('TreeMap', '.ent__rows', 1600, 900)
-    await page.fill('.tms__field', 'lib')
-    await page.waitForSelector('.tms__hit', { timeout: 15_000 })
+    const page = await openTab('Treemap', 'input[aria-label="Search this disk"]', 1600, 900)
+    await page.fill('input[aria-label="Search this disk"]', 'lib')
+    await page.waitForSelector('div.fixed.z-50 li button', { timeout: 15_000 })
 
-    const before = await page.evaluate(() => document.querySelectorAll('.crumbs__item').length)
+    const before = await page.evaluate(() => document.querySelectorAll('nav[aria-label="Directory path"] button').length)
     // A real click, not dispatchEvent: the bug was the panel intercepting pointer
     // events, which a synthetic event would sail straight past.
-    await page.click('.tms__hit >> nth=0', { timeout: 10_000 })
+    await page.click('div.fixed.z-50 li button >> nth=0', { timeout: 10_000 })
     await page.waitForTimeout(1200)
 
     const after = await page.evaluate(() => ({
-      crumbs: document.querySelectorAll('.crumbs__item').length,
-      hash: location.hash,
+      crumbs: document.querySelectorAll('nav[aria-label="Directory path"] button').length,
+      path: location.pathname,
     }))
     await page.close()
 
     expect(after.crumbs, 'picking a hit should descend into the tree').toBeGreaterThan(before)
-    expect(after.hash, 'the jump should stay on the treemap tab').toContain('treemap')
+    expect(after.path, 'the jump should stay on the treemap tab').toContain('treemap')
   }, 45_000)
 
   /*
@@ -335,8 +334,11 @@ describe('list tabs fit one viewport', () => {
     }
 
     const rowsAt = async (height: number): Promise<number> => {
-      const page = await openTab('Detail User', '.ud__body', 1600, height)
-      const n = await page.evaluate(() => document.querySelectorAll('.ud__list:first-of-type .ud__row').length)
+      const page = await openTab('Users', 'h2:text-is("Top directories")', 1600, height)
+      const n = await page.evaluate(() => {
+        const list = document.querySelectorAll('ul[class*="divide-border/30"]')[0]
+        return list ? list.querySelectorAll('li').length : 0
+      })
       await page.close()
       return n
     }
@@ -365,10 +367,10 @@ describe('three-column shell geometry', () => {
 
     const page = await browser.newPage({ viewport: { width: 1600, height: 900 } })
     await page.goto(URL, { waitUntil: 'networkidle' })
-    await page.waitForSelector('.resizer', { timeout: 15_000 })
+    await page.waitForSelector('div[role="separator"]', { timeout: 15_000 })
 
     const geo = await page.evaluate(() => {
-      const handle = document.querySelector('.resizer')?.getBoundingClientRect()
+      const handle = document.querySelector('div[role="separator"]')?.getBoundingClientRect()
       const column = document.querySelector('.diskcol')?.getBoundingClientRect()
       if (!handle || !column) return null
       return { handleLeft: handle.left, handleWidth: handle.width, columnRight: column.right }
@@ -389,14 +391,17 @@ describe('three-column shell geometry', () => {
 
     const page = await browser.newPage({ viewport: { width: 1600, height: 900 } })
     await page.goto(URL, { waitUntil: 'networkidle' })
-    await page.waitForSelector('.diskcol', { timeout: 15_000 })
+    await page.waitForSelector(DISK_CARD, { timeout: 15_000 })
 
-    // Set the class directly rather than driving the menu: this is a layout
-    // assertion, and going through the UI would also be testing the menu.
+    // Set the width variable directly rather than driving the menu: this is a layout
+    // assertion, and going through the UI would also be testing the menu. Collapse
+    // is now a CSS variable on the shell root, so the class-based set is gone. The
+    // shell is the div holding the --sidebar-width variable, not the toast host.
     const gaps = await page.evaluate(async () => {
-      document.body.classList.add('sidebar-collapsed')
+      const root = document.querySelector('div[style*="--sidebar-width"]')
+      if (root instanceof HTMLElement) root.style.setProperty('--sidebar-width', '56px')
       await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
-      const sidebar = document.querySelector('.sidebar')?.getBoundingClientRect()
+      const sidebar = document.querySelector('aside')?.getBoundingClientRect()
       const column = document.querySelector('.diskcol')?.getBoundingClientRect()
       const main = document.querySelector('.main')?.getBoundingClientRect()
       if (!sidebar || !column || !main) return null

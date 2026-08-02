@@ -193,12 +193,10 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
     (kind: 'dirs' | 'files') => {
       if (!user) return
       setExporting(true)
-      // The picker already knows the user's unfiltered row count, so the progress
-      // bar gets a denominator without a counting pass.
-      const expected = kind === 'dirs' ? selectedMeta?.dirs : selectedMeta?.files
-      exportUserList(target, user, kind, toQuery(applied), expected).finally(() => setExporting(false))
+      // The server streams the CSV; the filters applied on screen carry over.
+      exportUserList(target, user, kind, toQuery(applied)).finally(() => setExporting(false))
     },
-    [target, user, applied, selectedMeta],
+    [target, user, applied],
   )
 
   // Close filter dropdown when clicking outside.
@@ -255,7 +253,7 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
           >
             Filters
             {filterBadge > 0 && (
-              <span className="inline-flex items-center justify-center size-4 rounded-full bg-primary text-[9px] text-primary-foreground ml-1">
+              <span className="inline-flex items-center justify-center size-4 rounded-full bg-primary text-[11px] text-primary-foreground ml-1">
                 {filterBadge}
               </span>
             )}
@@ -360,7 +358,7 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
             <section className="rounded-lg border border-border bg-surface/50 shadow-sm flex flex-col min-h-0 md:h-full">
               <header className="flex items-center gap-2 border-b border-border/40 px-3 py-2 shrink-0">
                 <h2 className="text-sm font-semibold flex-1">Top directories</h2>
-                <span className="text-[10px] text-muted-foreground">
+                <span className="text-[12px] text-muted-foreground">
                   {formatCount(detail.dirs.total ?? selectedMeta?.dirs ?? 0)} dirs, {formatSize(detail.userTotal)} total
                   for {user}
                 </span>
@@ -386,12 +384,12 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
                           className="flex items-center gap-2 px-3 py-2 min-h-[34px] hover:bg-white/[0.03] transition-colors"
                           key={`${d.id}-${d.path}`}
                         >
-                          <span className="rounded-sm bg-muted/50 px-1.5 text-[11px] font-mono text-muted-foreground shrink-0 w-10 text-center truncate leading-tight">
+                          <span className="rounded-sm bg-muted/50 px-1.5 text-[13px] font-mono text-muted-foreground shrink-0 w-10 text-center truncate leading-tight">
                             ▸
                           </span>
                           <button
                             type="button"
-                            className="flex-1 truncate text-left font-mono text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                            className="flex-1 truncate text-left font-mono text-[13px] text-muted-foreground hover:text-foreground transition-colors"
                             onClick={() => void copyPath(d.path)}
                             data-tooltip={`${d.path} — click to copy`}
                           >
@@ -403,10 +401,10 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
                               style={{ width: `${Math.min(100, share * 100)}%` }}
                             />
                           </span>
-                          <span className="text-right tabular-nums text-[11px] text-muted-foreground w-12 shrink-0">
+                          <span className="text-right tabular-nums text-[13px] text-muted-foreground w-12 shrink-0">
                             {formatPercent(d.used, detail.userTotal)}
                           </span>
-                          <span className="text-right tabular-nums text-[11px] font-medium shrink-0 w-16">
+                          <span className="text-right tabular-nums text-[13px] font-medium shrink-0 w-16">
                             {formatSize(d.used)}
                           </span>
                         </li>
@@ -431,7 +429,7 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
             <section className="rounded-lg border border-border bg-surface/50 shadow-sm flex flex-col min-h-0 md:h-full">
               <header className="flex items-center gap-2 border-b border-border/40 px-3 py-2 shrink-0">
                 <h2 className="text-sm font-semibold flex-1">Top files</h2>
-                <span className="text-[10px] text-muted-foreground">
+                <span className="text-[12px] text-muted-foreground">
                   {formatCount(detail.files.total ?? selectedMeta?.files ?? 0)} files,{' '}
                   {formatSize(detail.files.pageTotal)} on this page
                 </span>
@@ -449,12 +447,12 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
                           className="flex items-center gap-2 px-3 py-2 min-h-[34px] hover:bg-white/[0.03] transition-colors"
                           key={f.path}
                         >
-                          <span className="rounded-sm bg-muted/50 px-1.5 text-[11px] font-mono text-muted-foreground shrink-0 w-14 text-center truncate leading-tight">
+                          <span className="rounded-sm bg-muted/50 px-1.5 text-[13px] font-mono text-muted-foreground shrink-0 w-14 text-center truncate leading-tight">
                             {f.ext || '—'}
                           </span>
                           <button
                             type="button"
-                            className="flex-1 truncate text-left font-mono text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                            className="flex-1 truncate text-left font-mono text-[13px] text-muted-foreground hover:text-foreground transition-colors"
                             onClick={() => void copyPath(f.path)}
                             data-tooltip={`${f.path} — click to copy`}
                           >
@@ -466,10 +464,10 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
                               style={{ width: `${Math.min(100, share * 100)}%` }}
                             />
                           </span>
-                          <span className="text-right tabular-nums text-[11px] text-muted-foreground w-12 shrink-0">
+                          <span className="text-right tabular-nums text-[13px] text-muted-foreground w-12 shrink-0">
                             {share > 0.01 ? `${(share * 100).toFixed(1)}%` : '<0.1%'}
                           </span>
-                          <span className="text-right tabular-nums text-[11px] font-medium shrink-0 w-16">
+                          <span className="text-right tabular-nums text-[13px] font-medium shrink-0 w-16">
                             {formatSize(f.size)}
                           </span>
                         </li>

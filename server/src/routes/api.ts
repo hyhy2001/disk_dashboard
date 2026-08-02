@@ -5,6 +5,7 @@ import type { FastifyInstance, FastifyReply } from 'fastify'
 import Database from 'better-sqlite3'
 import { statSync } from 'node:fs'
 import { join } from 'node:path'
+import { Readable } from 'node:stream'
 import type {
   ApiResponse,
   DetailFilter,
@@ -34,7 +35,7 @@ import {
 import { readOverview } from '../db/overview.js'
 import { readTreemapLevel } from '../db/treemap.js'
 import { getPublicConfig } from '../db/admin.js'
-import { findUid, listUsers, readUserDetail } from '../db/detail.js'
+import { findUid, listUsers, readUserDetail, streamUserListCsv } from '../db/detail.js'
 import { readPermIssues } from '../db/perms.js'
 import { readHistorySeries } from '../db/history.js'
 import { readInodeStats } from '../db/inodes.js'
@@ -51,27 +52,40 @@ function fail(reply: FastifyReply, code: number, message: string): ApiResponse<n
   return { status: 'error', message }
 }
 
-/** Whether this SQLite build can do infix search (FTS5 + trigram tokenizer). */
+/**
+ * Whether this SQLite build can do infix search (FTS5 + trigram tokenizer).
+ *
+ * Probing requires opening a fresh in-memory database, so the result is computed
+ * once and cached: `/api/health` is polled on every page load and has no reason
+ * to re-create a database each time.
+ */
+let trigramCached: boolean | null = null
 function detectTrigram(): boolean {
+  if (trigramCached !== null) return trigramCached
   const db = new Database(':memory:')
   try {
     db.exec("CREATE VIRTUAL TABLE t USING fts5(x, tokenize='trigram')")
-    return true
+    trigramCached = true
   } catch {
-    return false
+    trigramCached = false
   } finally {
     db.close()
   }
+  return trigramCached
 }
 
+/** SQLite version, cached for the same reason as detectTrigram. */
+let sqliteVersionCached: string | null = null
 function sqliteVersion(): string {
+  if (sqliteVersionCached !== null) return sqliteVersionCached
   const db = new Database(':memory:')
   try {
     const row = db.prepare('SELECT sqlite_version() AS v').get() as { v: string }
-    return row.v
+    sqliteVersionCached = row.v
   } finally {
     db.close()
   }
+  return sqliteVersionCached ?? 'unknown'
 }
 
 /**
@@ -109,6 +123,20 @@ function detailFilterFrom(q: { query?: string; ext?: string; minSize?: string; m
     ...(minSize !== undefined ? { minSize } : {}),
     ...(maxSize !== undefined ? { maxSize } : {}),
   }
+}
+
+/** Strip characters that are awkward in a filename. */
+function safeName(value: string): string {
+  return value.replace(/[^A-Za-z0-9._-]+/g, '_').slice(0, 64) || 'export'
+}
+
+/** A timestamp suffix for export filenames: 20260727_143022. */
+function fileStamp(now = new Date()): string {
+  const p = (n: number): string => String(n).padStart(2, '0')
+  return (
+    `${now.getFullYear()}${p(now.getMonth() + 1)}${p(now.getDate())}` +
+    `_${p(now.getHours())}${p(now.getMinutes())}${p(now.getSeconds())}`
+  )
 }
 
 /**
@@ -163,6 +191,92 @@ function applyAdminTeams(slug: string, overview: Overview): Overview {
   }
 }
 
+/**
+ * One Target row for a configured disk, or null when its report is missing or
+ * unreadable (a corrupt report must not take down the target picker).
+ */
+function targetFor(disk: { name: string; slug: string; path: string }): Target | null {
+  const rp = join(disk.path, REPORT_FILE)
+  const info = openReportAt(rp)
+  if (!info) return null
+  try {
+    const meta = readMeta(info.db)
+    const cap = readCapacity(info.db)
+    const dbSize = statSync(rp).size
+    return {
+      name: disk.name,
+      slug: disk.slug,
+      scanRoot: meta.scan_root ?? disk.path,
+      scanTimestamp: Number(meta.scan_timestamp ?? 0),
+      totalFiles: Number(meta.total_files ?? 0),
+      totalDirs: Number(meta.total_dirs ?? 0),
+      totalSize: Number(meta.total_size ?? 0),
+      dbSizeBytes: dbSize,
+      capacity: cap ?? null,
+    }
+  } catch {
+    return null
+  }
+}
+
+/**
+ * A stamp of the whole configured set, used as the cache key.
+ *
+ * Report stamps catch a rescan; names and slugs catch admin-config changes
+ * (add/remove/rename/reorder), which the report files alone would miss.
+ */
+function targetsCacheKey(adminCfg: {
+  spaces: { name: string; disks: { name: string; slug: string; path: string }[] }[]
+}): string {
+  let key = ''
+  for (const space of adminCfg.spaces) {
+    key += `s:${space.name}:`
+    for (const disk of space.disks) {
+      const rp = join(disk.path, REPORT_FILE)
+      try {
+        const st = statSync(rp)
+        key += `${disk.slug}:${disk.name}:${st.mtimeMs}:${st.size};`
+      } catch {
+        // A missing report still participates, so a scan landing later refreshes
+        // the cache instead of reusing a stale "no report" list.
+        key += `${disk.slug}:${disk.name}:none;`
+      }
+    }
+  }
+  return key
+}
+
+interface TargetsCache {
+  key: string
+  targets: Target[]
+}
+
+let targetsCache: TargetsCache | null = null
+
+/**
+ * Every configured disk that has a readable report, cached by report stamp.
+ *
+ * The expensive part of /api/targets and /api/groups is opening each report.db
+ * and reading its meta and capacity — per-disk SQLite work that both endpoints
+ * repeated on every request. Reports only change when duscan replaces a file, so
+ * the assembled list is reused until any report's mtime/size moves or the disk
+ * set changes (both of which alter the key).
+ */
+function configuredTargets(adminCfg: ReturnType<typeof getPublicConfig>): Target[] {
+  const key = targetsCacheKey(adminCfg)
+  if (targetsCache && targetsCache.key === key) return targetsCache.targets
+
+  const targets: Target[] = []
+  for (const space of adminCfg.spaces) {
+    for (const disk of space.disks) {
+      const t = targetFor(disk)
+      if (t) targets.push(t)
+    }
+  }
+  targetsCache = { key, targets }
+  return targets
+}
+
 export function registerApi(app: FastifyInstance): void {
   app.get('/api/health', async (): Promise<ApiResponse<HealthInfo>> => {
     const adminCfg = getPublicConfig()
@@ -180,59 +294,16 @@ export function registerApi(app: FastifyInstance): void {
   })
 
   app.get('/api/targets', async (): Promise<ApiResponse<Target[]>> => {
-    const adminCfg = getPublicConfig()
-    const targets: Target[] = []
-    for (const space of adminCfg.spaces) {
-      for (const disk of space.disks) {
-        const rp = join(disk.path, REPORT_FILE)
-        const info = openReportAt(rp)
-        if (info) {
-          const meta = readMeta(info.db)
-          const cap = readCapacity(info.db)
-          const dbSize = statSync(rp).size
-          targets.push({
-            name: disk.name,
-            slug: disk.slug,
-            scanRoot: meta.scan_root ?? disk.path,
-            scanTimestamp: Number(meta.scan_timestamp ?? 0),
-            totalFiles: Number(meta.total_files ?? 0),
-            totalDirs: Number(meta.total_dirs ?? 0),
-            totalSize: Number(meta.total_size ?? 0),
-            dbSizeBytes: dbSize,
-            capacity: cap ?? null,
-          })
-        }
-      }
-    }
-    return ok(targets)
+    return ok(configuredTargets(getPublicConfig()))
   })
 
   // Targets arranged into groups for the Team → Disk sidebar.
   app.get('/api/groups', async (): Promise<ApiResponse<TargetGroup[]>> => {
     const adminCfg = getPublicConfig()
+    const bySlug = new Map(configuredTargets(adminCfg).map((t) => [t.slug, t]))
     const groups: TargetGroup[] = []
     for (const space of adminCfg.spaces) {
-      const members: Target[] = []
-      for (const disk of space.disks) {
-        const rp = join(disk.path, REPORT_FILE)
-        const info = openReportAt(rp)
-        if (info) {
-          const meta = readMeta(info.db)
-          const cap = readCapacity(info.db)
-          const dbSize = statSync(rp).size
-          members.push({
-            name: disk.name,
-            slug: disk.slug,
-            scanRoot: meta.scan_root ?? disk.path,
-            scanTimestamp: Number(meta.scan_timestamp ?? 0),
-            totalFiles: Number(meta.total_files ?? 0),
-            totalDirs: Number(meta.total_dirs ?? 0),
-            totalSize: Number(meta.total_size ?? 0),
-            dbSizeBytes: dbSize,
-            capacity: cap ?? null,
-          })
-        }
-      }
+      const members = space.disks.map((d) => bySlug.get(d.slug)).filter((t): t is Target => t !== undefined)
       if (members.length > 0) groups.push({ name: space.name, targets: members })
     }
     return ok(groups)
@@ -395,6 +466,53 @@ export function registerApi(app: FastifyInstance): void {
         filter: detailFilterFrom(request.query),
       }),
     )
+  })
+
+  /**
+   * Streaming CSV export of one user's dirs or files.
+   *
+   * This is the Detail tab's export path and it deliberately does not go through
+   * the {status,data} envelope or the paged queries: a whole-list export written
+   * as CSV is a single streaming query instead of a loop of up-to-50k-row pages,
+   * and never materialises the multi-megabyte JSON arrays that made exports peg
+   * the CPU. The body is the CSV itself (UTF-8, BOM-free), so the browser can
+   * save it directly.
+   */
+  app.get<{
+    Params: { target: string; user: string }
+    Querystring: {
+      kind?: string
+      query?: string
+      ext?: string
+      minSize?: string
+      maxSize?: string
+    }
+  }>('/api/export/:target/:user', async (request, reply): Promise<ApiResponse<never> | void> => {
+    const opened = withReport(request.params.target, reply)
+    if ('err' in opened) return opened.err
+
+    const kind = request.query.kind
+    if (kind !== 'dirs' && kind !== 'files') return fail(reply, 400, "export kind must be 'dirs' or 'files'")
+
+    const user = request.params.user
+    const uid = findUid(opened.db, user)
+    if (uid === null) return fail(reply, 404, `no such user '${user}' in this report`)
+
+    const filter = detailFilterFrom(request.query)
+    // The dirs list cannot be filtered by extension (readUserDetail suppresses
+    // it in the UI for the same reason), so a dirs export with an ext filter
+    // would silently drop the constraint. Reject it as the UI does.
+    if (kind === 'dirs' && (filter.ext ?? []).length > 0) {
+      return fail(reply, 400, 'an extension filter does not apply to a directory export')
+    }
+
+    const filename = `${kind}_${safeName(user)}_${fileStamp()}.csv`
+    reply
+      .code(200)
+      .header('content-type', 'text/csv; charset=utf-8')
+      .header('content-disposition', `attachment; filename="${filename}"`)
+      .header('cache-control', 'no-store')
+    return reply.send(Readable.from(streamUserListCsv(opened.db, uid, kind, filter)))
   })
 
   // Permission issues, offset-paginated because the UI shows numbered pages.

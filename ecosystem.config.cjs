@@ -58,6 +58,10 @@ module.exports = {
         // restarts; without it a fresh random key is generated per boot.
         DASHBOARD_COOKIE_SECRET: dot.DASHBOARD_COOKIE_SECRET || '',
         DASHBOARD_LOG_LEVEL: dot.DASHBOARD_LOG_LEVEL || 'info',
+        // Off unless set: trusting X-Forwarded-For lets a direct LAN client fake
+        // its IP and bypass the admin rate limit. Enable when nginx (or another
+        // proxy that overwrites the header) is the only way in.
+        DASHBOARD_TRUST_PROXY: dot.DASHBOARD_TRUST_PROXY || 'false',
       },
       out_file: resolve(root, 'logs/out.log'),
       error_file: resolve(root, 'logs/error.log'),

@@ -44,11 +44,12 @@ function join2(a: string, b: string): string {
 
 const DDL = `
 CREATE TABLE IF NOT EXISTS admins (
-  id            INTEGER PRIMARY KEY AUTOINCREMENT,
-  username      TEXT    NOT NULL UNIQUE,
-  password_hash TEXT    NOT NULL,
-  role          TEXT    NOT NULL DEFAULT 'admin',
-  created_at    TEXT    NOT NULL
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  username        TEXT    NOT NULL UNIQUE,
+  password_hash   TEXT    NOT NULL,
+  role            TEXT    NOT NULL DEFAULT 'admin',
+  created_at      TEXT    NOT NULL,
+  session_version INTEGER NOT NULL DEFAULT 1
 );
 
 CREATE TABLE IF NOT EXISTS login_attempts (
@@ -105,6 +106,8 @@ export function adminDb(): Database.Database {
   migrateDisksSlug(_db)
   // Enforce unique disk names within a space (duplicates renamed on migration).
   migrateDiskSpaceName(_db)
+  // Track a per-account session version so password/role changes revoke cookies.
+  migrateSessionVersion(_db)
   return _db
 }
 
@@ -155,6 +158,17 @@ function migrateDiskSpaceName(db: Database.Database): void {
     db.prepare('UPDATE disks SET name = ? WHERE id = ?').run(`${name} (${n})`, id)
   }
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS ux_disks_space_name ON disks(space_id, name)')
+}
+
+/**
+ * Bump of the account's session_version is what revokes outstanding cookies.
+ * Backfills the column for DBs that predate it; new accounts default to 1.
+ */
+function migrateSessionVersion(db: Database.Database): void {
+  const cols = db.pragma('table_info(admins)') as { name: string }[]
+  if (!cols.some((c) => c.name === 'session_version')) {
+    db.exec('ALTER TABLE admins ADD COLUMN session_version INTEGER NOT NULL DEFAULT 1')
+  }
 }
 
 export function closeAdminDb(): void {
@@ -322,10 +336,25 @@ export interface AdminAccount {
   created_at: string
 }
 
-export function getAdminByUsername(username: string): (AdminAccount & { password_hash: string }) | null {
+/** An account plus the internal fields the routes need for session checks. */
+export interface AdminWithSession extends AdminAccount {
+  password_hash?: string
+  /** Bumped on password change; stale sessions signed with an older value fail. */
+  session_version: number
+}
+
+export function getAdminByUsername(username: string): (AdminWithSession & { password_hash: string }) | null {
   const row = adminDb()
-    .prepare('SELECT id, username, password_hash, role, created_at FROM admins WHERE username = ?')
-    .get(username) as any
+    .prepare('SELECT id, username, password_hash, role, created_at, session_version FROM admins WHERE username = ?')
+    .get(username) as (AdminWithSession & { password_hash: string }) | undefined
+  return row ?? null
+}
+
+/** Look up an account by id — used to validate sessions against live state. */
+export function getAdminById(id: number): AdminWithSession | null {
+  const row = adminDb()
+    .prepare('SELECT id, username, role, created_at, session_version FROM admins WHERE id = ?')
+    .get(id) as AdminWithSession | undefined
   return row ?? null
 }
 
@@ -333,15 +362,15 @@ export function listAdmins(): AdminAccount[] {
   return adminDb().prepare('SELECT id, username, role, created_at FROM admins ORDER BY id').all() as AdminAccount[]
 }
 
-export function createAdmin(username: string, password: string, role: string = 'admin'): AdminAccount {
+export function createAdmin(username: string, password: string, role: string = 'admin'): AdminWithSession {
   const hash = hashPassword(password)
   const db = adminDb()
   const info = db
     .prepare('INSERT INTO admins (username, password_hash, role, created_at) VALUES (?, ?, ?, ?)')
     .run(username, hash, role, new Date().toISOString())
   return db
-    .prepare('SELECT id, username, role, created_at FROM admins WHERE id = ?')
-    .get(info.lastInsertRowid) as AdminAccount
+    .prepare('SELECT id, username, role, created_at, session_version FROM admins WHERE id = ?')
+    .get(info.lastInsertRowid) as AdminWithSession
 }
 
 export function deleteAdmin(id: number): boolean {
@@ -356,7 +385,13 @@ export function deleteAdmin(id: number): boolean {
 
 export function changePassword(id: number, newPassword: string): boolean {
   const hash = hashPassword(newPassword)
-  return adminDb().prepare('UPDATE admins SET password_hash = ? WHERE id = ?').run(hash, id).changes > 0
+  // Bumping session_version revokes every cookie this account already holds, so a
+  // stolen session dies the moment the owner changes the password.
+  return (
+    adminDb()
+      .prepare('UPDATE admins SET password_hash = ?, session_version = session_version + 1 WHERE id = ?')
+      .run(hash, id).changes > 0
+  )
 }
 
 export function hasAnyAdmin(): boolean {
@@ -631,15 +666,13 @@ export function listBackups(): BackupInfo[] {
 export function restoreBackup(name: string): boolean {
   const src = join(backupDir(), name)
   if (!existsSync(src)) return false
-  const db = adminDb()
-  db.close()
+  adminDb().close()
   _db = null
-  const dest = adminDbPath()
-  copyFileSync(src, dest)
-  // Re-open
-  _db = new Database(dest)
-  _db.pragma('journal_mode = WAL')
-  _db.pragma('foreign_keys = ON')
+  copyFileSync(src, adminDbPath())
+  // Re-open through adminDb() rather than a bare connection: a backup can predate
+  // columns the current build relies on (role, slug, session_version), and only
+  // the adminDb() path applies the DDL and migrations that backfill them.
+  adminDb()
   return true
 }
 

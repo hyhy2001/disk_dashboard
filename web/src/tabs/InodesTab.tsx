@@ -78,7 +78,7 @@ function InodeRing({ total, used, scanned }: { total: number; used: number; scan
           used
         </text>
       </svg>
-      <div className="space-y-1 text-[11px]">
+      <div className="space-y-1 text-[13px]">
         {slices.map((s) => (
           <div key={s.name} className="flex items-center gap-1.5">
             <span className="size-2 rounded-full shrink-0" style={{ background: s.color }} />
@@ -141,7 +141,7 @@ export function InodesTab({ target }: Props): JSX.Element {
       <section className="lg:w-[340px] lg:shrink-0 lg:border-r lg:border-border p-4 space-y-4 overflow-auto">
         <div className="flex items-center justify-between">
           <h2 className="text-sm font-semibold">System inodes</h2>
-          <span className="text-[10px] text-muted-foreground">
+          <span className="text-[12px] text-muted-foreground">
             {data.timestamp > 0 ? formatTimestamp(data.timestamp) : 'no snapshot'}
           </span>
         </div>
@@ -175,7 +175,7 @@ export function InodesTab({ target }: Props): JSX.Element {
                 { label: 'Free', value: formatCount(free ?? 0), good: true },
               ].map((f) => (
                 <div key={f.label} className="rounded-sm border border-border p-2.5" title={f.title}>
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{f.label}</p>
+                  <p className="text-[12px] uppercase tracking-wider text-muted-foreground">{f.label}</p>
                   <p className={cn('text-lg font-bold tabular-nums', f.tone, f.good && 'text-emerald-500')}>
                     {f.value}
                   </p>
@@ -191,7 +191,7 @@ export function InodesTab({ target }: Props): JSX.Element {
       <section className="flex-1 flex flex-col min-w-0 min-h-0">
         <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5">
           <h2 className="text-sm font-semibold">Per-user inodes</h2>
-          <span className="text-[10px] text-muted-foreground">
+          <span className="text-[12px] text-muted-foreground">
             {formatCount(shown.length)}
             {shown.length !== users.length ? ` of ${formatCount(users.length)}` : ''} account
             {users.length !== 1 ? 's' : ''}
@@ -229,7 +229,7 @@ export function InodesTab({ target }: Props): JSX.Element {
                         style={{ width: `${Math.min(100, walkPct)}%` }}
                       />
                     </div>
-                    <div className="flex justify-between text-[10px] text-muted-foreground tabular-nums">
+                    <div className="flex justify-between text-[12px] text-muted-foreground tabular-nums">
                       <span>{formatPercent(u.inodes, walked)} of scanned</span>
                       <span>{formatCount(u.dirs)} dirs</span>
                     </div>

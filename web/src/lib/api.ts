@@ -35,6 +35,26 @@ const cache = new Map<string, unknown>()
 const inflight = new Map<string, Promise<unknown>>()
 
 /**
+ * Ceiling on the number of cached GET responses.
+ *
+ * The cache has no expiry — report data is immutable until a rescan, and the
+ * whole point is that drilling back into a directory is free. But an unbounded
+ * map grows without limit over a long session: every treemap level, users list,
+ * inode snapshot and history series ever visited stays resident. Cap it with
+ * FIFO eviction (oldest first); 400 is far more levels than any user opens in a
+ * session, and a dropped level simply refetches once.
+ */
+const MAX_CACHE_ENTRIES = 400
+
+function cacheSet(path: string, data: unknown): void {
+  cache.set(path, data)
+  if (cache.size > MAX_CACHE_ENTRIES) {
+    const oldest = cache.keys().next().value
+    if (oldest !== undefined) cache.delete(oldest)
+  }
+}
+
+/**
  * Drop cached responses. Called when a rescan is detected, since the report file
  * behind every one of them has been replaced.
  */
@@ -74,7 +94,7 @@ async function get<T>(path: string, signal?: AbortSignal, cacheable = false): Pr
 
   const promise = run()
     .then((data) => {
-      cache.set(path, data)
+      cacheSet(path, data)
       return data
     })
     .finally(() => {

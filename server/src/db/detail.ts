@@ -42,6 +42,57 @@ export const PAGE_SIZE = 500
 export const MAX_PAGE_SIZE = 50_000
 
 /**
+ * LRU of filtered-list COUNT(*) totals, keyed by the report handle.
+ *
+ * The COUNT behind a filtered dirs/files page is the one query that scales with
+ * the whole user slice: a path LIKE cannot use the index, so on a large report it
+ * re-scans every one of a user's rows. The filter does not change as the user
+ * pages through a filtered list — only the cursor does — so a single COUNT can
+ * serve every page of that list instead of paying the scan once per page.
+ *
+ * Like searchNames' cache, a WeakMap keyed by the handle drops the entries the
+ * moment a rescan produces a new handle; nothing here needs invalidation
+ * bookkeeping.
+ */
+const countCache = new WeakMap<Database.Database, Map<string, number>>()
+
+/**
+ * Max cached COUNTs per report handle.
+ *
+ * A user flipping between a handful of filters stays well inside this; the cap
+ * keeps a pathological many-filter session from accumulating entries. Each entry
+ * is a single integer, so memory is negligible.
+ */
+const COUNT_CACHE_CAP = 200
+
+/** COUNT(*) for one query, cached per handle so paging a filtered list scans once. */
+function countCached(db: Database.Database, sql: string, params: (string | number)[]): number {
+  const key = `${sql}\u0000${JSON.stringify(params)}`
+  let lru = countCache.get(db)
+  const hit = lru?.get(key)
+  if (hit !== undefined) {
+    // Touch: re-insert so this key is the newest in the LRU.
+    lru!.delete(key)
+    lru!.set(key, hit)
+    return hit
+  }
+
+  const { cnt } = db.prepare(sql).get(...params) as { cnt: number }
+
+  if (!lru) {
+    lru = new Map()
+    countCache.set(db, lru)
+  }
+  lru.set(key, cnt)
+  if (lru.size > COUNT_CACHE_CAP) {
+    // Map iteration yields insertion order, so the first key is the LRU victim.
+    const oldest = lru.keys().next().value as string | undefined
+    if (oldest !== undefined) lru.delete(oldest)
+  }
+  return cnt
+}
+
+/**
  * Keyset position in the dirs ordering. `(size DESC, id ASC)` needs both parts:
  * sizes repeat constantly (thousands of empty directories all sort as 0), so size
  * alone cannot identify where a page ended.
@@ -226,28 +277,17 @@ export function readUserDirs(db: Database.Database, uid: number, opts: PageOptio
   const page = hasMore ? rows.slice(0, limit) : rows
   const last = page[page.length - 1]
 
-  const hasFilter =
-    (opts.filter?.query ?? []).some((t) => t.trim().length > 0) ||
-    (opts.filter?.minSize !== undefined && opts.filter.minSize > 0) ||
-    (opts.filter?.maxSize !== undefined && opts.filter.maxSize > 0)
-
   // Owner filtering means detail_users.total_dirs (the raw contribution count) no
   // longer matches what this list shows, so the total is always counted rather
   // than trusting totalHint. The uid+owner_uid predicate still rides the (uid,
-  // size, id) index, so the COUNT is a range scan, not a table scan.
-  const total = hasFilter
-    ? (
-        db
-          .prepare(`SELECT COUNT(*) AS cnt FROM detail_dirs WHERE uid = ?${ownedClause}${filter.sql}`)
-          .get(uid, ownedParam, ...filter.params) as {
-          cnt: number
-        }
-      ).cnt
-    : (
-        db.prepare('SELECT COUNT(*) AS cnt FROM detail_dirs WHERE uid = ? AND owner_uid = ?').get(uid, uid) as {
-          cnt: number
-        }
-      ).cnt
+  // size, id) index, so the COUNT is a range scan, not a table scan. It is cached
+  // per handle (see countCached): the count depends only on the filter, which
+  // stays fixed while the user pages through the list.
+  const total = countCached(
+    db,
+    `SELECT COUNT(*) AS cnt FROM detail_dirs WHERE uid = ?${ownedClause}${filter.sql}`,
+    [uid, ownedParam, ...filter.params],
+  )
 
   return {
     rows: page.map((r) => ({ id: r.id, path: r.path, used: r.size, files: r.files })),
@@ -311,17 +351,21 @@ export function readUserFiles(db: Database.Database, uid: number, opts: PageOpti
     (opts.filter?.minSize !== undefined && opts.filter.minSize > 0) ||
     (opts.filter?.maxSize !== undefined && opts.filter.maxSize > 0)
 
+  // When a filter is active detail_users.total_files (which the no-filter path
+  // trusts via totalHint) no longer matches the list, so the total is counted.
+  // That COUNT joins detail_dirs and scans the user's whole file slice — the
+  // most expensive query in the tab, and why it is cached per handle (see
+  // countCached): the count depends only on the filter, which stays fixed while
+  // the user pages through the list.
   const total = hasFilter
-    ? (
-        db
-          .prepare(
-            `SELECT COUNT(*) AS cnt
-               FROM detail_files f
-               JOIN detail_dirs d ON d.id = f.dir_id AND d.uid = f.uid
-              WHERE f.uid = ?${filter.sql}`,
-          )
-          .get(uid, ...filter.params) as { cnt: number }
-      ).cnt
+    ? countCached(
+        db,
+        `SELECT COUNT(*) AS cnt
+           FROM detail_files f
+           JOIN detail_dirs d ON d.id = f.dir_id AND d.uid = f.uid
+          WHERE f.uid = ?${filter.sql}`,
+        [uid, ...filter.params],
+      )
     : (opts.totalHint ?? 0)
 
   return {
@@ -354,6 +398,133 @@ export interface DetailOptions {
  * which would turn an indexed range scan into a full aggregate. Legacy made the
  * same call and hid the card.
  */
+/** The Detail tab's two export buttons: one user's dirs or their files. */
+export type ExportKind = 'dirs' | 'files'
+
+/** Header rows match what legacy's exporter wrote, so old CSVs stay comparable. */
+const EXPORT_HEADERS: Record<ExportKind, readonly string[]> = {
+  dirs: ['Path', 'Bytes', 'Files'],
+  files: ['Path', 'Bytes', 'Extension'],
+}
+
+/**
+ * Quote one CSV cell, mirroring the web client's writer exactly so a saved file
+ * has the same bytes whichever end produced it. Commas/quotes/newlines are
+ * escaped, and a leading `=`, `+`, `-`, `@`, tab or CR gets a quote-escape too:
+ * spreadsheets would otherwise evaluate such a cell as a formula — a filename
+ * like `=cmd|...` becomes code execution when the file is opened.
+ */
+function csvCell(value: string | number): string {
+  const s = String(value)
+  const risky = /^[=+\-@\t\r]/.test(s)
+  const body = risky ? `'${s}` : s
+  if (/[",\n\r]/.test(body)) return `"${body.replace(/"/g, '""')}"`
+  return body
+}
+
+function csvLine(row: readonly (string | number)[]): string {
+  return `${row.map(csvCell).join(',')}\r\n`
+}
+
+/** Lines per yielded chunk; the generator also breathes every this many rows. */
+const CSV_CHUNK = 256
+const CSV_BREATHE_EVERY = 2000
+
+/**
+ * Stream one user's dirs or files as CSV, honouring the same filters as the
+ * paged queries.
+ *
+ * An export wants everything — no limit, no cursor — so this is written
+ * differently from readUserDirs/readUserFiles:
+ *
+ *   - Rows come from SQLite's iterator one at a time, so memory is O(chunk)
+ *     rather than O(user): a 1.4M-file user never builds a big array, and no
+ *     multi-megabyte JSON page is ever serialized.
+ *   - The generator yields whole lines (Fastify streams them to the socket) and
+ *     hands control back to the event loop every CSV_BREATHE_EVERY rows, so one
+ *     user's export cannot peg the CPU and starve other requests.
+ *
+ * The SQL and filters are shared with the paged queries, so the CSV and the UI
+ * cannot drift apart.
+ */
+export async function* streamUserListCsv(
+  db: Database.Database,
+  uid: number,
+  kind: ExportKind,
+  filter: DetailFilter = {},
+): AsyncGenerator<string> {
+  const clause = buildFilter(filter, kind === 'dirs' ? 'path' : 'd.path', kind === 'dirs' ? null : 'f.ext')
+
+  // Both statements mirror readUserDirs/readUserFiles — same joins, the same
+  // owner_uid rule for dirs, the same ORDER BY riding the (uid, size, …) index
+  // (so no sort is needed). Only the LIMIT and cursor are gone.
+  const sql =
+    kind === 'dirs'
+      ? `SELECT path, size, files
+           FROM detail_dirs
+          WHERE uid = ? AND owner_uid = ?${clause.sql}
+          ORDER BY size DESC, id ASC`
+      : `SELECT f.size, f.ext, d.path AS dir_path, n.name AS base
+           FROM detail_files f
+           JOIN detail_dirs d ON d.id = f.dir_id AND d.uid = f.uid
+           JOIN detail_file_names n ON n.id = f.name_id
+          WHERE f.uid = ?${clause.sql}
+          ORDER BY f.size DESC, f.dir_id ASC, f.name_id ASC`
+  const params = kind === 'dirs' ? [uid, uid, ...clause.params] : [uid, ...clause.params]
+
+  // One shape for both statements: dirs fill path/size/files, files fill
+  // size/ext/dir_path/base. SQLite's row type is a union of the two.
+  const cells = (row: {
+    path?: string
+    size: number
+    files?: number
+    ext?: string
+    dir_path?: string
+    base?: string
+  }): (string | number)[] =>
+    kind === 'dirs'
+      ? [row.path as string, row.size, row.files as number]
+      : // Avoid '//name' when the file sits directly in the scan root (same rule
+        // as readUserFiles).
+        [
+          `${row.dir_path as string}${(row.dir_path as string).endsWith('/') ? '' : '/'}${row.base as string}`,
+          row.size,
+          row.ext as string,
+        ]
+
+  let buffer = csvLine(EXPORT_HEADERS[kind])
+  let lines = 0
+  let rows = 0
+
+  for (const row of db.prepare(sql).iterate(...params) as Iterable<{
+    path?: string
+    size: number
+    files?: number
+    ext?: string
+    dir_path?: string
+    base?: string
+  }>) {
+    buffer += csvLine(cells(row))
+    lines += 1
+    rows += 1
+
+    if (lines >= CSV_CHUNK) {
+      yield buffer
+      buffer = ''
+      lines = 0
+    }
+    if (rows % CSV_BREATHE_EVERY === 0) {
+      // Yield the event loop even when the socket never blocks (a fast LAN
+      // export) so timers and other requests get a turn.
+      await new Promise<void>((resolve) => setImmediate(resolve))
+    }
+  }
+
+  // The header alone (an empty export is a valid CSV) or the tail of the last
+  // partial chunk.
+  if (buffer) yield buffer
+}
+
 export function readUserDetail(db: Database.Database, user: string, uid: number, opts: DetailOptions = {}): UserDetail {
   const filter = opts.filter ?? {}
   const dirsSuppressed = (filter.ext ?? []).some((e) => e.trim().length > 0)

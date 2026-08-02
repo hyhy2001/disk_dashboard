@@ -326,7 +326,7 @@ function SpacesContent() {
                   c[spIdx] = { ...c[spIdx], name: e.target.value }
                   setSpaces(c)
                 }}
-                className="flex-1 bg-transparent text-sm font-medium border-none outline-none focus:ring-0 p-0"
+                className="flex-1 bg-transparent text-sm font-medium border-none outline-none focus:ring-0 focus-visible:bg-muted/40 focus-visible:rounded-sm focus-visible:px-0.5 p-0"
                 placeholder="Space name"
               />
               <Button
@@ -380,7 +380,7 @@ function SpacesContent() {
                       type="button"
                       variant="outline"
                       size="sm"
-                      className="h-6 px-2 text-[10px] shrink-0"
+                      className="h-6 px-2 text-[12px] shrink-0"
                       onClick={() => void runDiskTest(d._key, d.path)}
                       disabled={!d.path.trim() || testBusyKey === d._key}
                     >
@@ -392,7 +392,7 @@ function SpacesContent() {
                           setTeamDiskId(d.id)
                           setTeamDiskName(d.name)
                         }}
-                        className="inline-flex items-center rounded-sm px-1.5 py-1 text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
+                        className="inline-flex items-center rounded-sm px-1.5 py-1 text-[12px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
                       >
                         <Users className="size-3 mr-1" />
                         Teams
@@ -413,7 +413,7 @@ function SpacesContent() {
                   </div>
                   {testResult[d._key] && (
                     <div
-                      className={`mt-1.5 text-[10px] font-mono ${
+                      className={`mt-1.5 text-[12px] font-mono ${
                         testResult[d._key]!.reportReadable ? 'text-emerald-500' : 'text-rose-500'
                       }`}
                     >
@@ -424,7 +424,7 @@ function SpacesContent() {
                     </div>
                   )}
                   {d.id && d.slug && (
-                    <div className="flex items-center gap-2 mt-1.5 text-[10px] text-muted-foreground">
+                    <div className="flex items-center gap-2 mt-1.5 text-[12px] text-muted-foreground">
                       <code className="font-mono">
                         /{sp.name || 'space'}/{d.slug}/overview
                       </code>
@@ -459,7 +459,7 @@ function SpacesContent() {
       {showRaw && (
         <details className="mt-2">
           <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">Raw JSON</summary>
-          <pre className="mt-1 text-[10px] font-mono bg-muted/20 rounded p-2 max-h-32 overflow-auto text-muted-foreground">
+          <pre className="mt-1 text-[12px] font-mono bg-muted/20 rounded p-2 max-h-32 overflow-auto text-muted-foreground">
             {JSON.stringify(
               spaces.map((s: any) => ({
                 name: s.name,
@@ -490,7 +490,7 @@ function SpacesContent() {
         </Button>
         <select
           onChange={(e) => setRestoreName(e.target.value || null)}
-          className="h-7 rounded border border-border/50 bg-transparent px-1 text-[10px] text-muted-foreground focus:outline-none"
+          className="h-7 rounded border border-border/50 bg-transparent px-1 text-[12px] text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         >
           <option value="">Restore backup…</option>
           {backups.map((b) => (
@@ -560,7 +560,7 @@ function TeamsDialog(p: { diskId: number | null; diskName: string; onClose: () =
                 >
                   <div className="min-w-0 flex-1">
                     <p className="font-medium">{t.name}</p>
-                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                    <p className="text-[12px] text-muted-foreground mt-0.5">
                       {t.users.length > 0 ? t.users.join(', ') : 'No users'}
                     </p>
                   </div>
@@ -625,10 +625,10 @@ function TeamsDialog(p: { diskId: number | null; diskName: string; onClose: () =
               <p className="text-xs font-medium mb-1 text-muted-foreground">Users</p>
               <div className="flex flex-wrap gap-1 mb-2">
                 {editing.users.length === 0 && (
-                  <span className="text-[11px] text-muted-foreground italic">No users</span>
+                  <span className="text-[13px] text-muted-foreground italic">No users</span>
                 )}
                 {editing.users.map((u: string) => (
-                  <span key={u} className="inline-flex items-center gap-1 rounded-sm bg-muted px-2 py-0.5 text-[11px]">
+                  <span key={u} className="inline-flex items-center gap-1 rounded-sm bg-muted px-2 py-0.5 text-[13px]">
                     {u}
                     <button
                       onClick={() => setEditing({ ...editing, users: editing.users.filter((x: string) => x !== u) })}
@@ -730,7 +730,7 @@ function AccountsContent() {
       <p className="text-sm font-semibold mb-3">Accounts · {list.length}</p>
       <table className="w-full text-sm">
         <thead>
-          <tr className="border-y border-border text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <tr className="border-y border-border text-left text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
             <th className="py-2">Username</th>
             <th className="py-2">Role</th>
             <th className="py-2">Created</th>
@@ -742,7 +742,7 @@ function AccountsContent() {
             <tr key={a.id} className="border-b border-border/50 hover:bg-muted/50 transition-colors">
               <td className="py-2">{a.username}</td>
               <td className="py-2">
-                <Badge variant={a.role === 'owner' ? 'default' : 'secondary'} className="text-[10px]">
+                <Badge variant={a.role === 'owner' ? 'default' : 'secondary'} className="text-[12px]">
                   {a.role}
                 </Badge>
               </td>
@@ -879,7 +879,7 @@ function BackupsContent() {
       ) : (
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-y border-border text-left text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+            <tr className="border-y border-border text-left text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
               <th className="py-2">Name</th>
               <th className="py-2">Date</th>
               <th className="py-2">Size</th>
@@ -889,7 +889,7 @@ function BackupsContent() {
           <tbody>
             {backups.map((b) => (
               <tr key={b.name} className="border-b border-border/50 hover:bg-muted/50 transition-colors">
-                <td className="py-2 font-mono text-[11px]">{b.name}</td>
+                <td className="py-2 font-mono text-[13px]">{b.name}</td>
                 <td className="py-2 text-xs text-muted-foreground">{b.mtime.slice(0, 19).replace('T', ' ')}</td>
                 <td className="py-2 text-xs text-muted-foreground">{formatBytes(b.size)}</td>
                 <td className="py-2 text-right">
@@ -1165,7 +1165,7 @@ function GroupConfigContent() {
 
   return (
     <>
-      <div className="flex items-center gap-2 mb-2 text-[10px]">
+      <div className="flex items-center gap-2 mb-2 text-[12px]">
         <span className="text-muted-foreground">schema v1</span>
         <div className="flex-1" />
         <button
@@ -1184,7 +1184,7 @@ function GroupConfigContent() {
         </button>
         <button
           onClick={() => setShowHelp(true)}
-          className="inline-flex size-5 items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors font-mono text-[11px]"
+          className="inline-flex size-5 items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors font-mono text-[13px]"
         >
           ?
         </button>
@@ -1192,7 +1192,7 @@ function GroupConfigContent() {
       <div className="grid grid-cols-3 gap-3 flex-1 min-h-0 overflow-hidden" style={{ height: '100%' }}>
         {/* Disks */}
         <div className="flex flex-col min-h-0 border-r border-border/30 pr-2">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Disks</p>
+          <p className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Disks</p>
           <input
             placeholder="Search…"
             value={diskSearch}
@@ -1219,7 +1219,7 @@ function GroupConfigContent() {
                 className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors ${selectedDisk?.id === d.id ? 'bg-emerald-500/10 text-emerald-400 font-medium' : 'hover:bg-muted text-foreground'}`}
               >
                 <p className="truncate">{d.name}</p>
-                <p className="text-[10px] text-muted-foreground/60 truncate">{d.spaceName}</p>
+                <p className="text-[12px] text-muted-foreground/60 truncate">{d.spaceName}</p>
               </button>
             ))}
           </div>
@@ -1228,7 +1228,7 @@ function GroupConfigContent() {
         {/* Groups */}
         <div className="flex flex-col min-h-0 border-r border-border/30 pr-2">
           <div className="flex items-center justify-between mb-1">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">Groups</p>
+            <p className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">Groups</p>
             <div className="flex gap-1">
               {selectedDisk && (
                 <button
@@ -1246,7 +1246,7 @@ function GroupConfigContent() {
                     }
                   }}
                   disabled={importing}
-                  className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
+                  className="inline-flex items-center gap-0.5 rounded px-1.5 py-0.5 text-[12px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
                 >
                   <Upload className="size-2.5" />
                   {importing ? '…' : 'Import'}
@@ -1317,7 +1317,7 @@ function GroupConfigContent() {
           />
           <div className="flex-1 overflow-auto space-y-0.5">
             {!selectedDisk ? (
-              <p className="text-[10px] text-muted-foreground text-center py-4">Select a disk</p>
+              <p className="text-[12px] text-muted-foreground text-center py-4">Select a disk</p>
             ) : (
               <>
                 {filteredTeams.map((t: any) => (
@@ -1350,7 +1350,7 @@ function GroupConfigContent() {
                         className="flex w-full items-center gap-1 px-2 py-1.5 text-left hover:bg-muted rounded"
                       >
                         <span className="flex-1 truncate font-medium">{t.name}</span>
-                        <span className="text-[10px] text-muted-foreground/60">{t.users.length}</span>
+                        <span className="text-[12px] text-muted-foreground/60">{t.users.length}</span>
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
@@ -1376,7 +1376,7 @@ function GroupConfigContent() {
                     className={`flex w-full items-center gap-1 px-2 py-1.5 text-left rounded ${selectedTeam === 'other' ? 'text-foreground font-medium' : 'text-muted-foreground/70 italic'}`}
                   >
                     <span className="flex-1 truncate">Other (unmapped)</span>
-                    <span className="text-[10px]">{otherUsers.length}</span>
+                    <span className="text-[12px]">{otherUsers.length}</span>
                   </button>
                 </div>
               </>
@@ -1386,7 +1386,7 @@ function GroupConfigContent() {
 
         {/* Users */}
         <div className="flex flex-col min-h-0">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
+          <p className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">
             Users{' '}
             {selectedTeamReal
               ? `· ${selectedTeamReal.users.length}`
@@ -1448,12 +1448,12 @@ function GroupConfigContent() {
           />
           <div className="flex-1 overflow-auto space-y-0.5">
             {!selectedDisk ? (
-              <p className="text-[10px] text-muted-foreground text-center py-4">Select a disk first</p>
+              <p className="text-[12px] text-muted-foreground text-center py-4">Select a disk first</p>
             ) : !selectedTeam ? (
-              <p className="text-[10px] text-muted-foreground text-center py-4">Select a group</p>
+              <p className="text-[12px] text-muted-foreground text-center py-4">Select a group</p>
             ) : selectedTeam === 'other' ? (
               filteredOther.length === 0 ? (
-                <p className="text-[10px] text-muted-foreground text-center py-4">All users assigned</p>
+                <p className="text-[12px] text-muted-foreground text-center py-4">All users assigned</p>
               ) : (
                 filteredOther.map((u: string) => {
                   const isSel = selectedUserNames.has(u)
@@ -1467,7 +1467,7 @@ function GroupConfigContent() {
                     >
                       <User className={`size-3 shrink-0 ${isSel ? 'text-amber-400' : 'text-muted-foreground'}`} />
                       <span className="flex-1 truncate">{u}</span>
-                      <span className="text-[8px] text-muted-foreground/30">⋮</span>
+                      <span className="text-[10px] text-muted-foreground/30">⋮</span>
                     </div>
                   )
                 })

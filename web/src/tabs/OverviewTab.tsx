@@ -58,7 +58,7 @@ export function OverviewTab({ overview }: Props): JSX.Element {
               <ExpandButton onClick={() => setExpanded('timeline')} />
             </div>
           </div>
-          <div className="p-3 pb-1" style={{ height: 'clamp(186px, 31vh, 380px)' }}>
+          <div className="p-3 pb-1" style={{ height: 'clamp(150px, 24vh, 380px)' }}>
             <AreaChart points={shownHistory} showLegend={false} />
           </div>
           <div className="px-3 pb-3">
@@ -72,7 +72,7 @@ export function OverviewTab({ overview }: Props): JSX.Element {
             <h2 className="text-sm font-semibold">Usage by Teams</h2>
             <ExpandButton onClick={() => setExpanded('teams')} />
           </div>
-          <div className="p-3 flex flex-col justify-center" style={{ height: 'clamp(260px, 32vh, 420px)' }}>
+          <div className="p-3 flex flex-col justify-center" style={{ height: 'clamp(190px, 26vh, 420px)' }}>
             <Donut
               rows={teams}
               size={200}
@@ -92,7 +92,7 @@ export function OverviewTab({ overview }: Props): JSX.Element {
               <button
                 type="button"
                 onClick={() => setTeamFilter(null)}
-                className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[10px] bg-muted hover:bg-muted/70 transition-colors"
+                className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[12px] bg-muted hover:bg-muted/70 transition-colors"
               >
                 {teamFilter} <span className="text-muted-foreground">×</span>
               </button>
@@ -100,7 +100,7 @@ export function OverviewTab({ overview }: Props): JSX.Element {
             <div className="flex items-center gap-1">
               <button
                 type="button"
-                className="inline-flex items-center rounded-sm border border-border bg-transparent px-2 py-1 text-[10px] hover:bg-muted transition-colors"
+                className="inline-flex items-center rounded-sm border border-border bg-transparent px-2 py-1 text-[12px] hover:bg-muted transition-colors"
                 onClick={() => setLogScale((v) => !v)}
                 aria-pressed={logScale}
               >
@@ -109,7 +109,7 @@ export function OverviewTab({ overview }: Props): JSX.Element {
               <ExpandButton onClick={() => setExpanded('users')} />
             </div>
           </div>
-          <div className="p-3" style={{ height: 'clamp(260px, 32vh, 420px)' }}>
+          <div className="p-3" style={{ height: 'clamp(190px, 26vh, 420px)' }}>
             {shownUsers.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full gap-1 text-muted-foreground">
                 <p className="text-sm font-semibold text-foreground">No consumer data</p>

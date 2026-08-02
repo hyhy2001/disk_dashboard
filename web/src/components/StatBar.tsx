@@ -98,9 +98,9 @@ function Stat({
         >
           {shown.toFixed(2)}
         </span>
-        <span className="text-[10px] text-muted-foreground">{unit}</span>
+        <span className="text-[12px] text-muted-foreground">{unit}</span>
       </div>
-      <div className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</div>
+      <div className="text-[12px] text-muted-foreground uppercase tracking-wider">{label}</div>
     </div>
   )
 }

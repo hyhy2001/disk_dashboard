@@ -140,17 +140,17 @@ export function PermissionsTab({ target }: Props): JSX.Element {
       <div className="flex items-center gap-4 border-b border-border px-4 py-2.5">
         <div className="text-center">
           <p className="text-lg font-bold tabular-nums">{formatCount(totalIssues)}</p>
-          <p className="text-[10px] text-muted-foreground">Unreadable paths</p>
+          <p className="text-[12px] text-muted-foreground">Unreadable paths</p>
         </div>
         <div className="text-center">
           <p className="text-lg font-bold tabular-nums">{formatCount(namedUsers.length)}</p>
-          <p className="text-[10px] text-muted-foreground">Users affected</p>
+          <p className="text-[12px] text-muted-foreground">Users affected</p>
         </div>
         <div className="text-center">
           <p className="text-lg font-bold tabular-nums">
             {formatCount(data.userCounts.find((u) => u.name === UNKNOWN)?.count ?? 0)}
           </p>
-          <p className="text-[10px] text-muted-foreground">No owning user</p>
+          <p className="text-[12px] text-muted-foreground">No owning user</p>
         </div>
         <div className="flex-1" />
         <Button variant="outline" size="sm" onClick={() => runExport('filtered')} disabled={exporting}>
@@ -167,7 +167,7 @@ export function PermissionsTab({ target }: Props): JSX.Element {
       {data.errorCounts.length > 0 && (
         <div className="flex flex-wrap gap-1.5 border-b border-border px-4 py-2">
           {data.errorCounts.slice(0, 6).map((e) => (
-            <Badge key={e.error} variant="secondary" className="text-[10px] gap-1">
+            <Badge key={e.error} variant="secondary" className="text-[12px] gap-1">
               {e.error}
               <span className="font-bold">{formatCount(e.count)}</span>
             </Badge>
@@ -190,7 +190,7 @@ export function PermissionsTab({ target }: Props): JSX.Element {
                 key={t.value}
                 onClick={() => setItemType(t.value)}
                 className={cn(
-                  'flex-1 rounded-sm py-1 text-[10px] font-medium transition-colors',
+                  'flex-1 rounded-sm py-1 text-[12px] font-medium transition-colors',
                   itemType === t.value ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
                 )}
               >
@@ -204,7 +204,7 @@ export function PermissionsTab({ target }: Props): JSX.Element {
             onChange={(e) => setPathQuery(e.target.value)}
             className="h-7 text-xs"
           />
-          <h3 className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <h3 className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">
             Users <span className="font-normal">{users.length === 0 ? 'all' : `${users.length} selected`}</span>
           </h3>
           <Input
@@ -221,19 +221,19 @@ export function PermissionsTab({ target }: Props): JSX.Element {
                   key={u.name}
                   onClick={() => toggleUser(u.name)}
                   className={cn(
-                    'flex w-full items-center gap-1.5 rounded-sm px-2 py-1 text-[11px] transition-colors text-left',
+                    'flex w-full items-center gap-1.5 rounded-sm px-2 py-1 text-[13px] transition-colors text-left',
                     on ? 'bg-accent text-accent-foreground' : 'hover:bg-muted text-muted-foreground',
                     u.name === UNKNOWN && 'italic',
                   )}
                 >
-                  <span className="w-3 text-[10px]">{on ? '✓' : ''}</span>
+                  <span className="w-4 text-[12px]">{on ? '✓' : ''}</span>
                   <span className="flex-1 truncate">{u.name === UNKNOWN ? 'no owning user' : u.name}</span>
-                  <span className="tabular-nums text-[10px]">{formatCount(u.count)}</span>
+                  <span className="tabular-nums text-[12px]">{formatCount(u.count)}</span>
                 </button>
               )
             })}
           </div>
-          <Button variant="ghost" size="sm" className="w-full text-[10px]" onClick={() => setUsers([])}>
+          <Button variant="ghost" size="sm" className="w-full text-[12px]" onClick={() => setUsers([])}>
             Clear all
           </Button>
         </aside>
@@ -241,11 +241,11 @@ export function PermissionsTab({ target }: Props): JSX.Element {
         {/* Issue list */}
         <section className="flex-1 flex flex-col min-w-0">
           <div className="flex items-center justify-between border-b border-border px-4 py-2">
-            <Button variant="ghost" size="sm" className="text-[10px]" onClick={() => setFiltersOpen((v) => !v)}>
+            <Button variant="ghost" size="sm" className="text-[12px]" onClick={() => setFiltersOpen((v) => !v)}>
               <Filter className="size-3 mr-1" />
               Filters{users.length > 0 || itemType || pathApplied ? ' • active' : ''}
             </Button>
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-[12px] text-muted-foreground">
               {formatCount(data.total)} matching · page {page} of {formatCount(pageCount)}
             </span>
           </div>
@@ -255,7 +255,7 @@ export function PermissionsTab({ target }: Props): JSX.Element {
               <p className="p-4 text-xs text-muted-foreground">No issue matches the current filters.</p>
             ) : (
               <div>
-                <div className="grid grid-cols-[18px_minmax(0,110px)_1fr_minmax(0,140px)] items-center gap-2 px-4 py-1.5 border-b border-border text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60 sticky top-0 bg-surface">
+                <div className="grid grid-cols-[18px_minmax(0,140px)_1fr_minmax(0,160px)] items-center gap-2 px-4 py-1.5 border-b border-border text-[12px] font-semibold uppercase tracking-wider text-muted-foreground/60 sticky top-0 bg-surface">
                   <span />
                   <span>User</span>
                   <span>Path</span>
@@ -265,7 +265,7 @@ export function PermissionsTab({ target }: Props): JSX.Element {
                 {data.rows.map((r, i) => (
                   <div
                     key={`${r.path}-${i}`}
-                    className="grid grid-cols-[18px_minmax(0,110px)_1fr_minmax(0,140px)] items-center gap-2 px-4 py-1.5 hover:bg-muted/30 transition-colors text-xs"
+                    className="grid grid-cols-[18px_minmax(0,140px)_1fr_minmax(0,160px)] items-center gap-2 px-4 py-1.5 hover:bg-muted/30 transition-colors text-xs"
                   >
                     {r.itemType === 'directory' ? (
                       <Folder className="size-3 text-muted-foreground shrink-0" />
@@ -274,19 +274,19 @@ export function PermissionsTab({ target }: Props): JSX.Element {
                     )}
                     <Badge
                       variant="secondary"
-                      className={cn('text-[9px] justify-self-start max-w-full truncate', r.user === UNKNOWN && 'opacity-50')}
+                      className={cn('text-[11px] justify-self-start max-w-full truncate', r.user === UNKNOWN && 'opacity-50')}
                     >
                       {r.user === UNKNOWN ? 'unknown' : r.user}
                     </Badge>
                     <button
                       onClick={() => void copyPath(r.path)}
-                      className="truncate text-left font-mono text-[11px] text-muted-foreground hover:text-foreground transition-colors"
+                      className="truncate text-left font-mono text-[13px] text-muted-foreground hover:text-foreground transition-colors"
                       title={`${r.path} — click to copy`}
                     >
                       <Copy className="size-2.5 inline mr-1 opacity-0 group-hover:opacity-100" />
                       {r.path}
                     </button>
-                    <span className="text-[10px] text-muted-foreground truncate">{r.error}</span>
+                    <span className="text-[12px] text-muted-foreground truncate">{r.error}</span>
                   </div>
                 ))}
                 </div>
