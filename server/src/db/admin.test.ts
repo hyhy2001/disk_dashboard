@@ -1,15 +1,17 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { mkdtempSync, mkdirSync, rmSync } from 'node:fs'
+import { mkdtempSync, mkdirSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
   changePassword,
   closeAdminDb,
   createAdmin,
+  createBackup,
   createDisk,
   createSpace,
   deleteAdmin,
   getAdminById,
+  listBackups,
   signSession,
   updateDisk,
   validateDiskPath,
@@ -126,5 +128,22 @@ describe('session revocation', () => {
     expect(deleteAdmin(admin.id)).toBe(true)
     expect(getAdminById(admin.id)).toBeNull()
     expect(getAdminById(owner.id)).not.toBeNull()
+  })
+
+  it('writes a complete backup file (async backup awaited)', async () => {
+    const base = withTempDb()
+    const diskPath = join(base, 'vol1')
+    mkdirSync(diskPath, { recursive: true })
+    const sp = createSpace('prod')
+    createDisk(sp.id, 'data', diskPath)
+
+    const info = await createBackup()
+        expect(info.name).toMatch(/^admin_backup_\d{4}-\d{2}-\d{2}T\d{4}\.db$/)
+    expect(info.size).toBeGreaterThan(0)
+
+    const dest = join(base, 'backups', info.name)
+    const st = statSync(dest)
+    expect(st.size).toBe(info.size)
+    expect(listBackups().some((b) => b.name === info.name)).toBe(true)
   })
 })

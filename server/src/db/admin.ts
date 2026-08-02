@@ -643,12 +643,15 @@ export interface BackupInfo {
   size: number
 }
 
-export function createBackup(): BackupInfo {
+export async function createBackup(): Promise<BackupInfo> {
   const db = adminDb()
   const stamp = new Date().toISOString().replace(/[:.]/g, '').slice(0, 15)
   const name = `admin_backup_${stamp}.db`
   const dest = join(backupDir(), name)
-  db.backup(dest)
+  // better-sqlite3's backup() is async — it streams in chunks and resolves only
+  // once the file is complete. Await it before stat'ing the result, otherwise
+  // statSync races the still-writing file and throws ENOENT.
+  await db.backup(dest)
   const st = statSync(dest)
   return { name, mtime: st.mtime.toISOString(), size: st.size }
 }

@@ -18,7 +18,6 @@ import {
   Trash2,
   Key,
   HardDrive,
-  Users,
   EyeOff,
   Archive,
   RotateCcw,
@@ -28,6 +27,7 @@ import {
   Upload,
   Download,
   Copy,
+  Pencil,
 } from 'lucide-react'
 import { success, failure } from '@/lib/toast.js'
 import { clearApiCache } from '@/lib/api.js'
@@ -195,10 +195,9 @@ function SpacesContent() {
   const [showRaw, setShowRaw] = useState(false)
   const [backups, setBackups] = useState<BackupInfo[]>([])
   const [restoreName, setRestoreName] = useState<string | null>(null)
-  const [teamDiskId, setTeamDiskId] = useState<number | null>(null)
-  const [teamDiskName, setTeamDiskName] = useState('')
   const [testBusyKey, setTestBusyKey] = useState<string | null>(null)
   const [testResult, setTestResult] = useState<Record<string, DiskReadTest>>({})
+  const nameInputs = useRef<Record<string, HTMLInputElement | null>>({})
 
   const load = useCallback(async () => {
     const raw = await fetchSpaces()
@@ -320,6 +319,9 @@ function SpacesContent() {
             <div className="flex items-center gap-2 bg-muted/20 px-3 py-2 border-b border-border/40">
               <HardDrive className="size-3.5 text-muted-foreground shrink-0" />
               <input
+                ref={(el) => {
+                  nameInputs.current[sp._key] = el
+                }}
                 value={sp.name}
                 onChange={(e) => {
                   const c = [...spaces]
@@ -329,6 +331,19 @@ function SpacesContent() {
                 className="flex-1 bg-transparent text-sm font-medium border-none outline-none focus:ring-0 focus-visible:bg-muted/40 focus-visible:rounded-sm focus-visible:px-0.5 p-0"
                 placeholder="Space name"
               />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  const el = nameInputs.current[sp._key]
+                  el?.focus()
+                  el?.select()
+                }}
+                aria-label={`Rename ${sp.name || 'space'}`}
+                title="Rename space"
+              >
+                <Pencil className="size-3" />
+              </Button>
               <Button
                 variant="ghost"
                 size="sm"
@@ -386,18 +401,6 @@ function SpacesContent() {
                     >
                       {testBusyKey === d._key ? 'Testing…' : 'Test read'}
                     </Button>
-                    {d.id && (
-                      <button
-                        onClick={() => {
-                          setTeamDiskId(d.id)
-                          setTeamDiskName(d.name)
-                        }}
-                        className="inline-flex items-center rounded-sm px-1.5 py-1 text-[12px] text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
-                      >
-                        <Users className="size-3 mr-1" />
-                        Teams
-                      </button>
-                    )}
                     <Button
                       variant="ghost"
                       size="sm"
@@ -519,195 +522,10 @@ function SpacesContent() {
           Restore
         </Button>
       </div>
-      <TeamsDialog diskId={teamDiskId} diskName={teamDiskName} onClose={() => setTeamDiskId(null)} />
     </div>
   )
 }
 
-function TeamsDialog(p: { diskId: number | null; diskName: string; onClose: () => void }) {
-  const [teams, setTeams] = useState<any[]>([])
-  const [newName, setNewName] = useState('')
-  const [editing, setEditing] = useState<any | null>(null)
-  const [userInput, setUserInput] = useState('')
-  const [confirmId, setConfirmId] = useState<number | null>(null)
-  useEffect(() => {
-    if (!p.diskId) return
-    fetchDiskTeams(p.diskId)
-      .then(setTeams)
-      .catch(() => {})
-  }, [p.diskId])
-  return (
-    <Dialog
-      open={p.diskId !== null}
-      onOpenChange={() => {
-        if (!editing) p.onClose()
-      }}
-    >
-      <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-auto">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Users className="size-4" />
-            Teams — {p.diskName}
-          </DialogTitle>
-        </DialogHeader>
-        {!editing && (
-          <>
-            <div className="space-y-2">
-              {teams.map((t: any) => (
-                <div
-                  key={t.id}
-                  className="flex items-center justify-between rounded-md border border-border/50 px-3 py-2 text-sm"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="font-medium">{t.name}</p>
-                    <p className="text-[12px] text-muted-foreground mt-0.5">
-                      {t.users.length > 0 ? t.users.join(', ') : 'No users'}
-                    </p>
-                  </div>
-                  <div className="flex gap-1 shrink-0 ml-2">
-                    <Button variant="ghost" size="sm" onClick={() => setEditing({ ...t })}>
-                      Edit
-                    </Button>
-                    <Button variant="ghost" size="sm" onClick={() => setConfirmId(t.id)}>
-                      <Trash2 className="size-3 text-destructive" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault()
-                if (!p.diskId || !newName.trim()) return
-                try {
-                  await createDiskTeam(p.diskId, newName.trim())
-                  success('Team created')
-                  setNewName('')
-                  fetchDiskTeams(p.diskId).then(setTeams)
-                } catch (e: any) {
-                  failure('Create failed', e.message)
-                }
-              }}
-              className="flex gap-2 pt-2"
-            >
-              <Input
-                placeholder="New team name"
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                className="flex-1"
-              />
-              <Button type="submit" size="sm" disabled={!newName.trim()}>
-                Add
-              </Button>
-            </form>
-          </>
-        )}
-        {editing && (
-          <div className="space-y-3">
-            <Input
-              placeholder="Team name"
-              value={editing.name}
-              onChange={(e) => setEditing({ ...editing, name: e.target.value })}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') {
-                  e.preventDefault()
-                  updateDiskTeam(editing.id, { name: editing.name, users: editing.users })
-                    .then(() => {
-                      setEditing(null)
-                      success('Team updated')
-                      if (p.diskId) void fetchDiskTeams(p.diskId).then(setTeams)
-                    })
-                    .catch((e) => failure('Failed', e.message))
-                }
-              }}
-            />
-            <div>
-              <p className="text-xs font-medium mb-1 text-muted-foreground">Users</p>
-              <div className="flex flex-wrap gap-1 mb-2">
-                {editing.users.length === 0 && (
-                  <span className="text-[13px] text-muted-foreground italic">No users</span>
-                )}
-                {editing.users.map((u: string) => (
-                  <span key={u} className="inline-flex items-center gap-1 rounded-sm bg-muted px-2 py-0.5 text-[13px]">
-                    {u}
-                    <button
-                      onClick={() => setEditing({ ...editing, users: editing.users.filter((x: string) => x !== u) })}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      <X className="size-2.5" />
-                    </button>
-                  </span>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Add users (comma separated)"
-                  value={userInput}
-                  onChange={(e) => setUserInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault()
-                      const names = userInput
-                        .split(/[,;\s]+/)
-                        .map((s: string) => s.trim())
-                        .filter(Boolean)
-                      if (names.length) {
-                        const s = new Set(editing.users)
-                        names.forEach((n: string) => s.add(n))
-                        setEditing({ ...editing, users: [...s] })
-                        setUserInput('')
-                      }
-                    }
-                  }}
-                  className="flex-1"
-                />
-              </div>
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" size="sm" onClick={() => setEditing(null)}>
-                Cancel
-              </Button>
-              <Button
-                size="sm"
-                onClick={async () => {
-                  try {
-                    await updateDiskTeam(editing.id, { name: editing.name, users: editing.users })
-                    success('Team updated')
-                    setEditing(null)
-                    if (p.diskId) void fetchDiskTeams(p.diskId).then(setTeams)
-                  } catch (e: any) {
-                    failure('Failed', e.message)
-                  }
-                }}
-              >
-                Save
-              </Button>
-            </div>
-          </div>
-        )}
-        <ConfirmDialog
-          open={confirmId !== null}
-          onOpenChange={() => setConfirmId(null)}
-          title="Delete Team"
-          description="Remove this team?"
-          action="Delete"
-          onConfirm={async () => {
-            if (confirmId !== null) {
-              try {
-                await deleteDiskTeam(confirmId)
-                success('Team deleted')
-                setConfirmId(null)
-                if (p.diskId) void fetchDiskTeams(p.diskId).then(setTeams)
-              } catch (e: any) {
-                failure('Delete failed', e.message)
-              }
-            }
-          }}
-        />
-      </DialogContent>
-    </Dialog>
-  )
-}
 
 // ── Accounts Content ────────────────────────────────────────────────
 
