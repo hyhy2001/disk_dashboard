@@ -796,6 +796,15 @@ function ChangeLogModal({ open, onClose }: { open: boolean; onClose: () => void 
 
 const CHANGES = [
   {
+    date: '2026-08-02',
+    items: [
+      'Name search now uses FTS5 trigram indexes — typical queries drop from hundreds of milliseconds to tens.',
+      'Per-user CSV exports stream from the server instead of building the whole file in the browser.',
+      'Treemap list: Folder / Owner / Size / Type columns stay aligned, and the percentage moved to the size bar\u2019s tooltip.',
+      'Sidebar \u201cLoad time\u201d now always shows a real value instead of \u201c-- ms\u201d.',
+    ],
+  },
+  {
     date: '2026-08-01',
     items: [
       "Command palette via Ctrl/Cmd+K: jump to spaces, disks, and the active disk's views",
