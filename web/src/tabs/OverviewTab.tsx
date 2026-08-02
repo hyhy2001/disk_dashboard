@@ -124,7 +124,7 @@ export function OverviewTab({ overview }: Props): JSX.Element {
 
       {expanded === 'timeline' && (
         <ChartModal title="Capacity Over Time — Full View" slug="timeline" onClose={() => setExpanded(null)}>
-          <div className="flex flex-col flex-1 min-h-0 p-3">
+          <div className="flex flex-col h-full min-h-0 p-3 gap-2">
             <div className="flex-1 min-h-0">
               <AreaChart points={shownHistory} showLegend={false} />
             </div>
@@ -134,7 +134,7 @@ export function OverviewTab({ overview }: Props): JSX.Element {
       )}
       {expanded === 'teams' && (
         <ChartModal title="Usage by Teams — Full View" slug="teams" onClose={() => setExpanded(null)}>
-          <div className="flex-1 min-h-0" style={{ height: 'auto' }}>
+          <div className="flex items-center justify-center h-full min-h-0 p-3">
             <Donut
               rows={teams}
               size={280}
@@ -148,7 +148,7 @@ export function OverviewTab({ overview }: Props): JSX.Element {
       )}
       {expanded === 'users' && (
         <ChartModal title="Top Consuming Users — Full View" slug="users" onClose={() => setExpanded(null)}>
-          <div className="flex-1 min-h-0" style={{ height: 'auto' }}>
+          <div className="h-full min-h-0 p-3">
             <BarChart rows={shownUsers} limit={30} logScale={logScale} />
           </div>
         </ChartModal>

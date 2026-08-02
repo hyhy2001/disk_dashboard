@@ -59,22 +59,22 @@ export function ChartModal({ title, slug, onClose, children }: Props): JSX.Eleme
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60"
+      className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-black/60"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) onClose()
       }}
     >
       <div
-        className="flex flex-col items-end gap-2"
+        className="flex flex-col w-[min(95vw,68rem)] h-[min(92vh,52rem)] bg-card border border-border rounded-lg shadow-2xl overflow-hidden animate-slide-up"
         role="dialog"
         aria-modal="true"
         aria-label={title}
         tabIndex={-1}
         ref={panel}
       >
-        <div className="flex items-center justify-between w-full px-4 py-3 border-b border-border bg-surface/80 backdrop-blur-sm rounded-t-lg">
-          <h2 className="text-sm font-semibold">{title}</h2>
-          <div className="flex items-center gap-1">
+        <header className="flex items-center justify-between gap-2 shrink-0 border-b border-border bg-surface/80 px-4 py-2.5">
+          <h2 className="text-sm font-semibold truncate min-w-0">{title}</h2>
+          <div className="flex items-center gap-1 shrink-0">
             <button
               type="button"
               className="inline-flex items-center rounded-sm border border-border bg-transparent px-2 py-1 text-[12px] hover:bg-muted transition-colors"
@@ -84,21 +84,20 @@ export function ChartModal({ title, slug, onClose, children }: Props): JSX.Eleme
             </button>
             <button
               type="button"
-              className="inline-flex items-center justify-center size-6 rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="inline-flex items-center justify-center size-7 rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               onClick={onClose}
               aria-label="Close"
             >
               ✕
             </button>
           </div>
-        </div>
-        <div
-          className="bg-card border border-border rounded-md shadow-lg w-[95vw] h-[90vh] max-w-6xl flex flex-col animate-slide-up overflow-hidden"
-          ref={body}
-        >
+        </header>
+
+        <div className="flex-1 min-h-0 overflow-auto" ref={body}>
           {children}
         </div>
-        <div className="px-4 py-2 text-[12px] text-muted-foreground">
+
+        <div className="shrink-0 border-t border-border/40 px-4 py-1.5 text-[12px] text-muted-foreground">
           {saveError ? (
             <span className="text-destructive">{saveError}</span>
           ) : (
