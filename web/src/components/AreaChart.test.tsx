@@ -77,12 +77,13 @@ describe('AreaChart crosshair', () => {
     expect(container.querySelectorAll('.chart__dot')).toHaveLength(3)
   })
 
-  it('shows a date pill and a value pill', () => {
+  it('shows a value pill against the y axis', () => {
     const { container } = render(<AreaChart points={series(5)} />)
     hoverAt(container, 0.5, 0.5)
 
-    // Date under the x axis, cursor value against the y axis.
-    expect(container.querySelectorAll('.chart__pill')).toHaveLength(2)
+    // The date lives only in the tooltip; the single pill is the cursor's
+    // value read against the y axis.
+    expect(container.querySelectorAll('.chart__pill')).toHaveLength(1)
   })
 
   it('omits the value pill when the cursor is outside the plot band', () => {
@@ -90,7 +91,7 @@ describe('AreaChart crosshair', () => {
     // Well below the plot area, in the x-axis label strip.
     hoverAt(container, 0.5, 0.995)
 
-    expect(container.querySelectorAll('.chart__pill')).toHaveLength(1)
+    expect(container.querySelectorAll('.chart__pill')).toHaveLength(0)
   })
 
   it('keeps the tooltip inside the plot near the right edge', () => {

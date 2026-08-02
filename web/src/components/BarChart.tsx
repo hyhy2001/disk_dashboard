@@ -31,6 +31,9 @@ const LOG_FLOOR = 1
 /** Below this a row cannot hold a 12px label without crowding. */
 const MIN_ROW_H = 18
 
+/** Height reserved for the size axis labels at the bottom of the chart. */
+const AXIS_H = 18
+
 export function BarChart({ rows, limit = 10, logScale = false }: Props): JSX.Element {
   const [box, size] = useSize<HTMLDivElement>()
 
@@ -62,9 +65,11 @@ export function BarChart({ rows, limit = 10, logScale = false }: Props): JSX.Ele
   const trackW = Math.max(60, width - LABEL_W - VALUE_W)
   // Floor the row height so rows*rowH never exceeds the box; otherwise
   // preserveAspectRatio scales the drawing down and shrinks the text with it.
-  const rowH = avail > 0 ? Math.max(MIN_ROW_H, Math.min(ROW_H, Math.floor(avail / data.length))) : ROW_H
+  // AXIS_H is reserved for the size axis below the last bar.
+  const availRows = Math.max(0, avail - AXIS_H)
+  const rowH = availRows > 0 ? Math.max(MIN_ROW_H, Math.min(ROW_H, Math.floor(availRows / data.length))) : ROW_H
   const barH = Math.max(8, Math.min(BAR_H, rowH - 9))
-  const height = data.length * rowH
+  const height = data.length * rowH + AXIS_H
 
   /**
    * Bar width as a fraction of the track. On a log axis a zero would vanish
@@ -78,6 +83,22 @@ export function BarChart({ rows, limit = 10, logScale = false }: Props): JSX.Ele
     const cur = Math.log10(Math.max(v, LOG_FLOOR))
     return ((cur - lo) / (hi - lo)) * trackW
   }
+
+  /**
+   * Value a given fraction of the track represents — the inverse of widthFor.
+   * Used to label the size axis ticks on the same scale as the bars.
+   */
+  const valueAt = (t: number): number => {
+    if (!logScale) return t * max
+    const lo = Math.log10(LOG_FLOOR)
+    const hi = Math.log10(Math.max(max, LOG_FLOOR + 1))
+    return Math.pow(10, lo + t * (hi - lo))
+  }
+
+  // Size axis ticks: 0/25/50/75/100% of the axis range, matching the y-axis
+  // tick pattern used by the capacity timeline.
+  const AXIS_TICKS = [0, 0.25, 0.5, 0.75, 1] as const
+  const axisY = height - 6
 
   return (
     <div className="chartbox" ref={box}>
@@ -109,6 +130,17 @@ export function BarChart({ rows, limit = 10, logScale = false }: Props): JSX.Ele
                 {formatSize(r.used)}
               </text>
             </g>
+          )
+        })}
+
+        {/* Size axis at the bottom, aligned to the bar track. */}
+        <line className="chart__grid" x1={LABEL_W} y1={axisY} x2={LABEL_W + trackW} y2={axisY} />
+        {AXIS_TICKS.map((t) => {
+          const x = LABEL_W + t * trackW
+          return (
+            <text key={t} className="chart__axis chart__axis--mono" x={x} y={axisY + 11} textAnchor="middle">
+              {formatSize(valueAt(t))}
+            </text>
           )
         })}
         </svg>

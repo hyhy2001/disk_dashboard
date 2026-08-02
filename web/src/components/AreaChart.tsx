@@ -213,14 +213,6 @@ export function AreaChart({ points, showLegend }: Props): JSX.Element {
                 />
               ))}
 
-              {/* Date pill below the x axis. */}
-              <g className="chart__pill">
-                <rect x={x(hover) - 34} y={PAD_T + plotH + 4} width={68} height={17} rx={4} />
-                <text x={x(hover)} y={PAD_T + plotH + 16} textAnchor="middle">
-                  {formatScanDate(active.date)}
-                </text>
-              </g>
-
               {/* Horizontal line following the cursor, with the value it points at
                 on the y axis — this answers "how much is this height?" for any
                 position, not just at a data point. */}
