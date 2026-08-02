@@ -387,8 +387,11 @@ export function App() {
           {/* Brand */}
           <div className="flex h-14 items-center gap-2.5 border-b border-border/40 px-4">
             <a
+              href="/"
+              aria-label="Disk Usage — home"
               className="flex items-center gap-2.5 flex-1 min-w-0 cursor-pointer"
-              onClick={() => {
+              onClick={(e) => {
+                e.preventDefault()
                 setDrawer(false)
                 setRoute(DEFAULT_ROUTE)
               }}
@@ -402,6 +405,7 @@ export function App() {
               <div className="relative">
                 <button
                   id="sidebar-settings-btn"
+                  aria-label="Settings"
                   onClick={() => setShowSettings((d) => !d)}
                   className="inline-flex size-6 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                   ref={settingsRef}

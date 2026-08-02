@@ -120,12 +120,12 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
             data-tooltip={b.hint}
           >
             <span className="font-bold tabular-nums">{b.count}</span>
-            <span className="opacity-70">{b.label}</span>
+            <span>{b.label}</span>
           </div>
         ))}
         <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[13px] bg-muted/50 text-muted-foreground">
           <span className="font-bold tabular-nums">{formatCount(targets.length)}</span>
-          <span className="opacity-70">Disks</span>
+          <span>Disks</span>
         </div>
       </div>
 

@@ -334,6 +334,7 @@ export function DiskColumn({
             <select
               value={sort}
               onChange={(e) => setSort(e.target.value as DiskSort)}
+              aria-label="Sort disks"
               className="h-6 rounded-md border border-border/40 bg-transparent px-1.5 text-[12px] text-muted-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500/30"
             >
               {Object.entries(SORT_LABELS).map(([k, v]) => (

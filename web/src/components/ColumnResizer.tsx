@@ -84,6 +84,9 @@ export function ColumnResizer(): JSX.Element {
       role="separator"
       aria-orientation="vertical"
       aria-label="Resize disk column"
+      aria-valuenow={Math.round(width.current)}
+      aria-valuemin={MIN}
+      aria-valuemax={MAX}
       tabIndex={0}
       onKeyDown={onKey}
       onPointerDown={(e) => {
