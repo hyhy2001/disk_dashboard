@@ -84,7 +84,7 @@ export function EntryList({
         <span className="flex-1 max-w-[560px]">Folder</span>
         <span className="w-20 shrink-0">Owner</span>
         <span className="w-40 shrink-0 text-right">Size</span>
-        <span className="w-12 shrink-0 text-right">Type</span>
+        <span className="w-8 shrink-0 text-right">Type</span>
       </div>
 
       <div className="flex-1 overflow-auto divide-y divide-border/20 min-w-[460px]">
@@ -108,7 +108,7 @@ export function EntryList({
             </span>
             <span className="w-20 truncate text-muted-foreground shrink-0">{d.owner}</span>
             <SizeCell size={d.size} total={totalSize} />
-            <span className="w-12 text-right text-muted-foreground shrink-0">dir</span>
+            <span className="w-8 text-right text-muted-foreground shrink-0">dir</span>
           </button>
         ))}
 
@@ -125,7 +125,7 @@ export function EntryList({
             </span>
             <span className="w-20 truncate shrink-0">{formatCount(fileCount)} files</span>
             <SizeCell size={filesRemainder} total={totalSize} />
-            <span className="w-12 text-right shrink-0 text-[12px]">files</span>
+            <span className="w-8 text-right shrink-0 text-[12px]">files</span>
           </div>
         )}
       </div>
