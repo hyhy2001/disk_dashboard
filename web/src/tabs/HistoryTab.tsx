@@ -159,10 +159,14 @@ export function HistoryTab({ target }: Props): JSX.Element {
 
   if (!series) {
     return (
-      <div
-        className="h-32 w-full rounded-lg border border-border/50 bg-surface/50 animate-pulse"
-        style={{ minHeight: '420px' }}
-      />
+      <>
+        <div className="flex items-center gap-2 border-b border-border/30 bg-surface/30 px-3 py-2 shrink-0">
+          <div className="h-7 w-[208px] rounded-sm bg-muted/60 animate-pulse" />
+          <div className="h-7 w-[240px] rounded-sm bg-muted/60 animate-pulse" />
+          <div className="h-4 w-16 rounded-sm bg-muted/60 animate-pulse" />
+        </div>
+        <div className="flex-1 min-h-0 w-full rounded-lg border border-border/50 bg-surface/50 animate-pulse" />
+      </>
     )
   }
 
