@@ -78,10 +78,10 @@ export function EntryList({
   return (
     <div className="flex flex-col h-full overflow-x-auto">
       <div className="flex items-center gap-4 px-4 py-1.5 border-b border-border/30 text-[12px] text-muted-foreground uppercase tracking-wider shrink-0 min-w-[460px]">
-        <span className="flex-1">Folder</span>
+        <span className="flex-1 max-w-[560px]">Folder</span>
         <span className="w-20 shrink-0">Owner</span>
         <span className="w-44 shrink-0 text-right">Size · %</span>
-        <span className="w-10 shrink-0 text-right">Type</span>
+        <span className="w-12 shrink-0 text-right">Type</span>
       </div>
 
       <div className="flex-1 overflow-auto divide-y divide-border/20 min-w-[460px]">
@@ -93,7 +93,7 @@ export function EntryList({
             onClick={() => onOpen(d)}
             title={`${d.name} — ${formatCount(d.fileCount)} files, ${formatCount(d.dirCount)} subdirectories`}
           >
-            <span className="flex items-center gap-1.5 flex-1 min-w-0">
+            <span className="flex items-center gap-1.5 flex-1 min-w-0 max-w-[560px]">
               <span className="text-muted-foreground shrink-0">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
@@ -105,13 +105,13 @@ export function EntryList({
             </span>
             <span className="w-20 truncate text-muted-foreground shrink-0">{d.owner}</span>
             <SizeCell size={d.size} total={totalSize} />
-            <span className="w-10 text-right text-muted-foreground shrink-0">dir</span>
+            <span className="w-12 text-right text-muted-foreground shrink-0">dir</span>
           </button>
         ))}
 
         {fileCount > 0 && (
           <div className="flex items-center gap-4 px-4 py-1.5 text-[13px] text-muted-foreground">
-            <span className="flex items-center gap-1.5 flex-1 min-w-0">
+            <span className="flex items-center gap-1.5 flex-1 min-w-0 max-w-[560px]">
               <span className="shrink-0 opacity-60">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
@@ -122,7 +122,7 @@ export function EntryList({
             </span>
             <span className="w-20 truncate shrink-0">{formatCount(fileCount)} files</span>
             <SizeCell size={filesRemainder} total={totalSize} />
-            <span className="w-10 text-right shrink-0 text-[12px]">files</span>
+            <span className="w-12 text-right shrink-0 text-[12px]">files</span>
           </div>
         )}
       </div>
