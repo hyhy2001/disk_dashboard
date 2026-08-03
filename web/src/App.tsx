@@ -485,7 +485,7 @@ export function App() {
                   className={cn(
                     'relative flex w-full items-center gap-2.5 rounded-md px-2.5 py-2 text-sm transition-all duration-150',
                     active
-                      ? 'bg-emerald-500/10 text-emerald-400 font-medium'
+                      ? 'bg-emerald-500/10 text-foreground font-medium'
                       : 'text-muted-foreground hover:text-foreground hover:bg-white/[0.04]',
                     collapsed && 'justify-center px-1',
                   )}
@@ -508,7 +508,7 @@ export function App() {
                       <span
                         className={cn(
                           'text-[12px] tabular-nums',
-                          active ? 'text-emerald-400/70' : 'text-muted-foreground/50',
+                          active ? 'text-[var(--emerald-400)]/70' : 'text-muted-foreground/50',
                         )}
                       >
                         {g.targets.length}
@@ -535,7 +535,7 @@ export function App() {
               ) : (
                 <>
                   Load time:{' '}
-                  <span className="text-emerald-400/80" data-ms>
+                  <span className="text-[var(--emerald-400)]/80" data-ms>
                     -- ms
                   </span>
                 </>
@@ -807,6 +807,7 @@ const CHANGES = [
       'Admin: team totals now count every user, disks that are configured but not yet scanned appear in the sidebar, and a user can no longer be placed in two teams of the same disk.',
       'Light-theme text hierarchy rebalanced for stronger contrast.',
       'Light theme: bright chart and accent colors toned down (to their 600/700 steps) so they are easier on the eyes.',
+      'History tab: selected user names stay readable on the orange highlight instead of disappearing into it.',
     ],
   },
   {

@@ -175,7 +175,7 @@ function SetupButton({ collapsed, onDone }: { collapsed: boolean; onDone: (u: Au
     <>
       <button
         onClick={() => setOpen(true)}
-        className="inline-flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-emerald-400 hover:text-emerald-300 hover:bg-emerald-500/10 transition-colors"
+        className="inline-flex items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-[var(--emerald-400)] hover:text-[var(--emerald-500)] hover:bg-emerald-500/10 transition-colors"
         title="Setup Admin"
       >
         <Shield className="size-3.5" />
@@ -288,7 +288,7 @@ function LoginForm({
     <div>
       {rateLimit.attempts > 0 &&
         (showCaptcha ? (
-          <div className="mb-3 rounded-sm px-3 py-2 text-xs bg-amber-400/10 text-amber-400">
+          <div className="mb-3 rounded-sm px-3 py-2 text-xs bg-amber-400/10 text-foreground">
             Rate limit near: {remaining} attempts remaining
           </div>
         ) : (

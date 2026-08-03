@@ -262,7 +262,7 @@ function SpacesContent() {
           className={`rounded border px-3 py-2 ${changes ? 'border-amber-400/30 bg-amber-400/5' : 'border-border/50'}`}
         >
           <span className="text-muted-foreground">Changes</span>
-          <span className={`float-right font-semibold ${changes ? 'text-amber-400' : ''}`}>{changes}</span>
+          <span className={`float-right font-semibold ${changes ? 'text-[var(--amber-400)]' : ''}`}>{changes}</span>
         </div>
       </div>
       <div className="flex items-center gap-2 mb-3 flex-wrap">
@@ -417,7 +417,7 @@ function SpacesContent() {
                   {testResult[d._key] && (
                     <div
                       className={`mt-1.5 text-[12px] font-mono ${
-                        testResult[d._key]!.reportReadable ? 'text-emerald-500' : 'text-rose-500'
+                        testResult[d._key]!.reportReadable ? 'text-[var(--emerald-500)]' : 'text-[var(--rose-400)]'
                       }`}
                     >
                       {testResult[d._key]!.reportReadable
@@ -1034,7 +1034,7 @@ function GroupConfigContent() {
                   setGroupSearch('')
                   setUserSearch('')
                 }}
-                className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors ${selectedDisk?.id === d.id ? 'bg-emerald-500/10 text-emerald-400 font-medium' : 'hover:bg-muted text-foreground'}`}
+                className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors ${selectedDisk?.id === d.id ? 'bg-emerald-500/10 text-foreground font-medium' : 'hover:bg-muted text-foreground'}`}
               >
                 <p className="truncate">{d.name}</p>
                 <p className="text-[12px] text-muted-foreground/60 truncate">{d.spaceName}</p>
@@ -1212,7 +1212,7 @@ function GroupConfigContent() {
                 ? `· ${otherUsers.length}`
                 : ''}
             {selectedUserNames.size > 0 && (
-              <span className="ml-2 text-amber-400">{selectedUserNames.size} selected</span>
+              <span className="ml-2 text-[var(--amber-400)]">{selectedUserNames.size} selected</span>
             )}
           </p>
           {selectedTeamReal && (
@@ -1281,9 +1281,9 @@ function GroupConfigContent() {
                       draggable
                       onDragStart={(e) => handleDragStart(e, u)}
                       onClick={(e) => handleUserClick(e, u)}
-                      className={`flex items-center gap-1 px-2 py-1 rounded text-xs cursor-grab active:cursor-grabbing transition-colors ${isSel ? 'bg-amber-400/15 text-amber-400 font-medium' : 'hover:bg-muted'}`}
+                      className={`flex items-center gap-1 px-2 py-1 rounded text-xs cursor-grab active:cursor-grabbing transition-colors ${isSel ? 'bg-amber-400/15 text-foreground font-medium' : 'hover:bg-muted'}`}
                     >
-                      <User className={`size-3 shrink-0 ${isSel ? 'text-amber-400' : 'text-muted-foreground'}`} />
+                      <User className={`size-3 shrink-0 ${isSel ? 'text-foreground' : 'text-muted-foreground'}`} />
                       <span className="flex-1 truncate">{u}</span>
                       <span className="text-[10px] text-muted-foreground/30">⋮</span>
                     </div>
@@ -1302,9 +1302,9 @@ function GroupConfigContent() {
                     draggable
                     onDragStart={(e) => handleDragStart(e, u)}
                     onClick={(e) => handleUserClick(e, u)}
-                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs cursor-grab active:cursor-grabbing transition-colors group ${isSel ? 'bg-amber-400/15 text-amber-400 font-medium' : 'hover:bg-muted'}`}
+                    className={`flex items-center gap-1 px-2 py-1 rounded text-xs cursor-grab active:cursor-grabbing transition-colors group ${isSel ? 'bg-amber-400/15 text-foreground font-medium' : 'hover:bg-muted'}`}
                   >
-                    <User className={`size-3 shrink-0 ${isSel ? 'text-amber-400' : 'text-muted-foreground'}`} />
+                    <User className={`size-3 shrink-0 ${isSel ? 'text-foreground' : 'text-muted-foreground'}`} />
                     <span className="flex-1 truncate">{u}</span>
                     <button
                       onClick={(e) => {

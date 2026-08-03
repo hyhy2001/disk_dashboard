@@ -5,16 +5,16 @@ import { dismiss, subscribe } from '../lib/toast.js'
 const GLYPH: Record<ToastKind, string> = { success: '✓', error: '✕', warning: '!', info: 'i' }
 
 const COLORS: Record<ToastKind, string> = {
-  success: 'border-l-emerald-500 bg-emerald-500/8',
+  success: 'border-l-[var(--emerald-500)] bg-emerald-500/8',
   error: 'border-l-destructive bg-destructive/8',
-  warning: 'border-l-amber-400 bg-amber-400/8',
-  info: 'border-l-sky-400 bg-sky-400/8',
+  warning: 'border-l-[var(--amber-400)] bg-amber-400/8',
+  info: 'border-l-[var(--sky-400)] bg-sky-400/8',
 }
 const ICON_COLORS: Record<ToastKind, string> = {
-  success: 'text-emerald-500',
+  success: 'text-[var(--emerald-500)]',
   error: 'text-destructive',
-  warning: 'text-amber-400',
-  info: 'text-sky-400',
+  warning: 'text-[var(--amber-400)]',
+  info: 'text-[var(--sky-400)]',
 }
 
 export function Toasts(): JSX.Element {

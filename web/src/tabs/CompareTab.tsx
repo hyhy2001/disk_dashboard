@@ -109,11 +109,11 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
           <div
             className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-[13px] ${
               b.id === 'critical'
-                ? 'bg-rose-500/10 text-rose-400'
+                ? 'bg-rose-500/10 text-[var(--rose-400)]'
                 : b.id === 'warning'
-                  ? 'bg-amber-500/10 text-amber-400'
+                  ? 'bg-amber-500/10 text-[var(--amber-400)]'
                   : b.id === 'healthy'
-                    ? 'bg-emerald-500/10 text-emerald-400'
+                    ? 'bg-emerald-500/10 text-[var(--emerald-400)]'
                     : 'bg-muted/50 text-muted-foreground'
             }`}
             key={b.id}
@@ -170,7 +170,7 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
               >
                 <button
                   type="button"
-                  className="text-sm font-semibold truncate hover:text-emerald-400 transition-colors min-w-[100px]"
+                  className="text-sm font-semibold truncate hover:text-[var(--emerald-400)] transition-colors min-w-[100px]"
                   onClick={() => onSelect(t.slug)}
                 >
                   {t.name}

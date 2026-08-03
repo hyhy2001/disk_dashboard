@@ -31,9 +31,9 @@ export function DeltaBadge({ points }: Props): JSX.Element | null {
       <span
         className={`inline-flex items-center gap-0.5 rounded-sm px-1.5 py-0.5 text-[12px] font-medium ${
           dir === 'up'
-            ? 'bg-rose-500/15 text-rose-400'
+            ? 'bg-rose-500/15 text-[var(--rose-400)]'
             : dir === 'down'
-              ? 'bg-emerald-500/15 text-emerald-400'
+              ? 'bg-emerald-500/15 text-[var(--emerald-400)]'
               : 'bg-muted text-muted-foreground'
         }`}
       >

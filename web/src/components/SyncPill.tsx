@@ -89,7 +89,7 @@ export function SyncPill({ target, status, onStale, refreshing }: Props): JSX.El
         <span
           className={cn(
             'font-medium truncate',
-            running ? 'text-amber-400' : failed ? 'text-rose-400' : stale ? 'text-amber-400' : 'text-muted-foreground',
+            running ? 'text-[var(--amber-400)]' : failed ? 'text-[var(--rose-400)]' : stale ? 'text-[var(--amber-400)]' : 'text-muted-foreground',
           )}
         >
           {running
@@ -100,7 +100,7 @@ export function SyncPill({ target, status, onStale, refreshing }: Props): JSX.El
                 ? 'New report available'
                 : 'Up to date'}
         </span>
-        {running && <RotateCw className="size-3 animate-spin text-amber-400/70" />}
+        {running && <RotateCw className="size-3 animate-spin text-[var(--amber-400)]/70" />}
         <span className="text-muted-foreground/50 hidden sm:inline">
           {status?.scanTimestamp ? formatTimestamp(status.scanTimestamp) : '—'}
         </span>
@@ -113,7 +113,7 @@ export function SyncPill({ target, status, onStale, refreshing }: Props): JSX.El
         className={cn(
           'inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-[12px] font-medium transition-colors',
           stale
-            ? 'bg-amber-400/15 text-amber-400 hover:bg-amber-400/25'
+            ? 'bg-amber-400/15 text-foreground hover:bg-amber-400/25'
             : 'text-muted-foreground/60 hover:text-foreground hover:bg-white/[0.04]',
         )}
         title={stale ? 'New report available — click to reload' : 'Re-read report'}

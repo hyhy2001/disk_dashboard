@@ -247,7 +247,7 @@ function DiskCard({
         <p
           className={cn(
             'mt-1.5 flex items-center gap-1 text-[12px] font-medium',
-            failed ? 'text-rose-400' : 'text-amber-400',
+            failed ? 'text-[var(--rose-400)]' : 'text-[var(--amber-400)]',
           )}
         >
           <span className="inline-block size-1 rounded-full bg-current animate-pulse" />
