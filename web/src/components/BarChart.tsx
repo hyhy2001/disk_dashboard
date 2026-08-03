@@ -47,10 +47,15 @@ export function BarChart({ rows, limit = 10, logScale = false }: Props): JSX.Ele
   const width = size.width
   const avail = size.height
 
+  // Height left after reserving AXIS_H for the size axis below the last bar.
+  const availRows = Math.max(0, avail - AXIS_H)
+
   // Drop the smallest consumers rather than shrink the text below legibility:
   // eight readable rows beat ten unreadable ones, and since rows are ranked, the
-  // ones cut are the least interesting.
-  const fits = avail > 0 ? Math.max(3, Math.floor(avail / MIN_ROW_H)) : limit
+  // ones cut are the least interesting. Fitting is measured against availRows —
+  // not avail — so rows*MIN_ROW_H + AXIS_H never exceeds the box (otherwise the
+  // axis would be pushed past the card's bottom edge and clipped).
+  const fits = availRows > 0 ? Math.max(3, Math.floor(availRows / MIN_ROW_H)) : limit
   const data = ranked.slice(0, Math.min(limit, fits))
 
   if (data.length === 0) {
@@ -65,8 +70,6 @@ export function BarChart({ rows, limit = 10, logScale = false }: Props): JSX.Ele
   const trackW = Math.max(60, width - LABEL_W - VALUE_W)
   // Floor the row height so rows*rowH never exceeds the box; otherwise
   // preserveAspectRatio scales the drawing down and shrinks the text with it.
-  // AXIS_H is reserved for the size axis below the last bar.
-  const availRows = Math.max(0, avail - AXIS_H)
   const rowH = availRows > 0 ? Math.max(MIN_ROW_H, Math.min(ROW_H, Math.floor(availRows / data.length))) : ROW_H
   const barH = Math.max(8, Math.min(BAR_H, rowH - 9))
   const height = data.length * rowH + AXIS_H
@@ -98,7 +101,10 @@ export function BarChart({ rows, limit = 10, logScale = false }: Props): JSX.Ele
   // Size axis ticks: 0/25/50/75/100% of the axis range, matching the y-axis
   // tick pattern used by the capacity timeline.
   const AXIS_TICKS = [0, 0.25, 0.5, 0.75, 1] as const
-  const axisY = height - 6
+  // The axis sits just below the last bar, inside the AXIS_H band. Anchoring it
+  // to `height` put the labels at y = height + 5, outside the viewBox, so the
+  // whole row was clipped away.
+  const axisY = data.length * rowH + 6
 
   return (
     <div className="chartbox" ref={box}>
@@ -138,7 +144,7 @@ export function BarChart({ rows, limit = 10, logScale = false }: Props): JSX.Ele
         {AXIS_TICKS.map((t) => {
           const x = LABEL_W + t * trackW
           return (
-            <text key={t} className="chart__axis chart__axis--mono" x={x} y={axisY + 11} textAnchor="middle">
+            <text key={t} className="chart__axis chart__axis--mono" x={x} y={axisY + 10} textAnchor="middle">
               {formatSize(valueAt(t))}
             </text>
           )
