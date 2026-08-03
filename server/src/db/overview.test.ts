@@ -2,7 +2,7 @@ import type Database from 'better-sqlite3'
 import { afterEach, describe, expect, it } from 'vitest'
 import type { Target } from '../../../shared/api.js'
 import { createFixture } from './fixture.js'
-import { readOverview } from './overview.js'
+import { assignAdminTeams, readOverview } from './overview.js'
 
 let db: Database.Database
 
@@ -132,5 +132,38 @@ describe('readOverview', () => {
   it('passes the target row through unchanged', () => {
     db = createFixture()
     expect(readOverview(db, TARGET).target).toEqual(TARGET)
+  })
+})
+
+describe('assignAdminTeams', () => {
+  const adminTeams = [
+    { name: 'SUPERADMIN', users: ['root', 'www', 'tiny'] },
+    { name: 'EMPTY', users: ['ghost'] },
+  ]
+
+  it('counts every admin-team member, even past a leaderboard cap', () => {
+    // 30 users: 3 belong to SUPERADMIN (one with tiny usage), 27 do not. A
+    // USER_LIMIT-capped list would drop `tiny`; the full-set mapping must not.
+    const rows = Array.from({ length: 30 }, (_, i) => ({
+      username: i === 0 ? 'root' : i === 1 ? 'www' : i === 2 ? 'tiny' : `u${i}`,
+      total_size: i === 0 ? 900 : i === 1 ? 50 : 1,
+    }))
+    const { teams, users, otherUsers } = assignAdminTeams(rows, adminTeams)
+
+    const superadmin = teams.find((t) => t.name === 'SUPERADMIN')
+    expect(superadmin?.used).toBe(900 + 50 + 1) // tiny's 1 byte included
+    expect(users.filter((u) => u.team === 'SUPERADMIN')).toHaveLength(3)
+    expect(otherUsers).toHaveLength(27)
+    // EMPTY owns no scanned user but stays visible as 0.
+    expect(teams.find((t) => t.name === 'EMPTY')?.used).toBe(0)
+  })
+
+  it('matches usernames case-insensitively and keeps the scanned casing', () => {
+    const { users, otherUsers } = assignAdminTeams(
+      [{ username: 'ROOT', total_size: 100 }, { username: 'other', total_size: 5 }],
+      [{ name: 'T', users: ['root'] }],
+    )
+    expect(users).toEqual([{ name: 'ROOT', used: 100, team: 'T' }])
+    expect(otherUsers).toEqual([{ name: 'other', used: 5 }])
   })
 })

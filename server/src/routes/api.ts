@@ -21,7 +21,6 @@ import type {
   Target,
   TargetGroup,
   TreemapLevel,
-  UsageRow,
   UserDetail,
 } from '../../../shared/api.js'
 import {
@@ -33,7 +32,7 @@ import {
   readMeta,
   REPORT_FILE,
 } from '../db/reports.js'
-import { readOverview } from '../db/overview.js'
+import { assignAdminTeams, readOverview, USER_LIMIT } from '../db/overview.js'
 import { readTreemapLevel } from '../db/treemap.js'
 import { getPublicConfig } from '../db/admin.js'
 import { findUid, listUsers, readUserDetail, streamUserListCsv } from '../db/detail.js'
@@ -143,8 +142,12 @@ function fileStamp(now = new Date()): string {
 /**
  * Apply teams from admin.db to the overview, overriding report.db team assignments.
  * This lets the admin Group Config control team → user mapping in the dashboard.
+ *
+ * Team totals must come from the FULL user set, not overview.users/otherUsers —
+ * those are each capped at USER_LIMIT, so on a disk with more accounts than the
+ * cap, any admin-team member beyond it would silently vanish from the rollup.
  */
-function applyAdminTeams(slug: string, overview: Overview): Overview {
+function applyAdminTeams(db: Database.Database, slug: string, overview: Overview): Overview {
   try {
     const disk = diskBySlug(slug)
     if (!disk) return overview
@@ -152,41 +155,20 @@ function applyAdminTeams(slug: string, overview: Overview): Overview {
     const adminTeams = listDiskTeams(disk.id)
     if (adminTeams.length === 0) return overview
 
-    // Build user → team lookup from admin teams
-    const userTeam = new Map<string, string>()
-    for (const t of adminTeams) {
-      for (const u of t.users) userTeam.set(u.toLowerCase(), t.name)
+    // Full, uncapped user list — the authoritative set for team membership.
+    const rows = db
+      .prepare('SELECT username, total_size FROM detail_users WHERE total_size > 0 ORDER BY total_size DESC')
+      .all() as { username: string; total_size: number }[]
+
+    const mapped = assignAdminTeams(rows, adminTeams)
+
+    // Cap only what the UI renders; team totals above already used every user.
+    return {
+      ...overview,
+      teams: mapped.teams,
+      users: mapped.users.slice(0, USER_LIMIT),
+      otherUsers: mapped.otherUsers.slice(0, USER_LIMIT),
     }
-
-    // Remap users: if user has an admin team, move them to teams; else to otherUsers
-    const teamUsage = new Map<string, number>()
-    const teamUsers: UsageRow[] = []
-    const otherUsers: UsageRow[] = []
-
-    const allUsers = [...overview.users, ...overview.otherUsers]
-    for (const u of allUsers) {
-      const team = userTeam.get(u.name.toLowerCase())
-      if (team) {
-        teamUsage.set(team, (teamUsage.get(team) ?? 0) + u.used)
-        teamUsers.push({ ...u, team })
-      } else {
-        otherUsers.push(u)
-      }
-    }
-
-    // Add admin teams that have no users yet (show them as 0)
-    for (const t of adminTeams) {
-      if (!teamUsage.has(t.name)) {
-        teamUsage.set(t.name, 0)
-      }
-    }
-
-    // Build teams UsageRow[] sorted by size
-    const teams: UsageRow[] = Array.from(teamUsage.entries())
-      .map(([name, used]) => ({ name, used }))
-      .sort((a, b) => b.used - a.used)
-
-    return { ...overview, teams, users: teamUsers, otherUsers }
   } catch {
     return overview
   }
@@ -341,7 +323,7 @@ export function registerApi(app: FastifyInstance): void {
         capacity: readCapacity(db),
       }
 
-      return ok(applyAdminTeams(target, readOverview(db, row)))
+      return ok(applyAdminTeams(db, target, readOverview(db, row)))
     },
   )
 

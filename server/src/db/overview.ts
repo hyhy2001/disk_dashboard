@@ -15,7 +15,7 @@ import type Database from 'better-sqlite3'
 import type { Capacity, HistoryPoint, Overview, Target, UsageRow } from '../../../shared/api.js'
 
 /** Top-N cap for the user lists. The UI charts a leaderboard, not every account. */
-const USER_LIMIT = 25
+export const USER_LIMIT = 25
 
 interface SnapshotRow {
   id: number
@@ -140,4 +140,52 @@ export function readOverview(db: Database.Database, target: Target): Overview {
     otherUsers: readUsers(db, false, latestId),
     history,
   }
+}
+
+/** One admin-configured team: name plus the usernames it owns. */
+export interface AdminTeam {
+  name: string
+  users: string[]
+}
+
+/**
+ * Reassign every scanned user to its admin team, returning the team rollup and
+ * the split user lists. Given the FULL user rows (never a capped leaderboard) —
+ * a per-group USER_LIMIT cap here would silently drop team members on disks
+ * with more accounts than the cap, skewing the team totals.
+ */
+export function assignAdminTeams(
+  rows: { username: string; total_size: number }[],
+  adminTeams: AdminTeam[],
+): { teams: UsageRow[]; users: UsageRow[]; otherUsers: UsageRow[] } {
+  const userTeam = new Map<string, string>()
+  for (const t of adminTeams) {
+    for (const u of t.users) userTeam.set(u.toLowerCase(), t.name)
+  }
+
+  const teamUsage = new Map<string, number>()
+  const teamUsers: UsageRow[] = []
+  const otherUsers: UsageRow[] = []
+
+  for (const u of rows) {
+    const team = userTeam.get(u.username.toLowerCase())
+    if (team) {
+      teamUsage.set(team, (teamUsage.get(team) ?? 0) + u.total_size)
+      teamUsers.push({ name: u.username, used: u.total_size, team })
+    } else {
+      otherUsers.push({ name: u.username, used: u.total_size })
+    }
+  }
+
+  // Admin teams that own no scanned users still appear (as 0), so a misconfigured
+  // or not-yet-created account stays visible instead of vanishing.
+  for (const t of adminTeams) {
+    if (!teamUsage.has(t.name)) teamUsage.set(t.name, 0)
+  }
+
+  const teams: UsageRow[] = Array.from(teamUsage.entries())
+    .map(([name, used]) => ({ name, used }))
+    .sort((a, b) => b.used - a.used)
+
+  return { teams, users: teamUsers, otherUsers }
 }
