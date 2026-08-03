@@ -800,6 +800,15 @@ function ChangeLogModal({ open, onClose }: { open: boolean; onClose: () => void 
 
 const CHANGES = [
   {
+    date: '2026-08-03',
+    items: [
+      'CSV exports are gzipped on the server — a millions-of-rows download is ~15x smaller in every browser.',
+      'Treemap [files] row shows the real size of the files directly in a folder instead of unloaded subfolders; bar-chart axis labels no longer clip at the bottom.',
+      'Admin: team totals now count every user, disks that are configured but not yet scanned appear in the sidebar, and a user can no longer be placed in two teams of the same disk.',
+      'Light-theme text hierarchy rebalanced for stronger contrast.',
+    ],
+  },
+  {
     date: '2026-08-02',
     items: [
       'Name search now uses FTS5 trigram indexes — typical queries drop from hundreds of milliseconds to tens.',
