@@ -232,7 +232,7 @@ export function TreemapTab({ target, totalSize }: Props): JSX.Element {
             shownCount={dirs.length}
             totalCount={level.childTotal}
             fileCount={level.fileTotal}
-            filesRemainder={level.remainder}
+            filesSize={level.filesSize}
           />
         ) : (
           <>

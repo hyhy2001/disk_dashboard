@@ -209,6 +209,25 @@ export function readTreemapLevel(
   const coveredSize = shown.reduce((sum, r) => sum + r.total_size, 0)
   const remainder = node.total_size - coveredSize - childOffsetSize(db, id, childOffset)
 
+  // Total bytes of the files sitting directly in this directory (no recursion).
+  // `node.total_size` is the whole subtree, so subtracting every child's subtree
+  // leaves exactly the direct files — verified against a real report. A single
+  // indexed range scan over this parent's children; detail_files has no dir_id
+  // index, so a SUM there would scan the whole table. This is what the list's
+  // `[files]` row must show; `remainder` also carries the unloaded children's
+  // bytes, which makes a small direct count look recursive. `has_files` is exact,
+  // so zeroing it skips the query entirely for pure containers.
+  const filesSize =
+    node.has_files === 1
+      ? Math.max(
+          0,
+          node.total_size -
+            ((db
+              .prepare('SELECT COALESCE(SUM(total_size), 0) AS s FROM treemap_dirs WHERE parent_id = ?')
+              .get(id) as { s: number }).s ?? 0),
+        )
+      : 0
+
   // has_files is exact, so skip the file query entirely when there are none —
   // detail_files has no dir_id index and the skip-scan is not free.
   const files = withFiles && node.has_files === 1 ? readFiles(db, id, fileOffset, pageSize) : []
@@ -220,6 +239,7 @@ export function readTreemapLevel(
     files,
     fileTotal: node.file_count,
     remainder: remainder > 0 ? remainder : 0,
+    filesSize,
     truncated,
     childOffset: childOffset + children.length,
     childTotal: node.dir_count,

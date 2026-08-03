@@ -175,4 +175,38 @@ describe('readTreemapLevel', () => {
       expect(level?.files.map((f) => f.name)).toEqual(['a.dat', 'b.dat'])
     })
   })
+
+  describe('filesSize', () => {
+    it('reports the bytes of the files living directly in the directory', () => {
+      db = createFixture()
+
+      // Root's own files are 60 + 40 = 100; its two children sum to 900.
+      expect(readTreemapLevel(db, null)?.filesSize).toBe(100)
+      // home (id 2) is a leaf: all 300 bytes are its own three files.
+      expect(readTreemapLevel(db, 2)?.filesSize).toBe(300)
+      // var (id 1) is a pure container: has_files is 0, so the sum is skipped
+      // and the answer is exactly 0, not total_size minus its child.
+      expect(readTreemapLevel(db, 1)?.filesSize).toBe(0)
+    })
+
+    it('stays at the direct bytes while remainder absorbs unloaded children', () => {
+      db = createFixture()
+      // Add 70 tiny children under root and grow root's total to keep the tree
+      // consistent (its direct files are still 100).
+      const name = db.prepare('INSERT INTO treemap_names (id, name) VALUES (?, ?)')
+      const dir = db.prepare('INSERT INTO treemap_dirs VALUES (?, 0, ?, 1, 0, 0, 0, 0)')
+      for (let i = 0; i < 70; i += 1) {
+        const id = 500 + i
+        name.run(id, `extra${i}`)
+        dir.run(id, id)
+      }
+      db.prepare('UPDATE treemap_dirs SET total_size = 1070 WHERE id = 0').run()
+
+      const level = readTreemapLevel(db, null)
+      expect(level?.truncated).toBe(true)
+      // filesSize must not swallow the 12 children past the page; remainder may.
+      expect(level?.filesSize).toBe(100)
+      expect(level?.remainder).toBeGreaterThan(level?.filesSize ?? 0)
+    })
+  })
 })

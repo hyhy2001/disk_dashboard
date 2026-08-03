@@ -138,6 +138,12 @@ export interface TreemapLevel {
    * parent honestly.
    */
   remainder: number
+  /**
+   * Total bytes of the files living directly in `node` (not recursive). The
+   * `[files]` row shows this rather than `remainder`, which would also swallow
+   * the unloaded children's bytes and make a "2 files / 8 MB" look impossible.
+   */
+  filesSize: number
   /** Whether more children exist past the ones returned. */
   truncated: boolean
   /** Number of children returned so far, for the next offset. */

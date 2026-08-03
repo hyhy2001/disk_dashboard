@@ -24,8 +24,8 @@ interface Props {
   totalCount: number
   /** Number of files directly in this directory (for the [files] summary row). */
   fileCount: number
-  /** Size covered by files (≈ remainder — includes children past the page). */
-  filesRemainder: number
+  /** Total bytes of those direct files (NOT `remainder` — see TreemapLevel). */
+  filesSize: number
 }
 
 /** Bar colour by share of the disk — the legacy thresholds. */
@@ -72,7 +72,7 @@ export function EntryList({
   shownCount,
   totalCount,
   fileCount,
-  filesRemainder,
+  filesSize,
 }: Props): JSX.Element {
   if (dirs.length === 0 && fileCount === 0) {
     return <div className="text-center text-[13px] text-muted-foreground p-6">This directory is empty.</div>
@@ -124,7 +124,7 @@ export function EntryList({
               <span className="font-mono">[files]</span>
             </span>
             <span className="truncate">{formatCount(fileCount)} files</span>
-            <SizeCell size={filesRemainder} total={totalSize} />
+            <SizeCell size={filesSize} total={totalSize} />
             <span className="text-right text-[12px]">files</span>
           </div>
         )}
