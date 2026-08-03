@@ -476,6 +476,17 @@ export function registerAdmin(app: FastifyInstance): void {
     if (users !== undefined && !Array.isArray(users)) {
       return reply.code(422).send({ status: 'error', message: 'Users must be an array' })
     }
+    if (users !== undefined) {
+      const team = A.getDiskTeam(id)
+      if (!team) return reply.code(404).send({ status: 'error', message: 'Team not found' })
+      const clashes = A.teamUserClashes(team.disk_id, id, users)
+      if (clashes.length > 0) {
+        return reply.code(422).send({
+          status: 'error',
+          message: `User${clashes.length > 1 ? 's' : ''} already in another team of this disk: ${clashes.join(', ')}`,
+        })
+      }
+    }
     A.updateDiskTeam(id, { name, users })
     return reply.send({ status: 'success', data: null })
   })

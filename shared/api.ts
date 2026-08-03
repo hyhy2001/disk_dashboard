@@ -33,10 +33,10 @@ export interface Target {
 }
 
 /**
- * A named set of targets, driving the sidebar's Team → Disk navigation.
+ * A named set of targets, driving the sidebar's Space → Disk navigation.
  *
- * Grouping comes from an optional teams.json beside the reports directory;
- * without one, every target lands in a single group.
+ * Grouping comes from the admin DB's spaces (each space holds its disks); a disk
+ * configured but not yet scanned still appears, marked by a zero scanTimestamp.
  */
 export interface TargetGroup {
   name: string

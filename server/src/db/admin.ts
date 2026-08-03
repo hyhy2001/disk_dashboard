@@ -593,6 +593,35 @@ export function listDiskTeams(diskId: number): DiskTeam[] {
   return rows.map((r) => ({ ...r, users: JSON.parse(r.users) as string[] }))
 }
 
+export function getDiskTeam(id: number): DiskTeam | null {
+  const r = adminDb()
+    .prepare('SELECT id, disk_id, name, users FROM disk_teams WHERE id = ?')
+    .get(id) as { id: number; disk_id: number; name: string; users: string } | undefined
+  return r ? { ...r, users: JSON.parse(r.users) as string[] } : null
+}
+
+/**
+ * Usernames in `users` that are already assigned to another team of the same
+ * disk (case-insensitive). One user cannot belong to two teams on one disk: the
+ * overview's team lookup is a Map keyed by username, so a duplicate would
+ * silently let whichever team saved last win.
+ */
+export function teamUserClashes(diskId: number, exceptTeamId: number | null, users: string[]): string[] {
+  const wanted = new Set(users.map((u) => u.toLowerCase()))
+  const rows = adminDb().prepare('SELECT id, users FROM disk_teams WHERE disk_id = ?').all(diskId) as {
+    id: number
+    users: string
+  }[]
+  const clashes = new Set<string>()
+  for (const r of rows) {
+    if (exceptTeamId !== null && r.id === exceptTeamId) continue
+    for (const u of JSON.parse(r.users) as string[]) {
+      if (wanted.has(u.toLowerCase())) clashes.add(u)
+    }
+  }
+  return [...clashes]
+}
+
 export function createDiskTeam(diskId: number, name: string): DiskTeam {
   const db = adminDb()
   const info = db.prepare('INSERT INTO disk_teams (disk_id, name, users) VALUES (?, ?, ?)').run(diskId, name, '[]')

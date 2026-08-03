@@ -175,13 +175,28 @@ function applyAdminTeams(db: Database.Database, slug: string, overview: Overview
 }
 
 /**
- * One Target row for a configured disk, or null when its report is missing or
- * unreadable (a corrupt report must not take down the target picker).
+ * One Target row for a configured disk.
+ *
+ * A disk whose report.db is missing or unreadable still gets a row — with a zero
+ * scanTimestamp and no capacity — so a configured-but-unscanned disk is visible
+ * in the sidebar instead of silently vanishing. The zero stamp is the UI's
+ * "never scanned" signal (gray dot, "never").
  */
-function targetFor(disk: { name: string; slug: string; path: string }): Target | null {
+function targetFor(disk: { name: string; slug: string; path: string }): Target {
   const rp = join(disk.path, REPORT_FILE)
   const info = openReportAt(rp)
-  if (!info) return null
+  const missing: Target = {
+    name: disk.name,
+    slug: disk.slug,
+    scanRoot: disk.path,
+    scanTimestamp: 0,
+    totalFiles: 0,
+    totalDirs: 0,
+    totalSize: 0,
+    dbSizeBytes: 0,
+    capacity: null,
+  }
+  if (!info) return missing
   try {
     const meta = readMeta(info.db)
     const cap = readCapacity(info.db)
@@ -198,31 +213,31 @@ function targetFor(disk: { name: string; slug: string; path: string }): Target |
       capacity: cap ?? null,
     }
   } catch {
-    return null
+    return missing
   }
 }
 
 /**
  * A stamp of the whole configured set, used as the cache key.
  *
- * Report stamps catch a rescan; names and slugs catch admin-config changes
+ * Report stamps catch a rescan; names/slugs/order catch admin-config changes
  * (add/remove/rename/reorder), which the report files alone would miss.
  */
 function targetsCacheKey(adminCfg: {
-  spaces: { name: string; disks: { name: string; slug: string; path: string }[] }[]
+  spaces: { name: string; sort_order: number; disks: { name: string; slug: string; path: string; sort_order: number }[] }[]
 }): string {
   let key = ''
   for (const space of adminCfg.spaces) {
-    key += `s:${space.name}:`
+    key += `s:${space.name}:${space.sort_order}:`
     for (const disk of space.disks) {
       const rp = join(disk.path, REPORT_FILE)
       try {
         const st = statSync(rp)
-        key += `${disk.slug}:${disk.name}:${st.mtimeMs}:${st.size};`
+        key += `${disk.slug}:${disk.name}:${disk.sort_order}:${st.mtimeMs}:${st.size};`
       } catch {
         // A missing report still participates, so a scan landing later refreshes
         // the cache instead of reusing a stale "no report" list.
-        key += `${disk.slug}:${disk.name}:none;`
+        key += `${disk.slug}:${disk.name}:${disk.sort_order}:none;`
       }
     }
   }
@@ -252,8 +267,7 @@ function configuredTargets(adminCfg: ReturnType<typeof getPublicConfig>): Target
   const targets: Target[] = []
   for (const space of adminCfg.spaces) {
     for (const disk of space.disks) {
-      const t = targetFor(disk)
-      if (t) targets.push(t)
+      targets.push(targetFor(disk))
     }
   }
   targetsCache = { key, targets }

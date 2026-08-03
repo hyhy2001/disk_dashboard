@@ -8,12 +8,15 @@ import {
   createAdmin,
   createBackup,
   createDisk,
+  createDiskTeam,
   createSpace,
   deleteAdmin,
   getAdminById,
   listBackups,
   signSession,
+  teamUserClashes,
   updateDisk,
+  updateDiskTeam,
   validateDiskPath,
   testDiskRead,
   verifySession,
@@ -145,5 +148,29 @@ describe('session revocation', () => {
     const st = statSync(dest)
     expect(st.size).toBe(info.size)
     expect(listBackups().some((b) => b.name === info.name)).toBe(true)
+  })
+})
+
+describe('disk team user clashes', () => {
+  it('rejects a username already assigned to another team on the same disk', () => {
+    withTempDb()
+    const sp = createSpace('prod')
+    const disk = createDisk(sp.id, 'data', realPath('data'))
+    const t1 = createDiskTeam(disk.id, 'dev')
+    const t2 = createDiskTeam(disk.id, 'ops')
+
+    // Give 'alice' to ops first; claiming her in dev must clash.
+    updateDiskTeam(t2.id, { users: ['alice', 'bob'] })
+    expect(teamUserClashes(disk.id, t1.id, ['alice', 'carol'])).toEqual(['alice'])
+
+    // Re-saving the same team keeps its own members (no self-clash).
+    expect(teamUserClashes(disk.id, t2.id, ['alice', 'bob'])).toEqual([])
+
+    // Case-insensitive, and a user on another disk's team never clashes here.
+    const other = createDisk(sp.id, 'other', realPath('other'))
+    const t3 = createDiskTeam(other.id, 'ops')
+    updateDiskTeam(t3.id, { users: ['carol'] })
+    // alice lives on `disk` (t2), so claiming carol on `other` must not clash.
+    expect(teamUserClashes(other.id, t3.id, ['carol'])).toEqual([])
   })
 })
