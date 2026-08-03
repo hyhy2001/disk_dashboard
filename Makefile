@@ -49,6 +49,13 @@ PM2 := $(ROOT)/node_modules/.bin/pm2
 # home — the toolchain stays portable and needs nothing from a real home dir.
 LOCAL_HOME := $(TOOL)/home
 
+# Port the dashboard binds (kept in sync with ecosystem.config.cjs / .env);
+# `make stop` uses it to detect a survivor pm2 could not kill.
+DASHBOARD_PORT := $(shell grep '^DASHBOARD_PORT=' "$(ROOT)/.env" 2>/dev/null | cut -d= -f2 | tr -d '"' )
+ifeq ($(strip $(DASHBOARD_PORT)),)
+DASHBOARD_PORT := 5311
+endif
+
 # Native modules (better-sqlite3) need a compiler newer than RHEL8's default
 # g++ 8.x. Prefer, in order: a local install at /usr/local/gcc-<ver> (custom),
 # Red Hat's gcc-toolset at /opt/rh/gcc-toolset-<N>, then whatever is on PATH.
@@ -229,7 +236,22 @@ start: build $(PM2)
 	@"$(PM2)" status
 
 stop:
+	@echo '==> Stopping disk-dashboard ...'
 	@"$(PM2)" stop disk-dashboard 2>/dev/null || true
+	@sleep 2
+	@# pm2's graceful stop waits on in-flight requests before its SIGKILL
+	@# timeout, and an app orphaned by a dead pm2 daemon is invisible to pm2
+	@# entirely. If the port is still listening after the graceful stop, force
+	@# the exact process holding it down (never `pkill -f` the entrypoint path —
+	@# that matches this very shell). ss needs no privileges to see LISTEN pids.
+	@if ss -ltn 2>/dev/null | grep -qE ':$(DASHBOARD_PORT) '; then \
+		echo "==> port $(DASHBOARD_PORT) still listening - force killing..."; \
+		"$(PM2)" delete disk-dashboard 2>/dev/null || true; \
+		PID=$$(ss -ltnp 2>/dev/null | sed -n "s/.*:$(DASHBOARD_PORT) .*pid=\([0-9]*\).*/\1/p" | head -1); \
+		if [ -n "$$PID" ]; then kill -9 "$$PID" 2>/dev/null && echo "==> killed pid $$PID"; \
+		else pkill -f 'server/dist/server/src/index[.]js' 2>/dev/null || true; fi; \
+	fi
+	@"$(PM2)" status || true
 
 restart:
 	@echo '==> Restarting (delete + start so .env changes are picked up) ...'
