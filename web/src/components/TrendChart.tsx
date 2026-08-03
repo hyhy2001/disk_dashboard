@@ -26,6 +26,9 @@ const PAD_B = 34
 /**
  * Line colours. Twelve distinct hues; beyond that the palette repeats, which is
  * why the picker caps how many users can be plotted at once.
+ *
+ * The dark palette is tuned for a dark background; light mode uses the 600/700
+ * step of each hue so the lines stay readable without glaring on a light base.
  */
 export const PALETTE = [
   '#38bdf8',
@@ -42,6 +45,21 @@ export const PALETTE = [
   '#94a3b8',
 ] as const
 
+const LIGHT_PALETTE = [
+  '#0284c7',
+  '#d97706',
+  '#059669',
+  '#db2777',
+  '#7c3aed',
+  '#ea580c',
+  '#16a34a',
+  '#dc2626',
+  '#0891b2',
+  '#c026d3',
+  '#ca8a04',
+  '#64748b',
+] as const
+
 interface Props {
   /** Series to draw, in the order they were selected. */
   trends: UserTrend[]
@@ -53,6 +71,7 @@ interface Props {
 export function TrendChart({ trends, dates, logScale }: Props): JSX.Element {
   const [hover, setHover] = useState<number | null>(null)
   const [box, size] = useSize<HTMLDivElement>()
+  const palette = document.documentElement.dataset.theme === 'light' ? LIGHT_PALETTE : PALETTE
 
   const measured = size && size.width > 0 && size.height > 0
 
@@ -144,7 +163,7 @@ export function TrendChart({ trends, dates, logScale }: Props): JSX.Element {
           .map((u, i) => ({
             name: u.name,
             value: u.values[hover],
-            color: PALETTE[i % PALETTE.length] as string,
+            color: palette[i % palette.length] as string,
           }))
           .filter((r): r is { name: string; value: number; color: string } => r.value !== undefined)
           .sort((a, b) => b.value - a.value)
@@ -183,7 +202,7 @@ export function TrendChart({ trends, dates, logScale }: Props): JSX.Element {
               key={u.name}
               className="chart__line"
               d={pathFor(u.values)}
-              stroke={PALETTE[i % PALETTE.length]}
+              stroke={palette[i % palette.length]}
               strokeWidth={1.5}
               fill="none"
             />
@@ -239,7 +258,7 @@ export function TrendChart({ trends, dates, logScale }: Props): JSX.Element {
         {trends.map((t, i) => (
           <span className="chart__key" key={t.name}>
             <svg width="16" height="6" aria-hidden="true">
-              <line x1="0" y1="3" x2="16" y2="3" stroke={PALETTE[i % PALETTE.length]} strokeWidth="2" />
+              <line x1="0" y1="3" x2="16" y2="3" stroke={palette[i % palette.length]} strokeWidth="2" />
             </svg>
             {t.name}
           </span>

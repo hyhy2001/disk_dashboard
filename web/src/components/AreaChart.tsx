@@ -29,12 +29,13 @@ const PAD_T = 12
 const PAD_B = 34
 
 // Legacy's exact strokes: solid amber for Used, translucent dashed amber for the
-// scan result, translucent dashed slate for Total.
+// scan result, translucent dashed slate for Total. The amber is a CSS var so it
+// deepens to amber-600 on the light theme instead of glaring.
 const SERIES = [
   {
     key: 'usedSize',
     label: 'Used Capacity',
-    color: '#fbbf24',
+    color: 'var(--amber-400)',
     dash: '',
     width: 1.5,
     fill: true,
@@ -42,7 +43,7 @@ const SERIES = [
   {
     key: 'scannedSize',
     label: 'Scan Result',
-    color: 'rgba(251,191,36,0.55)',
+    color: 'color-mix(in srgb, var(--amber-400) 55%, transparent)',
     dash: '4 3',
     width: 1,
     fill: false,
@@ -160,9 +161,9 @@ export function AreaChart({ points, showLegend }: Props): JSX.Element {
             {/* Gradient under the Used line, denser in light mode where a faint
               wash would disappear against the paper background. */}
             <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#fbbf24" stopOpacity={light ? 0.55 : 0.26} />
-              <stop offset="65%" stopColor="#fbbf24" stopOpacity={light ? 0.15 : 0.06} />
-              <stop offset="100%" stopColor="#fbbf24" stopOpacity={light ? 0.03 : 0.02} />
+              <stop offset="0%" stopColor="var(--amber-400)" stopOpacity={light ? 0.55 : 0.26} />
+              <stop offset="65%" stopColor="var(--amber-400)" stopOpacity={light ? 0.15 : 0.06} />
+              <stop offset="100%" stopColor="var(--amber-400)" stopOpacity={light ? 0.03 : 0.02} />
             </linearGradient>
           </defs>
 

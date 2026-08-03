@@ -17,7 +17,7 @@ const SERIES = [
   '#8b5cf6',
   'var(--text-faint)',
   '#06b6d4',
-  '#a78bfa',
+  'var(--violet-400)',
 ]
 
 /** Colour of the synthetic "Unknown" wedge — legacy's slate #334155. */

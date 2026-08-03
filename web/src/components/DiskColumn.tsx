@@ -147,7 +147,7 @@ function DiskCard({
           <span
             className={cn(
               'shrink-0 text-[13px] font-bold tabular-nums',
-              pct >= 85 ? 'text-rose-400' : pct >= 70 ? 'text-amber-400' : 'text-emerald-400',
+              pct >= 85 ? 'text-[var(--rose-400)]' : pct >= 70 ? 'text-[var(--amber-400)]' : 'text-[var(--emerald-400)]',
             )}
           >
             {pct.toFixed(0)}%
@@ -186,10 +186,10 @@ function DiskCard({
             className={cn(
               'shrink-0 rounded-md px-2 py-0.5 text-[13px] font-bold tabular-nums',
               pct >= 85
-                ? 'bg-rose-500/15 text-rose-400'
+                ? 'bg-rose-500/15 text-[var(--rose-400)]'
                 : pct >= 70
-                  ? 'bg-amber-400/15 text-amber-400'
-                  : 'bg-emerald-500/15 text-emerald-400',
+                  ? 'bg-amber-400/15 text-[var(--amber-400)]'
+                  : 'bg-emerald-500/15 text-[var(--emerald-400)]',
             )}
           >
             {pct.toFixed(0)}%

@@ -273,7 +273,7 @@ export function HistoryTab({ target }: Props): JSX.Element {
                     <span className="flex-1 truncate">{r.name}</span>
                     <span
                       className={`tabular-nums text-[12px] ${
-                        r.delta > 0 ? 'text-rose-400' : r.delta < 0 ? 'text-emerald-400' : 'text-muted-foreground'
+                        r.delta > 0 ? 'text-[var(--rose-400)]' : r.delta < 0 ? 'text-[var(--emerald-400)]' : 'text-muted-foreground'
                       }`}
                     >
                       {r.delta === 0 ? '—' : `${r.delta > 0 ? '+' : '−'}${formatSize(Math.abs(r.delta))}`}

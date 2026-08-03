@@ -806,6 +806,7 @@ const CHANGES = [
       'Treemap [files] row shows the real size of the files directly in a folder instead of unloaded subfolders; bar-chart axis labels no longer clip at the bottom.',
       'Admin: team totals now count every user, disks that are configured but not yet scanned appear in the sidebar, and a user can no longer be placed in two teams of the same disk.',
       'Light-theme text hierarchy rebalanced for stronger contrast.',
+      'Light theme: bright chart and accent colors toned down (to their 600/700 steps) so they are easier on the eyes.',
     ],
   },
   {

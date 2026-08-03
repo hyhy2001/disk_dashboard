@@ -15,9 +15,9 @@ const WARM = 65
 const HOT = 85
 
 function tone(pct: number): string {
-  if (pct > HOT) return 'text-rose-400'
-  if (pct > WARM) return 'text-amber-400'
-  return 'text-emerald-500'
+  if (pct > HOT) return 'text-[var(--rose-400)]'
+  if (pct > WARM) return 'text-[var(--amber-400)]'
+  return 'text-[var(--emerald-500)]'
 }
 
 function InodeRing({ total, used, scanned }: { total: number; used: number; scanned: number }) {
@@ -176,7 +176,7 @@ export function InodesTab({ target }: Props): JSX.Element {
               ].map((f) => (
                 <div key={f.label} className="rounded-sm border border-border p-2.5" title={f.title}>
                   <p className="text-[12px] uppercase tracking-wider text-muted-foreground">{f.label}</p>
-                  <p className={cn('text-lg font-bold tabular-nums', f.tone, f.good && 'text-emerald-500')}>
+                  <p className={cn('text-lg font-bold tabular-nums', f.tone, f.good && 'text-[var(--emerald-500)]')}>
                     {f.value}
                   </p>
                 </div>

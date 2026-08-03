@@ -88,11 +88,11 @@ function Stat({
         <span
           className={`text-lg font-bold tabular-nums ${
             tone === 'used'
-              ? 'text-amber-400'
+              ? 'text-[var(--amber-400)]'
               : tone === 'scanned'
-                ? 'text-emerald-400'
+                ? 'text-[var(--emerald-400)]'
                 : tone === 'hot'
-                  ? 'text-rose-400'
+                  ? 'text-[var(--rose-400)]'
                   : 'text-foreground'
           }`}
         >

@@ -68,6 +68,15 @@
   --accent: var(--emerald-600);
   --accent-hover: var(--emerald-500);
   --orb-opacity: 0.04;
+  /* The *-400 shades are tuned for dark backgrounds; on a light base they are
+     too saturated and glare. Drop each to its 600/700 step so bars, wedges and
+     badges read as calm accents instead of bright blocks. */
+  --sky-400: #0284c7;
+  --amber-400: #d97706;
+  --rose-400: #e11d48;
+  --violet-400: #7c3aed;
+  --emerald-400: #059669;
+  --emerald-500: #047857;
 }
 
 @media (prefers-reduced-motion: reduce) {
