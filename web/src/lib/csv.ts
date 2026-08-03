@@ -1,17 +1,21 @@
 // CSV export, streamed where the browser allows it.
 //
-// Exports here can be large — a user with 500k files produces tens of megabytes of
-// CSV — so buffering the whole thing in a string before download would spike
-// memory and risk a tab crash. Two strategies, picked by capability:
+// Two flavours live here:
 //
-//   1. File System Access API + CompressionStream: rows are fetched page by page,
-//      encoded, gzipped and written straight to the file the user chose. Peak
-//      memory is one page.
-//   2. Blob fallback: everything is accumulated, then downloaded uncompressed.
-//      Only Chromium ships (1) today, so this is what Firefox and Safari get.
+//   A. JSON-paged exports (permission issues): the client pulls pages and
+//      encodes them. Rows can be large, so buffering the whole thing in a string
+//      before download would spike memory and risk a tab crash. Two strategies,
+//      picked by capability:
+//        1. File System Access API + CompressionStream: rows are fetched page by
+//           page, encoded, gzipped and written straight to the file the user
+//           chose. Peak memory is one page.
+//        2. Blob fallback: everything is accumulated, then downloaded
+//           uncompressed. Only Chromium ships (1) today, so this is what Firefox
+//           and Safari get.
 //
-// Both paths pull pages through the same callback, so the caller writes its query
-// once and does not care which strategy ran.
+//   B. Server-streamed exports (a user's dirs/files): the server already writes
+//      a gzipped CSV, so downloadUrl just moves those bytes — never gzipping
+//      twice. See downloadUrl below.
 
 /** Rows must be renderable as an array of cell values. */
 export type Row = (string | number)[]
@@ -300,13 +304,12 @@ export interface UrlDownloadOptions {
 export type UrlDownloadResult = { kind: 'streamed' } | { kind: 'downloaded' } | { kind: 'cancelled' }
 
 /**
- * Download a URL whose body is already the CSV.
+ * Download a URL whose body is already a gzipped CSV (the server compressed it).
  *
- * Where the File System Access API + CompressionStream are available the raw
- * bytes are gzipped straight into the file the user picks — the server streams
- * the CSV, so the CSV never materialises in JS and memory stays at one chunk.
- * Everywhere else the download attribute hands the file to the browser natively
- * (it writes it to disk); that path needs no JS buffering at all.
+ * Where the File System Access API is available the bytes are streamed straight
+ * into the file the user picks, so memory stays at one chunk. Everywhere else the
+ * download attribute hands the file to the browser natively; that path needs no
+ * JS buffering at all.
  */
 export async function downloadUrl(opts: UrlDownloadOptions): Promise<UrlDownloadResult> {
   if (canStream()) return streamUrl(opts)
@@ -328,15 +331,15 @@ async function streamUrl(opts: UrlDownloadOptions): Promise<UrlDownloadResult> {
   }
 
   opts.onStatus?.('Preparing…')
-  const res = await fetch(opts.url, { headers: { Accept: 'text/csv' } })
+  const res = await fetch(opts.url, { headers: { Accept: 'application/gzip' } })
   if (!res.ok || !res.body) {
     throw new Error(`${opts.url} returned ${res.status} ${res.statusText}`)
   }
 
   opts.onStatus?.('Downloading…')
-  await res.body
-    .pipeThrough(new CompressionStream('gzip'))
-    .pipeTo((await handle.createWritable()) as unknown as WritableStream<Uint8Array>)
+  // The server already gzipped the CSV, so the bytes go straight into the file —
+  // recompressing here would double the CPU cost for a second gzip round.
+  await res.body.pipeTo((await handle.createWritable()) as unknown as WritableStream<Uint8Array>)
   return { kind: 'streamed' }
 }
 
@@ -344,9 +347,9 @@ function anchorUrl(opts: UrlDownloadOptions): UrlDownloadResult {
   opts.onStatus?.('Preparing…')
   const a = document.createElement('a')
   a.href = opts.url
-  // The download attribute matters: without it the browser would navigate to the
-  // CSV. Same-origin, so the cookie session applies and the attribute is honoured.
-  a.download = `${opts.suggestedName}.csv`
+  // The server sends a gzipped CSV and names it *.csv.gz via Content-Disposition;
+  // the attribute names the fallback (browsers differ on which one wins).
+  a.download = `${opts.suggestedName}.csv.gz`
   document.body.appendChild(a)
   a.click()
   a.remove()

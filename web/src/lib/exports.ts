@@ -27,11 +27,11 @@ function reportOutcome(label: string, result: Awaited<ReturnType<typeof exportCs
 /**
  * Export one user's directory or file list, honouring the active filters.
  *
- * The server streams the CSV directly (`/api/export/…`), so this never pulls
- * JSON pages and re-encodes them — the browser gzips the raw stream to the file
- * the user picks, or downloads it natively. There is no live row count on that
- * path (counting would mean walking the whole range again), so the progress
- * toast shows an indeterminate bar rather than a fraction.
+ * The server streams a gzipped CSV directly (`/api/export/…`), so this never
+ * pulls JSON pages and re-encodes them — gzip shrinks a millions-of-rows export
+ * by roughly an order of magnitude before it hits the network. There is no live
+ * row count on that path (counting would mean walking the whole range again), so
+ * the progress toast shows an indeterminate bar rather than a fraction.
  */
 export async function exportUserList(
   target: string,
@@ -64,7 +64,7 @@ export async function exportUserList(
       info('Export cancelled', 'The save dialog was closed.')
       return
     }
-    success(`${label} exported`, result.kind === 'streamed' ? `${suggested}.csv.gz` : `${suggested}.csv`)
+    success(`${label} exported`, `${suggested}.csv.gz`)
   } catch (err) {
     failure('Export failed', err instanceof Error ? err.message : String(err))
   } finally {

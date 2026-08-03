@@ -6,6 +6,7 @@ import Database from 'better-sqlite3'
 import { statSync } from 'node:fs'
 import { join } from 'node:path'
 import { Readable } from 'node:stream'
+import { createGzip } from 'node:zlib'
 import type {
   ApiResponse,
   DetailFilter,
@@ -506,13 +507,20 @@ export function registerApi(app: FastifyInstance): void {
       return fail(reply, 400, 'an extension filter does not apply to a directory export')
     }
 
-    const filename = `${kind}_${safeName(user)}_${fileStamp()}.csv`
+    const filename = `${kind}_${safeName(user)}_${fileStamp()}.csv.gz`
     reply
       .code(200)
-      .header('content-type', 'text/csv; charset=utf-8')
+      .header('content-type', 'application/gzip')
       .header('content-disposition', `attachment; filename="${filename}"`)
       .header('cache-control', 'no-store')
-    return reply.send(Readable.from(streamUserListCsv(opened.db, uid, kind, filter)))
+    // The CSV is gzipped here rather than on the client so every browser gets a
+    // ~10x smaller download: text compresses extremely well, and the old
+    // client-side CompressionStream path only ran on Chromium — Firefox/Safari
+    // were left with a hundreds-of-MB plain CSV. No Content-Encoding header, so
+    // the bytes the browser saves are exactly the .csv.gz archive.
+    return reply.send(
+      Readable.from(streamUserListCsv(opened.db, uid, kind, filter)).pipe(createGzip()),
+    )
   })
 
   // Permission issues, offset-paginated because the UI shows numbered pages.
