@@ -168,7 +168,10 @@ export function createFixture(opts: FixtureOptions = {}): Database.Database {
       (1, 'root',   'directory', 'Permission denied', '/proc/1/fd'),
       (2, 'root',   'file',      'Permission denied', '/proc/1/mem'),
       (3, 'alice',  'directory', 'Permission denied', '/home/alice/.ssh'),
-      (4, '',       'file',      'Stale file handle', '/mnt/nfs/gone');
+      (4, '',       'file',      'Stale file handle', '/mnt/nfs/gone'),
+      -- duscan writes this literal when the uid has no passwd entry; older
+      -- reports left the column empty, so both spellings coexist here.
+      (5, '__unknown__', 'directory', 'Permission denied', '/srv/orphan');
   `)
 
   // Extra children are all smaller than the named ones, so they land in the

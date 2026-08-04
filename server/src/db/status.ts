@@ -62,6 +62,18 @@ function num(v: unknown): number | undefined {
 }
 
 /**
+ * Stages after which duscan does no further work on this report.
+ *
+ * These are the literals duscan actually writes (`set_phase` in
+ * `disk_scanner/cli/src/main.rs`, plus the `"cancelled"` written on SIGINT).
+ * A stage outside this set means work is still in flight. Getting `cancelled`
+ * wrong is the reason this is a named set rather than an inline comparison: it is
+ * neither `done` nor `error`, so a two-value check leaves an aborted scan looking
+ * like it is running forever.
+ */
+const TERMINAL_STAGES = new Set(['done', 'error', 'cancelled'])
+
+/**
  * Freshness of one target's report. Returns null when the target has no report at
  * all, which the route turns into a 404.
  */
@@ -105,8 +117,6 @@ export function readScanStatusAt(reportDbPath: string, targetDir: string): ScanS
     // A stage that is not a terminal one means work is still in flight. Trusting
     // an explicit `running: false` matters: duscan leaves the file behind for
     // good after finishing, and a stale 'done' should not read as a live scan.
-    running:
-      status?.running === true ||
-      (status?.running === undefined && stage !== undefined && stage !== 'done' && stage !== 'error'),
+    running: status?.running === true || (status?.running === undefined && stage !== undefined && !TERMINAL_STAGES.has(stage)),
   }
 }

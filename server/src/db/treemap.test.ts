@@ -77,6 +77,42 @@ describe('readTreemapLevel', () => {
     expect(level?.node.name).toBe('home')
   })
 
+  describe('depth-cap truncation', () => {
+    // The scanner counts subdirectories during the walk but only writes treemap
+    // rows down to max_level, without lowering dir_count on the deepest kept
+    // row. So a node at the cap claims children that have no rows at all.
+    function atDepthCap(): Database.Database {
+      const d = createFixture()
+      // log (id 3) keeps its 400 bytes and gains a phantom subdirectory count.
+      d.prepare('UPDATE treemap_dirs SET dir_count = 12 WHERE id = 3').run()
+      return d
+    }
+
+    it('does not mark a node drillable when no child rows exist', () => {
+      db = atDepthCap()
+      const parent = readTreemapLevel(db, 1)
+      const log = parent?.children.find((c) => c.name === 'log')
+
+      expect(log?.dirCount).toBe(12)
+      expect(log?.hasChildren).toBe(false)
+    })
+
+    it('reports childTotal as what the report can actually show', () => {
+      db = atDepthCap()
+      const level = readTreemapLevel(db, 3)
+
+      expect(level?.children).toEqual([])
+      expect(level?.childTotal).toBe(0)
+    })
+
+    it('keeps filesSize to the real files, not the missing subtree', () => {
+      db = atDepthCap()
+      // log's 400 bytes are one real file. Subtracting child rows from
+      // total_size would also claim the truncated subtree's bytes.
+      expect(readTreemapLevel(db, 3)?.filesSize).toBe(400)
+    })
+  })
+
   it('caps children and flags truncation, keeping remainder honest', () => {
     // 70 extra children exceeds the 60 page size.
     db = createFixture({ extraChildren: 70 })

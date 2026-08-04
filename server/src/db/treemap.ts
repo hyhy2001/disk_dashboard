@@ -112,7 +112,7 @@ function readFiles(db: Database.Database, dirId: number, offset: number, limit: 
   }))
 }
 
-function toNode(r: ChildRow | NodeRow): TreemapNode {
+function toNode(r: ChildRow | NodeRow, hasChildren: boolean): TreemapNode {
   return {
     id: r.id,
     name: r.name,
@@ -120,10 +120,33 @@ function toNode(r: ChildRow | NodeRow): TreemapNode {
     fileCount: r.file_count,
     dirCount: r.dir_count,
     owner: r.username ?? `uid-${r.owner_uid}`,
-    hasChildren: r.dir_count > 0,
+    hasChildren,
     hasFiles: r.has_files === 1,
   }
 }
+
+/**
+ * Which of `ids` actually have rows pointing at them as parent.
+ *
+ * `dir_count` cannot answer this. The scanner counts subdirectories while
+ * walking, but `report_pipeline.rs` only *emits* treemap rows down to
+ * `max_level`, and it does not adjust `dir_count` on the deepest kept row. So
+ * every node at the depth cap advertises children it has no rows for — 1,080 of
+ * them on the report this was measured against, all at depth 20. Trusting
+ * `dir_count` made each one look drillable and open onto an empty level.
+ *
+ * One statement covers a whole page: each id is an index seek on
+ * ix_treemap_dirs_parent_size, so this is ~60 lookups, not a scan.
+ */
+function idsWithChildren(db: Database.Database, ids: number[]): Set<number> {
+  if (ids.length === 0) return new Set()
+  const holes = ids.map(() => '?').join(',')
+  const rows = db
+    .prepare(`SELECT DISTINCT parent_id AS p FROM treemap_dirs WHERE parent_id IN (${holes})`)
+    .all(...ids) as { p: number }[]
+  return new Set(rows.map((r) => r.p))
+}
+
 
 /**
  * Path from the scan root down to `id`, root first. Walks the parent chain with a
@@ -200,7 +223,8 @@ export function readTreemapLevel(
     .all(id, pageSize + 1, childOffset) as ChildRow[]
 
   const shown = rows.slice(0, pageSize)
-  const children = shown.map(toNode)
+  const withChildren = idsWithChildren(db, shown.map((r) => r.id))
+  const children = shown.map((r) => toNode(r, withChildren.has(r.id)))
   const truncated = rows.length > pageSize
 
   // Size under this node not covered by the children returned *so far*: the
@@ -210,22 +234,26 @@ export function readTreemapLevel(
   const remainder = node.total_size - coveredSize - childOffsetSize(db, id, childOffset)
 
   // Total bytes of the files sitting directly in this directory (no recursion).
-  // `node.total_size` is the whole subtree, so subtracting every child's subtree
-  // leaves exactly the direct files — verified against a real report. A single
-  // indexed range scan over this parent's children; detail_files has no dir_id
-  // index, so a SUM there would scan the whole table. This is what the list's
-  // `[files]` row must show; `remainder` also carries the unloaded children's
-  // bytes, which makes a small direct count look recursive. `has_files` is exact,
-  // so zeroing it skips the query entirely for pure containers.
+  // This is what the list's `[files]` row shows; `remainder` also carries the
+  // unloaded children's bytes, which would make a small direct count look
+  // recursive.
+  //
+  // Summing detail_files is the only method that stays correct at the treemap's
+  // depth cap. Subtracting the children's subtree sizes from node.total_size
+  // agrees with the exact sum wherever the children are all present (checked on
+  // 400 nodes, 400 matches), but below the cap there are no child rows to
+  // subtract, so the whole truncated subtree lands in "files directly here" —
+  // 312 MB overstated across 815 nodes on the measured report.
+  //
+  // The earlier comment here claimed a SUM over detail_files would scan the
+  // table. It does not: with no dir_id index SQLite skip-scans the covering
+  // index (uid, size DESC, dir_id, name_id) over the handful of distinct uids,
+  // planned as `SEARCH detail_files USING COVERING INDEX ... (dir_id=?)` and
+  // measured at 7ms. `has_files` is exact, so pure containers skip it entirely.
   const filesSize =
     node.has_files === 1
-      ? Math.max(
-          0,
-          node.total_size -
-            ((db
-              .prepare('SELECT COALESCE(SUM(total_size), 0) AS s FROM treemap_dirs WHERE parent_id = ?')
-              .get(id) as { s: number }).s ?? 0),
-        )
+      ? ((db.prepare('SELECT COALESCE(SUM(size), 0) AS s FROM detail_files WHERE dir_id = ?').get(id) as { s: number })
+          .s ?? 0)
       : 0
 
   // has_files is exact, so skip the file query entirely when there are none —
@@ -233,7 +261,7 @@ export function readTreemapLevel(
   const files = withFiles && node.has_files === 1 ? readFiles(db, id, fileOffset, pageSize) : []
 
   return {
-    node: toNode(node),
+    node: toNode(node, childOffset > 0 || rows.length > 0),
     path: breadcrumbs(db, id),
     children,
     files,
@@ -242,7 +270,11 @@ export function readTreemapLevel(
     filesSize,
     truncated,
     childOffset: childOffset + children.length,
-    childTotal: node.dir_count,
+    // Same depth-cap caveat as hasChildren: dir_count is the number of
+    // subdirectories the *walk* saw, and the treemap keeps rows only down to
+    // max_level. On a node at the cap it would render as "showing 0 of 12" over
+    // an empty list, so report what the report can actually produce.
+    childTotal: childOffset === 0 && rows.length === 0 ? 0 : node.dir_count,
   }
 }
 

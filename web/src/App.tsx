@@ -800,6 +800,15 @@ function ChangeLogModal({ open, onClose }: { open: boolean; onClose: () => void 
 
 const CHANGES = [
   {
+    date: '2026-08-05',
+    items: [
+      'Treemap: folders that the scan stopped at are no longer clickable into an empty view, and their file sizes are exact instead of including the part of the tree the report never stored.',
+      'Permission Issues: the "unknown user" filter now returns the rows its count promises instead of an empty list.',
+      'Space comparison: disks sharing one filesystem are counted once, so the header no longer reports more capacity than the machine has.',
+      'Scan status wording is consistent everywhere, a cancelled scan is shown as failed rather than up to date, and a report replaced by a new scan is always picked up.',
+    ],
+  },
+  {
     date: '2026-08-03',
     items: [
       'CSV exports are gzipped on the server — a millions-of-rows download is ~15x smaller in every browser.',

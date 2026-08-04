@@ -20,7 +20,7 @@ export const REPORT_FILE = 'report.db'
 
 interface CachedDb {
   db: Database.Database
-  /** mtimeMs + size of the file this handle was opened on. */
+  /** Identity of the file this handle was opened on — see stampOf. */
   stamp: string
 }
 
@@ -28,9 +28,36 @@ const cache = new Map<string, CachedDb>()
 /** Same cache keyed by absolute report.db path, used by openReportAt/openTargetReport. */
 const pathCache = new Map<string, CachedDb>()
 
-function stampOf(path: string): string {
+/**
+ * Fingerprint identifying *which* report.db a handle is open on.
+ *
+ * The inode is the load-bearing part. duscan builds into a temp file and
+ * rename()s it over report.db, so the replacement is a different inode — but
+ * mtimeMs and size can both repeat across a swap (SQLite sizes are page-aligned,
+ * and two scans finishing in the same millisecond is not exotic on a fast box).
+ * On an mtime+size-only stamp such a swap looks like "no change", and the cached
+ * handle keeps serving the unlinked old inode forever, with no visible staleness.
+ * Comparing st.ino makes a replaced file always compare unequal.
+ */
+export function stampOf(path: string): string {
   const s = statSync(path)
-  return `${s.mtimeMs}:${s.size}`
+  return `${s.ino}:${s.mtimeMs}:${s.size}`
+}
+
+/** Drop any cached handle for a report path (and for a target name). */
+export function evictReport(path: string, target?: string): void {
+  const byPath = pathCache.get(path)
+  if (byPath) {
+    byPath.db.close()
+    pathCache.delete(path)
+  }
+  if (target !== undefined) {
+    const byName = cache.get(target)
+    if (byName) {
+      byName.db.close()
+      cache.delete(target)
+    }
+  }
 }
 
 /** Absolute path to a target's report.db (not checked for existence). */
@@ -56,6 +83,13 @@ export function openReportAt(path: string): { db: Database.Database; name: strin
       pathCache.delete(path)
     }
     const db = new Database(path, { readonly: true, fileMustExist: true })
+    // The scanner writes report.db in WAL mode, so OFF here is only safe because
+    // it never writes the live file in place: the merge builds a `.tmp` and
+    // rename()s it over this path (disk_scanner core/src/db_writer.rs,
+    // merge_into_single_db). What we open is therefore always a complete,
+    // quiescent database with nothing left in a `-wal` sidecar to replay. If the
+    // scanner ever starts updating report.db in place, this pragma must go —
+    // a readonly OFF connection cannot see commits still living in the WAL.
     db.pragma('journal_mode = OFF')
     // Same read-tuning openReport applies: mmap keeps page access cheap on the
     // large detail tables, and a bigger page cache cuts the cold-start cost of
