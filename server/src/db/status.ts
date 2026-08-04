@@ -17,7 +17,11 @@ import { basename, join } from 'node:path'
 import type { ScanStatus } from '../../../shared/api.js'
 import { openReportAt, readMeta, reportPath } from './reports.js'
 
-/** duscan writes progress here while a scan is running, then removes it. */
+/**
+ * duscan writes progress here while a scan is running and leaves the file in
+ * place afterwards (it is never removed), so presence says nothing about
+ * liveness — read `running` / a terminal `stage` for that.
+ */
 export const STATUS_FILE = 'scan_status.json'
 
 /**
@@ -99,8 +103,8 @@ export function readScanStatusAt(reportDbPath: string, targetDir: string): ScanS
     ...(updatedAt !== undefined ? { updatedAt } : {}),
     ...(elapsedSec !== undefined ? { elapsedSec } : {}),
     // A stage that is not a terminal one means work is still in flight. Trusting
-    // an explicit `running: false` matters: duscan leaves the file behind briefly
-    // after finishing, and a stale 'done' should not read as a live scan.
+    // an explicit `running: false` matters: duscan leaves the file behind for
+    // good after finishing, and a stale 'done' should not read as a live scan.
     running:
       status?.running === true ||
       (status?.running === undefined && stage !== undefined && stage !== 'done' && stage !== 'error'),
