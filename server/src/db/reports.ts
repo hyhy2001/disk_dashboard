@@ -20,7 +20,7 @@ export const REPORT_FILE = 'report.db'
 
 interface CachedDb {
   db: Database.Database
-  /** mtimeMs + size of the file this handle was opened on. */
+  /** Identity of the file this handle was opened on — see stampOf. */
   stamp: string
 }
 
@@ -28,9 +28,36 @@ const cache = new Map<string, CachedDb>()
 /** Same cache keyed by absolute report.db path, used by openReportAt/openTargetReport. */
 const pathCache = new Map<string, CachedDb>()
 
-function stampOf(path: string): string {
+/**
+ * Fingerprint identifying *which* report.db a handle is open on.
+ *
+ * The inode is the load-bearing part. duscan builds into a temp file and
+ * rename()s it over report.db, so the replacement is a different inode — but
+ * mtimeMs and size can both repeat across a swap (SQLite sizes are page-aligned,
+ * and two scans finishing in the same millisecond is not exotic on a fast box).
+ * On an mtime+size-only stamp such a swap looks like "no change", and the cached
+ * handle keeps serving the unlinked old inode forever, with no visible staleness.
+ * Comparing st.ino makes a replaced file always compare unequal.
+ */
+export function stampOf(path: string): string {
   const s = statSync(path)
-  return `${s.mtimeMs}:${s.size}`
+  return `${s.ino}:${s.mtimeMs}:${s.size}`
+}
+
+/** Drop any cached handle for a report path (and for a target name). */
+export function evictReport(path: string, target?: string): void {
+  const byPath = pathCache.get(path)
+  if (byPath) {
+    byPath.db.close()
+    pathCache.delete(path)
+  }
+  if (target !== undefined) {
+    const byName = cache.get(target)
+    if (byName) {
+      byName.db.close()
+      cache.delete(target)
+    }
+  }
 }
 
 /** Absolute path to a target's report.db (not checked for existence). */

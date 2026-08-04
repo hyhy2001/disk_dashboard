@@ -320,7 +320,10 @@ export interface SearchResult {
  */
 export interface ScanStatus {
   target: string
-  /** mtimeMs:size of report.db. Compare to detect a rescan. */
+  /**
+   * Identity of the report.db the data came from (inode:mtimeMs:size). Compare to
+   * detect a rescan — treat it as an opaque token, the parts are not meaningful.
+   */
   stamp: string
   /** Unix seconds of the scan inside the report. */
   scanTimestamp: number

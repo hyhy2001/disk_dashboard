@@ -11,18 +11,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ScanStatus } from '../../../shared/api.js'
 import { formatTimestamp } from '../lib/format.js'
+import { isFailedStage, stageLabel } from '../lib/stage.js'
 import { cn } from '@/lib/utils.js'
 import { RotateCw, RefreshCw } from 'lucide-react'
-
-const STAGE_LABEL: Record<string, string> = {
-  scan: 'Scanning files',
-  report: 'Building report',
-  detail: 'Building user detail',
-  treemap: 'Building treemap',
-  sync: 'Writing report',
-  done: 'Completed',
-  error: 'Scan failed',
-}
 
 interface Props {
   target: string
@@ -72,7 +63,7 @@ export function SyncPill({ target, status, onStale, refreshing }: Props): JSX.El
   }, [status, onStale])
 
   const running = status?.running === true
-  const failed = status?.stage === 'error'
+  const failed = isFailedStage(status?.stage)
 
   return (
     <div className="flex items-center gap-2 text-[13px]">
@@ -93,9 +84,9 @@ export function SyncPill({ target, status, onStale, refreshing }: Props): JSX.El
           )}
         >
           {running
-            ? ((status?.stage ? STAGE_LABEL[status.stage] : undefined) ?? 'Working')
+            ? (stageLabel(status?.stage) ?? 'Working')
             : failed
-              ? (status?.message ?? 'Scan failed')
+              ? (status?.message ?? stageLabel(status?.stage) ?? 'Scan failed')
               : stale
                 ? 'New report available'
                 : 'Up to date'}

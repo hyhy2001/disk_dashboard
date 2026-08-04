@@ -11,6 +11,7 @@ import { useMemo, useState } from 'react'
 import type { ScanStatus, Target } from '../../../shared/api.js'
 import { formatCount, formatSize } from '../lib/format.js'
 import { KEYS, readString, writeString } from '../lib/prefs.js'
+import { isFailedStage, stageLabel } from '../lib/stage.js'
 import { cn } from '@/lib/utils.js'
 
 /** Age of a scan in seconds, or null if unknown. */
@@ -62,21 +63,11 @@ interface Props {
   onToggleSidebar: () => void
 }
 
-const STAGE_LABEL: Record<string, string> = {
-  scan: 'Scanning files',
-  report: 'Building report',
-  detail: 'Building user detail',
-  treemap: 'Building treemap',
-  sync: 'Writing report',
-  done: 'Completed',
-  error: 'Scan failed',
-}
-
 /** Scan detail lines for the card tooltip, mirroring legacy's tooltip. */
 function scanDetail(status: ScanStatus | undefined): string[] {
   if (!status) return []
   const lines: string[] = []
-  const stage = status.stage ? (STAGE_LABEL[status.stage] ?? status.stage) : undefined
+  const stage = stageLabel(status.stage)
   if (stage) lines.push(`Stage: ${stage}`)
   if (status.message) lines.push(`Status: ${status.message}`)
   if (status.pid !== undefined) lines.push(`PID: ${status.pid}`)
@@ -114,13 +105,13 @@ function DiskCard({
   const barColor = pct >= 85 ? 'bg-rose-500' : pct >= 70 ? 'bg-amber-400' : 'bg-emerald-500'
 
   const running = status?.running === true
-  const failed = status?.stage === 'error'
+  const failed = isFailedStage(status?.stage)
   const dotColor = running ? 'bg-amber-400 animate-pulse' : failed ? 'bg-rose-500' : statusColor(scanAge(t))
 
   const stageText = running
-    ? ((status?.stage ? STAGE_LABEL[status.stage] : undefined) ?? 'Working')
+    ? (stageLabel(status?.stage) ?? 'Working')
     : failed
-      ? (status?.message ?? 'Scan failed')
+      ? (status?.message ?? stageLabel(status?.stage) ?? 'Scan failed')
       : null
 
   const detail = scanDetail(status)
