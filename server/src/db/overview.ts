@@ -102,9 +102,13 @@ function readTeams(db: Database.Database, snapshotId: number | null): UsageRow[]
 function readUsers(db: Database.Database, hasTeam: boolean, snapshotId: number | null): UsageRow[] {
   const teamClause = hasTeam ? "u.team_id IS NOT NULL AND u.team_id <> ''" : "(u.team_id IS NULL OR u.team_id = '')"
 
-  // detail_users.team_id is a text id; the display name only exists in
-  // hist_team_usage. They match by value (text '1' = integer 1), so the join is
-  // on team_id and scoped to the newest snapshot to avoid duplicate name rows.
+  // detail_users.team_id is declared TEXT (holding a stringified integer, see
+  // duscan cli/src/main.rs where team_map is built with tid.to_string()), while
+  // hist_team_usage.team_id is declared INTEGER. The join still matches because
+  // SQLite applies column affinity to a comparison between two columns of
+  // different affinity: the TEXT side is converted to a number, so '1' = 1 is
+  // true. Do not "fix" this with a CAST — it changes nothing and hides the
+  // reason. Scoped to the newest snapshot to avoid duplicate name rows.
   const rows = db
     .prepare(
       `SELECT u.username, u.total_size, t.name AS team

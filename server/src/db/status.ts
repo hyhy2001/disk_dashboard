@@ -13,6 +13,7 @@
 // on the file rather than on a query.
 
 import { existsSync, readFileSync, statSync } from 'node:fs'
+import { readFile, stat } from 'node:fs/promises'
 import { basename, join } from 'node:path'
 import type { ScanStatus } from '../../../shared/api.js'
 import { openReportAt, readMeta, reportPath } from './reports.js'
@@ -39,16 +40,34 @@ interface StatusFile {
   total_elapsed_sec?: unknown
 }
 
-function readStatusFile(dir: string): StatusFile | null {
-  const path = join(dir, STATUS_FILE)
-  if (!existsSync(path)) return null
+function parseStatus(text: string): StatusFile | null {
   try {
-    const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'))
+    const parsed: unknown = JSON.parse(text)
     if (typeof parsed !== 'object' || parsed === null) return null
     return parsed as StatusFile
   } catch {
     // A scan writing the file right now can be caught mid-write. Treat an
     // unparseable file as "no status", not as an error worth surfacing.
+    return null
+  }
+}
+
+function readStatusFile(dir: string): StatusFile | null {
+  const path = join(dir, STATUS_FILE)
+  if (!existsSync(path)) return null
+  try {
+    return parseStatus(readFileSync(path, 'utf8'))
+  } catch {
+    return null
+  }
+}
+
+async function readStatusFileAsync(dir: string): Promise<StatusFile | null> {
+  try {
+    return parseStatus(await readFile(join(dir, STATUS_FILE), 'utf8'))
+  } catch {
+    // Covers ENOENT (no scan has run) as well as a read error, both of which
+    // mean the same thing to a caller: no stage known.
     return null
   }
 }
@@ -87,14 +106,41 @@ export function readScanStatus(reportsDir: string, target: string): ScanStatus |
  */
 export function readScanStatusAt(reportDbPath: string, targetDir: string): ScanStatus | null {
   if (!existsSync(reportDbPath)) return null
-
   const st = statSync(reportDbPath)
+  return build(reportDbPath, targetDir, st.mtimeMs, st.size, readStatusFile(targetDir))
+}
+
+/**
+ * Same reading as readScanStatusAt, off the event loop.
+ *
+ * /api/statuses walks every configured disk on every poll, so the synchronous
+ * version there stalls the whole server for one stat + one small read per disk.
+ * The SQLite meta read stays synchronous — better-sqlite3 has no async API — but
+ * it hits a cached handle and a tiny table, unlike the filesystem calls which go
+ * to (possibly network-mounted) report directories.
+ */
+export async function readScanStatusAtAsync(reportDbPath: string, targetDir: string): Promise<ScanStatus | null> {
+  const [st, status] = await Promise.all([
+    stat(reportDbPath).catch(() => null),
+    readStatusFileAsync(targetDir),
+  ])
+  if (!st) return null
+  return build(reportDbPath, targetDir, st.mtimeMs, st.size, status)
+}
+
+/** Assemble the payload from an already-read stat and status file. */
+function build(
+  reportDbPath: string,
+  targetDir: string,
+  mtimeMs: number,
+  size: number,
+  status: StatusFile | null,
+): ScanStatus {
   const target = basename(targetDir)
   // openReportAt caches the handle by path; do not close it here or the next
   // poll would hand back a closed connection.
   const db = openReportAt(reportDbPath)
   const meta = db ? readMeta(db.db) : {}
-  const status = readStatusFile(targetDir)
 
   const stage = str(status?.stage)
   const message = str(status?.message)
@@ -105,9 +151,9 @@ export function readScanStatusAt(reportDbPath: string, targetDir: string): ScanS
 
   return {
     target,
-    stamp: `${st.mtimeMs}:${st.size}`,
+    stamp: `${mtimeMs}:${size}`,
     scanTimestamp: Number(meta.scan_timestamp) || 0,
-    reportMtime: st.mtimeMs,
+    reportMtime: mtimeMs,
     ...(stage !== undefined ? { stage } : {}),
     ...(message !== undefined ? { message } : {}),
     ...(pid !== undefined ? { pid } : {}),

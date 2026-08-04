@@ -38,6 +38,17 @@ describe('readHistorySeries', () => {
     expect(users[0]?.points).toEqual([{ date: 20240102, timestamp: 1704153600, used: 700 }])
   })
 
+  it('plots accounts the scanner marked as kind=other', () => {
+    db = createFixture()
+    const { users } = readHistorySeries(db)
+    // syslog is 'other' because it was absent from duscan's config team_map. The
+    // dashboard takes teams from admin.db, so that flag must not hide the line —
+    // a disk scanned with no teams configured has *only* 'other' rows.
+    expect(users.find((u) => u.name === 'syslog')?.points).toEqual([
+      { date: 20240102, timestamp: 1704153600, used: 80 },
+    ])
+  })
+
   it('ranks users by their most recent size', () => {
     db = createFixture()
     db.exec(`

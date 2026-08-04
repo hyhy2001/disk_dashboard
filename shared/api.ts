@@ -158,8 +158,6 @@ export interface DetailUser {
   used: number
   files: number
   dirs: number
-  /** Count of paths this user could not read, from detail_users. */
-  permissionIssues: number
   /** True when the user has rows in detail_dirs/detail_files to drill into. */
   hasDetail: boolean
 }
