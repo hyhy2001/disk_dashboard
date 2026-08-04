@@ -449,6 +449,14 @@ export function diskBySlug(slug: string): Disk | null {
   return row ?? null
 }
 
+/** Look up a disk by id. Needed to learn a disk's path before it is changed. */
+export function diskById(id: number): Disk | null {
+  const row = adminDb()
+    .prepare('SELECT id, space_id, name, path, slug, sort_order FROM disks WHERE id = ?')
+    .get(id) as Disk | undefined
+  return row ?? null
+}
+
 export function createSpace(name: string): Space {
   const db = adminDb()
   const maxOrder = db.prepare('SELECT COALESCE(MAX(sort_order), -1) + 1 as n FROM spaces').get() as { n: number }

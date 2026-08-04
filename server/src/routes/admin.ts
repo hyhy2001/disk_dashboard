@@ -7,6 +7,7 @@
 
 import type { FastifyInstance } from 'fastify'
 import * as A from '../db/admin.js'
+import { evictReport, REPORT_FILE } from '../db/reports.js'
 import Database from 'better-sqlite3'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
@@ -334,8 +335,13 @@ export function registerAdmin(app: FastifyInstance): void {
       const valid = A.validateDiskPath(path)
       if (!valid.ok) return reply.code(422).send({ status: 'error', message: valid.reason })
     }
+    // Repointing a disk leaves the old report.db's readonly handle cached under
+    // its absolute path, so reads would keep serving the previous file. The cache
+    // only reopens when the *same* path's stamp moves, which never happens here.
+    const before = path !== undefined ? A.diskById(id) : null
     try {
       A.updateDisk(id, { name, path })
+      if (before && before.path !== path) evictReport(join(before.path, REPORT_FILE), before.slug)
     } catch (e) {
       uniqueGuard(reply, e, 'disk name in this space')
     }
@@ -442,7 +448,12 @@ export function registerAdmin(app: FastifyInstance): void {
     if (!requireAuth(req, reply)) return
     const id = Number.parseInt(req.params.id, 10)
     if (!id) return reply.code(422).send({ status: 'error', message: 'Invalid id' })
+    // Close the cached readonly handle too: nothing will ask for this slug again,
+    // so without an explicit evict the fd (and its mmap) is held until shutdown —
+    // and on a deleted-then-recreated report the stale inode would still be open.
+    const disk = A.diskById(id)
     A.deleteDisk(id)
+    if (disk) evictReport(join(disk.path, REPORT_FILE), disk.slug)
     return reply.send({ status: 'success', data: null })
   })
 

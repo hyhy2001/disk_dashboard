@@ -19,6 +19,7 @@ import type { Target } from '../../../shared/api.js'
 import { formatCount, formatSize } from '../lib/format.js'
 import { KEYS, readString, writeString } from '../lib/prefs.js'
 import { usedPercent } from '../components/DiskColumn.js'
+import { spaceTotals } from '../lib/space.js'
 
 type Mode = 'absolute' | 'log' | 'percent'
 
@@ -89,15 +90,15 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
     return { ...band, count: members.length }
   })
 
-  const spaceTotal = withCapacity.reduce((sum, t) => sum + (t.capacity?.total ?? 0), 0)
-  const spaceUsed = withCapacity.reduce((sum, t) => sum + (t.capacity?.used ?? 0), 0)
-  const spaceScanned = withCapacity.reduce((sum, t) => sum + (t.capacity?.scanned ?? 0), 0)
+  // Not a plain sum: disks in one space may share a filesystem, and adding their
+  // capacities produced a header larger than the hardware. See lib/space.ts.
+  const totals = useMemo(() => spaceTotals(rows), [rows])
 
   if (targets.length === 0) {
     return (
       <div className="flex items-center justify-center p-8">
         <p className="text-sm font-semibold">No disks in {spaceName}</p>
-        <p>Add targets to this space in teams.json, or scan one to make it appear.</p>
+        <p>Add a disk to this space in the admin page, or scan one to make it appear.</p>
       </div>
     )
   }
@@ -133,7 +134,13 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
         <header className="flex flex-wrap items-center gap-2 border-b border-border/40 px-3 py-2">
           <h2 className="text-sm font-semibold flex-1 min-w-0">{spaceName} — capacity by disk</h2>
           <span className="text-[12px] text-muted-foreground tabular-nums truncate hidden sm:inline">
-            {formatSize(spaceUsed)} of {formatSize(spaceTotal)} used · {formatSize(spaceScanned)} attributed
+            {formatSize(totals.used)} of {formatSize(totals.total)} used · {formatSize(totals.scanned)} attributed
+            {totals.sharedFilesystems > 0 && (
+              <span data-tooltip="Disks sharing a filesystem are counted once">
+                {' '}
+                · {formatCount(totals.sharedFilesystems)} shared
+              </span>
+            )}
           </span>
           <div className="flex rounded-sm border border-border overflow-hidden" role="group" aria-label="Chart mode">
             {MODES.map((m) => (

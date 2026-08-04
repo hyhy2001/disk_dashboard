@@ -23,11 +23,17 @@ export const PERM_PAGE = 100
 export const MAX_PERM_PAGE = 5000
 
 /**
- * Users with no team mapping arrive as an empty string from duscan. Legacy
- * bucketed them under a sentinel so they could still be filtered; reuse the same
- * name so exported CSVs match.
+ * Bucket for issues whose owner could not be resolved.
+ *
+ * Three different things land here, which is why the filter tests for all of
+ * them: duscan writes this exact literal into `perm_issues.user` when the uid has
+ * no passwd entry (`pipe_permission.rs`), while older reports left the column
+ * empty or NULL. The name is legacy's, kept so exported CSVs still match.
  */
 export const UNKNOWN_USER = '__unknown__'
+
+/** SQL testing whether a perm_issues row belongs in the unknown bucket. */
+const UNKNOWN_SQL = "(user IS NULL OR user = '' OR user = '__unknown__')"
 
 export interface PermFilter {
   /** Usernames to include. Empty or absent means every user. */
@@ -51,9 +57,10 @@ interface Clause {
 /**
  * Turn the filter into a WHERE fragment.
  *
- * The unknown bucket needs special handling: it is stored as '' but selected by
- * name, so a request for it becomes a test on the empty string rather than an
- * IN-list member.
+ * The unknown bucket needs special handling: the chip is selected by name, but
+ * the rows behind it may carry the sentinel, '' or NULL, so a request for it
+ * becomes UNKNOWN_SQL rather than an IN-list member. Testing only for '' — as
+ * this did — silently returned nothing for the bucket duscan actually fills.
  */
 function buildWhere(filter: PermFilter): Clause {
   const parts: string[] = []
@@ -68,7 +75,7 @@ function buildWhere(filter: PermFilter): Clause {
       ors.push(`user IN (${named.map(() => '?').join(', ')})`)
       params.push(...named)
     }
-    if (wantsUnknown) ors.push("(user = '' OR user IS NULL)")
+    if (wantsUnknown) ors.push(UNKNOWN_SQL)
     parts.push(`(${ors.join(' OR ')})`)
   }
 
@@ -99,11 +106,17 @@ export function hasPermTable(db: Database.Database): boolean {
   return row !== undefined
 }
 
-/** Per-user issue counts across the whole report, for the filter chips. */
+/**
+ * Per-user issue counts across the whole report, for the filter chips.
+ *
+ * Normalising through UNKNOWN_SQL rather than just the empty test matters when a
+ * report holds both spellings: grouping '' and '__unknown__' separately produced
+ * two chips with the same label, and clicking either one filtered on both.
+ */
 function readUserCounts(db: Database.Database): { name: string; count: number }[] {
   const rows = db
     .prepare(
-      `SELECT CASE WHEN user IS NULL OR user = '' THEN ? ELSE user END AS name,
+      `SELECT CASE WHEN ${UNKNOWN_SQL} THEN ? ELSE user END AS name,
               COUNT(*) AS count
          FROM perm_issues
         GROUP BY name

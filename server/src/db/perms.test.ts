@@ -40,8 +40,14 @@ describe('readPermIssues', () => {
   it('lists every issue in insertion order', () => {
     db = createFixture()
     const page = readPermIssues(db)
-    expect(page.total).toBe(4)
-    expect(page.rows.map((r) => r.path)).toEqual(['/proc/1/fd', '/proc/1/mem', '/home/alice/.ssh', '/mnt/nfs/gone'])
+    expect(page.total).toBe(5)
+    expect(page.rows.map((r) => r.path)).toEqual([
+      '/proc/1/fd',
+      '/proc/1/mem',
+      '/home/alice/.ssh',
+      '/mnt/nfs/gone',
+      '/srv/orphan',
+    ])
   })
 
   it('buckets an empty username under the unknown sentinel', () => {
@@ -50,17 +56,27 @@ describe('readPermIssues', () => {
     expect(page.rows.find((r) => r.path === '/mnt/nfs/gone')?.user).toBe(UNKNOWN_USER)
   })
 
+  it('reports the sentinel duscan itself writes under the same bucket', () => {
+    // pipe_permission.rs stores the literal '__unknown__' when the uid has no
+    // passwd entry, so the row must not surface as a separate user.
+    db = createFixture()
+    const page = readPermIssues(db)
+    expect(page.rows.find((r) => r.path === '/srv/orphan')?.user).toBe(UNKNOWN_USER)
+  })
+
   it('counts issues per user for the filter chips', () => {
     db = createFixture()
     const counts = readPermIssues(db).userCounts
     expect(counts.find((c) => c.name === 'root')?.count).toBe(2)
-    expect(counts.find((c) => c.name === UNKNOWN_USER)?.count).toBe(1)
+    // Both the empty string and duscan's literal collapse into one chip.
+    expect(counts.find((c) => c.name === UNKNOWN_USER)?.count).toBe(2)
+    expect(counts.filter((c) => c.name === UNKNOWN_USER)).toHaveLength(1)
   })
 
   it('counts issues per distinct error', () => {
     db = createFixture()
     const errors = readPermIssues(db).errorCounts
-    expect(errors[0]).toEqual({ error: 'Permission denied', count: 3 })
+    expect(errors[0]).toEqual({ error: 'Permission denied', count: 4 })
   })
 
   it('filters by user', () => {
@@ -73,19 +89,21 @@ describe('readPermIssues', () => {
   it('can select the unknown bucket by its sentinel name', () => {
     db = createFixture()
     const page = readPermIssues(db, { users: [UNKNOWN_USER] })
-    expect(page.total).toBe(1)
-    expect(page.rows[0]?.path).toBe('/mnt/nfs/gone')
+    // The chip's count and the page it opens have to agree: filtering only on
+    // the empty string returned just one of the two rows behind the chip.
+    expect(page.total).toBe(2)
+    expect(page.rows.map((r) => r.path)).toEqual(['/mnt/nfs/gone', '/srv/orphan'])
   })
 
   it('combines a named user with the unknown bucket', () => {
     db = createFixture()
-    expect(readPermIssues(db, { users: ['alice', UNKNOWN_USER] }).total).toBe(2)
+    expect(readPermIssues(db, { users: ['alice', UNKNOWN_USER] }).total).toBe(3)
   })
 
   it('filters by item type', () => {
     db = createFixture()
     expect(readPermIssues(db, { itemType: 'file' }).total).toBe(2)
-    expect(readPermIssues(db, { itemType: 'directory' }).total).toBe(2)
+    expect(readPermIssues(db, { itemType: 'directory' }).total).toBe(3)
   })
 
   it('filters by path substring', () => {
@@ -115,7 +133,7 @@ describe('readPermIssues', () => {
 
     const second = readPermIssues(db, { limit: 2, offset: 2 })
     expect(second.rows.map((r) => r.path)).toEqual(['/home/alice/.ssh', '/mnt/nfs/gone'])
-    expect(second.hasMore).toBe(false)
+    expect(second.hasMore).toBe(true)
   })
 
   it('keeps the summaries unfiltered so chip counts stay stable', () => {
