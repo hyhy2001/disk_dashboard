@@ -83,6 +83,13 @@ export function openReportAt(path: string): { db: Database.Database; name: strin
       pathCache.delete(path)
     }
     const db = new Database(path, { readonly: true, fileMustExist: true })
+    // The scanner writes report.db in WAL mode, so OFF here is only safe because
+    // it never writes the live file in place: the merge builds a `.tmp` and
+    // rename()s it over this path (disk_scanner core/src/db_writer.rs,
+    // merge_into_single_db). What we open is therefore always a complete,
+    // quiescent database with nothing left in a `-wal` sidecar to replay. If the
+    // scanner ever starts updating report.db in place, this pragma must go —
+    // a readonly OFF connection cannot see commits still living in the WAL.
     db.pragma('journal_mode = OFF')
     // Same read-tuning openReport applies: mmap keeps page access cheap on the
     // large detail tables, and a bigger page cache cuts the cold-start cost of
