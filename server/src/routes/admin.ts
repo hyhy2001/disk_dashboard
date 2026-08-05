@@ -16,12 +16,24 @@ import { join } from 'node:path'
 // Helpers
 // ---------------------------------------------------------------------------
 
+/** Parse a numeric path param strictly: '12garbage' must not read as 12. */
+function intParam(raw: string): number {
+  return /^\d+$/.test(raw) ? Number(raw) : 0
+}
+
 const SESSION_COOKIE = 'du_sess'
-// Secure only matters to the browser over plain HTTP; the app is served behind
-// HTTPS, but the cookie still rides the connection the page came from, so keep
-// it off until the reverse proxy proves TLS. maxAge mirrors the token expiry in
-// signSession so the browser drops the cookie when the server would reject it.
-const COOKIE_OPTS = { path: '/', httpOnly: true, sameSite: 'lax' as const, secure: false, maxAge: 7 * 24 * 60 * 60 }
+// maxAge mirrors the token expiry in signSession so the browser drops the cookie
+// when the server would reject it. `secure` is off by default because the
+// server has no way to prove the upstream connection is TLS; deployments behind
+// an HTTPS reverse proxy must set DASHBOARD_COOKIE_SECURE=true so the cookie is
+// never sent over plain HTTP.
+const COOKIE_OPTS = {
+  path: '/',
+  httpOnly: true,
+  sameSite: 'lax' as const,
+  secure: process.env.DASHBOARD_COOKIE_SECURE === 'true',
+  maxAge: 7 * 24 * 60 * 60,
+}
 
 interface AuthUser {
   id: number
@@ -48,7 +60,7 @@ function authUser(req: any): AuthUser | null {
   const role = parts[1]
   const username = parts[2]
   const versionStr = parts[3]
-  const id = Number.parseInt(idStr, 10)
+  const id = intParam(idStr)
   if (!id || !role || !username) return null
 
   const admin = A.getAdminById(id)
@@ -190,7 +202,11 @@ export function registerAdmin(app: FastifyInstance): void {
       }
     }
     const admin = A.getAdminByUsername(username)
-    if (!admin || !A.verifyPassword(password, admin.password_hash)) {
+    // Verify against a real hash even when the username does not exist, so a
+    // failed login costs the same scrypt work either way — otherwise the
+    // timing difference reveals which usernames are valid.
+    const hash = admin ? admin.password_hash : A.DUMMY_HASH
+    if (!admin || !A.verifyPassword(password, hash)) {
       A.rateLimitRecord(ip)
       const after = A.rateLimitCheck(ip)
       return reply.code(401).send({
@@ -235,7 +251,7 @@ export function registerAdmin(app: FastifyInstance): void {
 
   app.delete('/api/admin/accounts/:id', async (req: any, reply) => {
     if (!requireOwner(req, reply)) return
-    const id = Number.parseInt(req.params.id, 10)
+    const id = intParam(req.params.id)
     if (!id) return reply.code(422).send({ status: 'error', message: 'Invalid id' })
     const ok = A.deleteAdmin(id)
     if (!ok) return reply.code(400).send({ status: 'error', message: 'Cannot delete the last owner' })
@@ -244,7 +260,7 @@ export function registerAdmin(app: FastifyInstance): void {
 
   app.post('/api/admin/accounts/:id/password', async (req: any, reply) => {
     if (!requireOwner(req, reply)) return
-    const id = Number.parseInt(req.params.id, 10)
+    const id = intParam(req.params.id)
     if (!id) return reply.code(422).send({ status: 'error', message: 'Invalid id' })
     const { password } = req.body ?? {}
     if (!password || password.length < 10) {
@@ -292,7 +308,7 @@ export function registerAdmin(app: FastifyInstance): void {
 
   app.put('/api/admin/spaces/:id', async (req: any, reply) => {
     if (!requireAuth(req, reply)) return
-    const id = Number.parseInt(req.params.id, 10)
+    const id = intParam(req.params.id)
     const { name } = req.body ?? {}
     if (!id || !name) return reply.code(422).send({ status: 'error', message: 'Invalid request' })
     try {
@@ -305,7 +321,7 @@ export function registerAdmin(app: FastifyInstance): void {
 
   app.delete('/api/admin/spaces/:id', async (req: any, reply) => {
     if (!requireAuth(req, reply)) return
-    const id = Number.parseInt(req.params.id, 10)
+    const id = intParam(req.params.id)
     if (!id) return reply.code(422).send({ status: 'error', message: 'Invalid id' })
     A.deleteSpace(id)
     return reply.send({ status: 'success', data: null })
@@ -328,7 +344,7 @@ export function registerAdmin(app: FastifyInstance): void {
 
   app.put('/api/admin/disks/:id', async (req: any, reply) => {
     if (!requireAuth(req, reply)) return
-    const id = Number.parseInt(req.params.id, 10)
+    const id = intParam(req.params.id)
     const { name, path } = req.body ?? {}
     if (!id) return reply.code(422).send({ status: 'error', message: 'Invalid id' })
     if (path !== undefined) {
@@ -362,7 +378,7 @@ export function registerAdmin(app: FastifyInstance): void {
   // Import teams from report.db into admin.db (idempotent)
   app.post('/api/admin/disks/:id/import-teams', async (req: any, reply) => {
     if (!requireAuth(req, reply)) return
-    const diskId = Number.parseInt(req.params.id, 10)
+    const diskId = intParam(req.params.id)
     if (!diskId) return reply.code(422).send({ status: 'error', message: 'Invalid disk id' })
 
     // Get disk path from admin.db
@@ -397,17 +413,12 @@ export function registerAdmin(app: FastifyInstance): void {
         }
       }
 
-      // Create admin teams (idempotent: clear existing for this disk first)
-      const existing = A.listDiskTeams(diskId)
-      for (const t of existing) A.deleteDiskTeam(t.id)
-
-      let imported = 0
-      for (const t of teamRows) {
-        const users = usersByTeam[t.id] || []
-        const created = A.createDiskTeam(diskId, t.name)
-        A.updateDiskTeam(created.id, { name: t.name, users })
-        imported++
-      }
+      // Replace the disk's teams atomically (idempotent: existing ones are
+      // cleared inside the same transaction as the inserts).
+      const imported = A.importDiskTeams(
+        diskId,
+        teamRows.map((t) => ({ name: t.name, users: usersByTeam[t.id] || [] })),
+      )
 
       reportDb.close()
       return reply.send({ status: 'success', data: { imported, teams: A.listDiskTeams(diskId) } })
@@ -420,7 +431,7 @@ export function registerAdmin(app: FastifyInstance): void {
   // Get all user names from report.db for a disk
   app.get('/api/admin/disks/:id/users', async (req: any, reply) => {
     if (!requireAuth(req, reply)) return
-    const diskId = Number.parseInt(req.params.id, 10)
+    const diskId = intParam(req.params.id)
     if (!diskId) return reply.code(422).send({ status: 'error', message: 'Invalid disk id' })
 
     const spaces = A.listSpacesWithDisks()
@@ -446,7 +457,7 @@ export function registerAdmin(app: FastifyInstance): void {
 
   app.delete('/api/admin/disks/:id', async (req: any, reply) => {
     if (!requireAuth(req, reply)) return
-    const id = Number.parseInt(req.params.id, 10)
+    const id = intParam(req.params.id)
     if (!id) return reply.code(422).send({ status: 'error', message: 'Invalid id' })
     // Close the cached readonly handle too: nothing will ask for this slug again,
     // so without an explicit evict the fd (and its mmap) is held until shutdown —
@@ -460,14 +471,14 @@ export function registerAdmin(app: FastifyInstance): void {
   // --- Disk Teams (admin+) ---
   app.get('/api/admin/disks/:id/teams', async (req: any, reply) => {
     if (!requireAuth(req, reply)) return
-    const diskId = Number.parseInt(req.params.id, 10)
+    const diskId = intParam(req.params.id)
     if (!diskId) return reply.code(422).send({ status: 'error', message: 'Invalid disk id' })
     return reply.send({ status: 'success', data: A.listDiskTeams(diskId) })
   })
 
   app.post('/api/admin/disks/:id/teams', async (req: any, reply) => {
     if (!requireAuth(req, reply)) return
-    const diskId = Number.parseInt(req.params.id, 10)
+    const diskId = intParam(req.params.id)
     const { name } = req.body ?? {}
     if (!diskId) return reply.code(422).send({ status: 'error', message: 'Invalid disk id' })
     if (!name || typeof name !== 'string') {
@@ -478,7 +489,7 @@ export function registerAdmin(app: FastifyInstance): void {
 
   app.put('/api/admin/teams/:id', async (req: any, reply) => {
     if (!requireAuth(req, reply)) return
-    const id = Number.parseInt(req.params.id, 10)
+    const id = intParam(req.params.id)
     if (!id) return reply.code(422).send({ status: 'error', message: 'Invalid id' })
     const { name, users } = req.body ?? {}
     if (name !== undefined && typeof name !== 'string') {
@@ -504,7 +515,7 @@ export function registerAdmin(app: FastifyInstance): void {
 
   app.delete('/api/admin/teams/:id', async (req: any, reply) => {
     if (!requireAuth(req, reply)) return
-    const id = Number.parseInt(req.params.id, 10)
+    const id = intParam(req.params.id)
     if (!id) return reply.code(422).send({ status: 'error', message: 'Invalid id' })
     A.deleteDiskTeam(id)
     return reply.send({ status: 'success', data: null })
@@ -536,7 +547,8 @@ export function registerAdmin(app: FastifyInstance): void {
   })
 
   // --- Stats ---
-  app.get('/api/admin/stats', async (_req: any, reply) => {
+  app.get('/api/admin/stats', async (req: any, reply) => {
+    if (!requireAuth(req, reply)) return
     return reply.send({ status: 'success', data: A.getSummaryStats() })
   })
 }

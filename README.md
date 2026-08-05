@@ -117,6 +117,7 @@ same `.env` works on any machine:
 | `DASHBOARD_WEB_DIR` | `web/dist` | Built assets to serve; unset means API-only |
 | `DASHBOARD_ADMIN_DB` | `server/admin.db` | Writable admin database |
 | `DASHBOARD_COOKIE_SECRET` | random (generated) | Session-cookie signing key |
+| `DASHBOARD_COOKIE_SECURE` | `false` | Set `true` when behind an HTTPS reverse proxy, so the admin session cookie is marked `Secure` and never sent over plain HTTP |
 | `DASHBOARD_LOG_LEVEL` | `info` | Fastify log level |
 | `DASHBOARD_TRUST_PROXY` | `false` | Set `true` (or a hop count) only when a reverse proxy that overwrites `X-Forwarded-For` is the sole entry point; off by default so a direct LAN client cannot spoof its IP to bypass the admin login rate limit |
 

@@ -107,7 +107,7 @@ export function readScanStatus(reportsDir: string, target: string): ScanStatus |
 export function readScanStatusAt(reportDbPath: string, targetDir: string): ScanStatus | null {
   if (!existsSync(reportDbPath)) return null
   const st = statSync(reportDbPath)
-  return build(reportDbPath, targetDir, st.mtimeMs, st.size, readStatusFile(targetDir))
+  return build(reportDbPath, targetDir, st.ino, st.mtimeMs, st.size, readStatusFile(targetDir))
 }
 
 /**
@@ -125,13 +125,14 @@ export async function readScanStatusAtAsync(reportDbPath: string, targetDir: str
     readStatusFileAsync(targetDir),
   ])
   if (!st) return null
-  return build(reportDbPath, targetDir, st.mtimeMs, st.size, status)
+  return build(reportDbPath, targetDir, st.ino, st.mtimeMs, st.size, status)
 }
 
 /** Assemble the payload from an already-read stat and status file. */
 function build(
   reportDbPath: string,
   targetDir: string,
+  ino: number,
   mtimeMs: number,
   size: number,
   status: StatusFile | null,
@@ -151,7 +152,10 @@ function build(
 
   return {
     target,
-    stamp: `${mtimeMs}:${size}`,
+    // The inode is what makes the stamp move when a report is replaced by a
+    // rename that happens to preserve mtime and size (same-ms rescan). Matches
+    // the contract documented on ScanStatus in shared/api.ts.
+    stamp: `${ino}:${mtimeMs}:${size}`,
     scanTimestamp: Number(meta.scan_timestamp) || 0,
     reportMtime: mtimeMs,
     ...(stage !== undefined ? { stage } : {}),

@@ -233,11 +233,13 @@ function targetsCacheKey(adminCfg: {
       const rp = join(disk.path, REPORT_FILE)
       try {
         const st = statSync(rp)
-        key += `${disk.slug}:${disk.name}:${disk.sort_order}:${st.mtimeMs}:${st.size};`
+        // Inode catches a report replaced by a rename that preserves mtime+size;
+        // disk.path catches a disk repointed at a different report directory.
+        key += `${disk.slug}:${disk.name}:${disk.sort_order}:${st.ino}:${st.mtimeMs}:${st.size}:${disk.path};`
       } catch {
         // A missing report still participates, so a scan landing later refreshes
         // the cache instead of reusing a stale "no report" list.
-        key += `${disk.slug}:${disk.name}:${disk.sort_order}:none;`
+        key += `${disk.slug}:${disk.name}:${disk.sort_order}:none:${disk.path};`
       }
     }
   }

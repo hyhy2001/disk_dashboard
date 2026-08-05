@@ -12,8 +12,11 @@ import {
   createSpace,
   deleteAdmin,
   deleteBackup,
+  DUMMY_HASH,
   getAdminById,
+  importDiskTeams,
   listBackups,
+  listDiskTeams,
   restoreBackup,
   safeBackupName,
   signSession,
@@ -21,6 +24,7 @@ import {
   updateDisk,
   updateDiskTeam,
   validateDiskPath,
+  verifyPassword,
   testDiskRead,
   verifySession,
 } from './admin.js'
@@ -178,6 +182,46 @@ describe('backup name validation', () => {
   it('refuses to restore a traversal name', () => {
     withTempDb()
     expect(restoreBackup('../admin.db')).toBe(false)
+  })
+})
+
+describe('login timing mitigation', () => {
+  it('DUMMY_HASH is a real scrypt hash that verifyPassword accepts as input', () => {
+    // Must not throw or short-circuit: a missing account should take the same
+    // scrypt work as a real one.
+    expect(verifyPassword('wrong-password', DUMMY_HASH)).toBe(false)
+    expect(DUMMY_HASH).toContain(':')
+  })
+})
+
+describe('importDiskTeams', () => {
+  it('replaces a disk\'s teams with the imported set in one pass', () => {
+    const base = withTempDb()
+    const diskPath = join(base, 'vol1')
+    mkdirSync(diskPath, { recursive: true })
+    const sp = createSpace('prod')
+    const disk = createDisk(sp.id, 'data', diskPath)
+
+    const imported = importDiskTeams(disk.id, [
+      { name: 'team-a', users: ['root', 'www'] },
+      { name: 'team-b', users: [] },
+    ])
+    expect(imported).toBe(2)
+    const teams = listDiskTeams(disk.id)
+    expect(teams.map((t) => t.name).sort()).toEqual(['team-a', 'team-b'])
+    expect(teams.find((t) => t.name === 'team-a')?.users).toEqual(['root', 'www'])
+  })
+})
+
+describe('restoreBackup', () => {
+  it('keeps a safety copy of the live admin DB before restoring', async () => {
+    withTempDb()
+    createSpace('prod')
+    const backup = await createBackup()
+    const before = listBackups().length
+
+    expect(restoreBackup(backup.name)).toBe(true)
+    expect(listBackups().length).toBe(before + 1) // the safety copy
   })
 })
 

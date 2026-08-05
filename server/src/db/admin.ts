@@ -5,7 +5,7 @@
 
 import Database from 'better-sqlite3'
 import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
-import { existsSync, mkdirSync, readdirSync, statSync, copyFileSync, unlinkSync } from 'node:fs'
+import { existsSync, mkdirSync, readdirSync, statSync, copyFileSync, renameSync, unlinkSync } from 'node:fs'
 import { dirname, isAbsolute, resolve, join } from 'node:path'
 
 // ---------------------------------------------------------------------------
@@ -191,6 +191,13 @@ export function hashPassword(password: string): string {
   return `${salt}:${hash}`
 }
 
+/**
+ * A real scrypt hash to verify against when the username does not exist, so a
+ * failed login costs the same scrypt work whether or not the account exists —
+ * otherwise the timing difference reveals which usernames are valid.
+ */
+export const DUMMY_HASH = hashPassword('duscan-dummy-login-password')
+
 export function verifyPassword(password: string, stored: string): boolean {
   const [salt, hash] = stored.split(':')
   if (!salt || !hash) return false
@@ -261,8 +268,10 @@ const RATE_CAPTCHA = 5
 
 export function rateLimitCheck(ip: string): { allowed: boolean; attempts: number; captcha: boolean } {
   const db = adminDb()
+  // Purge expired attempts for every IP, not just this one: rows for other IPs
+  // would otherwise accumulate forever, one expired row per failed login.
   const cutoff = Math.floor(Date.now() / 1000) - RATE_WINDOW
-  db.prepare('DELETE FROM login_attempts WHERE ip = ? AND ts < ?').run(ip, cutoff)
+  db.prepare('DELETE FROM login_attempts WHERE ts < ?').run(cutoff)
   const row = db.prepare('SELECT COUNT(*) as c FROM login_attempts WHERE ip = ?').get(ip) as { c: number }
   const attempts = row.c
   return { allowed: attempts < RATE_MAX, attempts, captcha: attempts >= RATE_CAPTCHA }
@@ -668,6 +677,27 @@ export function deleteDiskTeam(id: number): boolean {
   return adminDb().prepare('DELETE FROM disk_teams WHERE id = ?').run(id).changes > 0
 }
 
+/**
+ * Replace a disk's teams with an imported set, atomically.
+ *
+ * The import path deletes the existing teams and recreates them; running that
+ * outside a transaction left the disk half-imported when a create failed
+ * partway through.
+ */
+export function importDiskTeams(diskId: number, teams: { name: string; users: string[] }[]): number {
+  const db = adminDb()
+  return db.transaction((rows: { name: string; users: string[] }[]) => {
+    for (const t of listDiskTeams(diskId)) deleteDiskTeam(t.id)
+    let imported = 0
+    for (const t of rows) {
+      const created = createDiskTeam(diskId, t.name)
+      updateDiskTeam(created.id, { name: t.name, users: t.users })
+      imported += 1
+    }
+    return imported
+  })(teams)
+}
+
 // ---------------------------------------------------------------------------
 // Backup & Restore
 // ---------------------------------------------------------------------------
@@ -696,12 +726,15 @@ export function safeBackupName(name: string): boolean {
   return /^admin_backup_\d{4}-\d{2}-\d{2}T\d{4}_[0-9a-f]{4}\.db$/.test(name)
 }
 
+/** A unique backup filename. The random suffix stops same-second collisions. */
+function backupName(): string {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '').slice(0, 15)
+  return `admin_backup_${stamp}_${randomBytes(2).toString('hex')}.db`
+}
+
 export async function createBackup(): Promise<BackupInfo> {
   const db = adminDb()
-  const stamp = new Date().toISOString().replace(/[:.]/g, '').slice(0, 15)
-  // The random suffix stops two backups started in the same second from silently
-  // overwriting each other.
-  const name = `admin_backup_${stamp}_${randomBytes(2).toString('hex')}.db`
+  const name = backupName()
   const dest = join(backupDir(), name)
   // better-sqlite3's backup() is async — it streams in chunks and resolves only
   // once the file is complete. Await it before stat'ing the result, otherwise
@@ -725,12 +758,24 @@ export function restoreBackup(name: string): boolean {
   if (!safeBackupName(name)) return false
   const src = join(backupDir(), name)
   if (!existsSync(src)) return false
+
+  // Keep a safety copy of the current admin DB before overwriting it, so a
+  // restore that turns out bad (or a copy that fails halfway) is recoverable.
+  const livePath = adminDbPath()
+  if (existsSync(livePath)) {
+    copyFileSync(livePath, join(backupDir(), backupName()))
+  }
+
   adminDb().close()
   _db = null
-  copyFileSync(src, adminDbPath())
-  // Re-open through adminDb() rather than a bare connection: a backup can predate
-  // columns the current build relies on (role, slug, session_version), and only
-  // the adminDb() path applies the DDL and migrations that backfill them.
+  // Write to a temp file and rename into place, so a mid-copy failure (e.g.
+  // disk full) cannot leave the live admin DB half-written. Re-open through
+  // adminDb() rather than a bare connection: a backup can predate columns the
+  // current build relies on (role, slug, session_version), and only the
+  // adminDb() path applies the DDL and migrations that backfill them.
+  const tmp = `${livePath}.restore.tmp`
+  copyFileSync(src, tmp)
+  renameSync(tmp, livePath)
   adminDb()
   return true
 }

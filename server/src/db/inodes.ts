@@ -109,8 +109,18 @@ export function readInodeStats(db: Database.Database): InodeStats {
   // The scan's own count is the one figure that does not depend on statvfs, so
   // fall back to summing the per-user rows when the snapshot has none. That sum
   // covers files and dirs the walk attributed, which is what an older report can
-  // still answer.
-  const attributed = users.reduce((sum, u) => sum + u.inodes + u.dirs, 0)
+  // still answer. Computed with its own aggregate rather than over the capped
+  // `users` list, or accounts past the 500-row cap would silently vanish from
+  // the scanned total.
+  const attributed = (
+    db
+      .prepare(
+        `SELECT COALESCE(SUM(total_files), 0) + COALESCE(SUM(total_dirs), 0) AS a
+           FROM detail_users
+          WHERE total_files > 0 OR total_dirs > 0`,
+      )
+      .get() as { a: number }
+  ).a
 
   if (row === null || row.inodes_total === null) {
     return {
