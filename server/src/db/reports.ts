@@ -28,8 +28,13 @@ export const REPORT_FILE = 'report.db'
  * calls, and `application_id` is only written when open_merged_db creates the
  * file. Both read 0 / stale on real reports — verified against the reports on
  * this host.
+ *
+ * Generation 2 added detail_users.owned_dirs (the precomputed count of
+ * directories a user owns). Reading a generation-1 report stays correct: the
+ * dirs list probes for the column and falls back to counting when it is absent,
+ * so this bump does not strand reports written before the column existed.
  */
-export const SUPPORTED_SCHEMA_VERSION = 1
+export const SUPPORTED_SCHEMA_VERSION = 2
 
 /**
  * Whether a report's schema generation is one this build understands.

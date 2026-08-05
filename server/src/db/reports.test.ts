@@ -32,6 +32,9 @@ describe('isSupportedSchema', () => {
   it('accepts the generation this build is written against, and older ones', () => {
     expect(isSupportedSchema(String(SUPPORTED_SCHEMA_VERSION))).toBe(true)
     expect(isSupportedSchema('0')).toBe(true)
+    // Generation 1 predates detail_users.owned_dirs; readUserDirs falls back to
+    // counting, so such reports stay fully readable rather than being gated out.
+    expect(isSupportedSchema('1')).toBe(true)
   })
 
   it('rejects a newer generation', () => {
