@@ -3,7 +3,7 @@
 ## Purpose
 
 Serve auto-generated, interactive API documentation for the Fastify server
-(`/documentation`), covering all 34 routes with request/response shapes.
+(`/docs`), covering all 34 routes with request/response shapes.
 Access is restricted to admin sessions.
 
 ## Decisions (from brainstorming)
@@ -26,10 +26,10 @@ Access is restricted to admin sessions.
 ### `server/src/index.ts`
 - Register `fastifySwagger` with info: title "Disk Dashboard API", version from
   `server/package.json`.
-- Register `fastifySwaggerUi` with `routePrefix: '/documentation'` and a
+- Register `fastifySwaggerUi` with `routePrefix: '/docs'` and a
   sensible `uiConfig` (e.g. `docExpansion: 'list'`).
-- Add an `onRequest` hook that gates every URL under `/documentation`
-  (the UI HTML, its static assets, and `/documentation/json`) behind an admin
+- Add an `onRequest` hook that gates every URL under `/docs`
+  (the UI HTML, its static assets, and `/docs/json`) behind an admin
   session: read `du_sess` cookie → `verifySession` → re-check the live admin
   row (username/role/session_version, same as `authUser` in
   `server/src/routes/admin.ts`). Unauthorized → `401`.
@@ -71,9 +71,9 @@ Access is restricted to admin sessions.
 
 ### Testing
 - New route-layer tests:
-  - `GET /documentation` → `401` without a session, `200` with a valid admin
+  - `GET /docs` → `401` without a session, `200` with a valid admin
     session.
-  - The OpenAPI JSON (`/documentation/json`) contains expected paths
+  - The OpenAPI JSON (`/docs/json`) contains expected paths
     (e.g. `/api/health`, `/api/users/:target`, `/api/admin/login`).
 - Existing 338 unit tests must stay green (schemas must not change validation
   behavior).
