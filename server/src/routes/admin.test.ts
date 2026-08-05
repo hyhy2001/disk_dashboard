@@ -31,6 +31,14 @@ describe('docs gate', () => {
     expect(spec.openapi).toMatch(/^3\./)
     expect(Object.keys(spec.paths)).toContain('/api/health')
   })
+
+  it('documents the admin routes with request bodies', async () => {
+    app = createTestApp()
+    const cookie = await login(app)
+    const spec = (await app.inject({ method: 'GET', url: '/docs/json', headers: { cookie } })).json()
+    const loginOp = spec.paths['/api/admin/login'].post
+    expect(loginOp.requestBody.content['application/json'].schema.properties.username).toBeTruthy()
+  })
 })
 
 describe('admin auth', () => {
