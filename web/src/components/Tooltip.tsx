@@ -50,10 +50,14 @@ export function Tooltip(): JSX.Element | null {
   const [active, setActive] = useState<Active | null>(null)
   const [pos, setPos] = useState<Position | null>(null)
   const boxRef = useRef<HTMLDivElement>(null)
+  // Tracks whether a tooltip is open without triggering a render, so the
+  // capture-phase scroll handler can bail cheaply on the constant scroll events.
+  const openRef = useRef(false)
 
   const open = useCallback((el: HTMLElement): void => {
     const text = el.dataset.tooltip
     if (!text) return
+    openRef.current = true
     setActive({
       text,
       rect: el.getBoundingClientRect(),
@@ -70,18 +74,17 @@ export function Tooltip(): JSX.Element | null {
       if (el) open(el)
     }
 
+    const clear = (): void => {
+      if (!openRef.current) return
+      openRef.current = false
+      setActive(null)
+      setPos(null)
+    }
+
     const onLeave = (e: Event): void => {
       // Only clear when leaving the element that owns the tooltip; moving between
       // children of the same row must not flicker it.
-      if (tooltipTarget(e.target)) {
-        setActive(null)
-        setPos(null)
-      }
-    }
-
-    const clear = (): void => {
-      setActive(null)
-      setPos(null)
+      if (tooltipTarget(e.target)) clear()
     }
 
     document.addEventListener('mouseover', onEnter)

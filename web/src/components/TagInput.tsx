@@ -77,9 +77,11 @@ export function TagInput({ id, label, placeholder, value, onChange, onSubmit, cl
               onSubmit()
             }
             if (e.key === 'Tab') {
-              e.preventDefault()
+              // Only swallow Tab when there is a term to commit; with an empty
+              // input, Tab must move focus on as usual.
               const trimmed = currentInput.trim()
               if (trimmed) {
+                e.preventDefault()
                 handleChange(`${trimmed}, `)
               }
             }

@@ -53,6 +53,14 @@ function fail(reply: FastifyReply, code: number, message: string): ApiResponse<n
 }
 
 /**
+ * Targets with an export stream in flight. Exports are large and CPU-heavy
+ * (sqlite iteration + gzip), and the report endpoints are unauthenticated by
+ * design, so without a cap anyone could stack unlimited concurrent exports per
+ * target. One stream per target at a time is generous and stops the abuse.
+ */
+const activeExports = new Set<string>()
+
+/**
  * Whether this SQLite build can do infix search (FTS5 + trigram tokenizer).
  *
  * Probing requires opening a fresh in-memory database, so the result is computed
@@ -499,21 +507,34 @@ export function registerApi(app: FastifyInstance): void {
       maxSize?: string
     }
   }>('/api/export/:target/:user', async (request, reply): Promise<ApiResponse<never> | void> => {
-    const opened = withReport(request.params.target, reply)
+    const { target } = request.params
+    const opened = withReport(target, reply)
     if ('err' in opened) return opened.err
 
+    if (activeExports.has(target)) {
+      return fail(reply, 429, 'an export for this target is already running')
+    }
+    activeExports.add(target)
+
     const kind = request.query.kind
-    if (kind !== 'dirs' && kind !== 'files') return fail(reply, 400, "export kind must be 'dirs' or 'files'")
+    if (kind !== 'dirs' && kind !== 'files') {
+      activeExports.delete(target)
+      return fail(reply, 400, "export kind must be 'dirs' or 'files'")
+    }
 
     const user = request.params.user
     const uid = findUid(opened.db, user)
-    if (uid === null) return fail(reply, 404, `no such user '${user}' in this report`)
+    if (uid === null) {
+      activeExports.delete(target)
+      return fail(reply, 404, `no such user '${user}' in this report`)
+    }
 
     const filter = detailFilterFrom(request.query)
     // The dirs list cannot be filtered by extension (readUserDetail suppresses
     // it in the UI for the same reason), so a dirs export with an ext filter
     // would silently drop the constraint. Reject it as the UI does.
     if (kind === 'dirs' && (filter.ext ?? []).length > 0) {
+      activeExports.delete(target)
       return fail(reply, 400, 'an extension filter does not apply to a directory export')
     }
 
@@ -528,9 +549,12 @@ export function registerApi(app: FastifyInstance): void {
     // client-side CompressionStream path only ran on Chromium — Firefox/Safari
     // were left with a hundreds-of-MB plain CSV. No Content-Encoding header, so
     // the bytes the browser saves are exactly the .csv.gz archive.
-    return reply.send(
-      Readable.from(streamUserListCsv(opened.db, uid, kind, filter)).pipe(createGzip()),
-    )
+    const stream = Readable.from(streamUserListCsv(opened.db, uid, kind, filter)).pipe(createGzip())
+    // Release the per-target lock when the stream finishes, errors, or the
+    // client disconnects.
+    stream.on('close', () => activeExports.delete(target))
+    stream.on('error', () => activeExports.delete(target))
+    return reply.send(stream)
   })
 
   // Permission issues, offset-paginated because the UI shows numbered pages.

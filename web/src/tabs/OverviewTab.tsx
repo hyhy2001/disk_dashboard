@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import type { Overview } from '../../../shared/api.js'
 import { AreaChart, ChartLegend } from '../components/AreaChart.js'
 import { BarChart } from '../components/BarChart.js'
@@ -43,7 +43,12 @@ export function OverviewTab({ overview }: Props): JSX.Element {
     return allUsers.filter((u) => u.team === teamFilter)
   }, [allUsers, otherUsers, teamFilter])
   const shownHistory = useMemo(() => filterByRange(history, range), [history, range])
-  const rangeAvailable = (v: RangeDays): boolean => filterByRange(history, v).length > 1
+  // RangePicker calls this once per preset on every render; keep it stable so
+  // those calls do not each re-filter the whole history series.
+  const rangeAvailable = useCallback(
+    (v: RangeDays): boolean => filterByRange(history, v).length > 1,
+    [history],
+  )
 
   return (
     <>

@@ -49,7 +49,9 @@ export function HistoryTab({ target }: Props): JSX.Element {
   const [series, setSeries] = useState<HistorySeries | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const saved = loadFilters()
+  // Loaded once on mount, not on every render — loadFilters() parses JSON out of
+  // localStorage, which is unnecessary work on each re-render.
+  const [saved] = useState(loadFilters)
   const [rangeDays, setRangeDays] = useState(saved.rangeDays)
   const [dateStart, setDateStart] = useState(saved.dateStart)
   const [dateEnd, setDateEnd] = useState(saved.dateEnd)

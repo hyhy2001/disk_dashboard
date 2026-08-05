@@ -59,11 +59,14 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
   // Fullest first: the disk that needs attention leads.
   const rows = useMemo(() => [...targets].sort((a, b) => (usedPercent(b) ?? -1) - (usedPercent(a) ?? -1)), [targets])
 
-  const withCapacity = rows.filter((t) => t.capacity !== null)
+  const withCapacity = useMemo(() => rows.filter((t) => t.capacity !== null), [rows])
   const unknown = rows.length - withCapacity.length
 
   /** Bar scale denominator: the largest capacity in the space. */
-  const maxTotal = Math.max(...withCapacity.map((t) => t.capacity?.total ?? 0), 1)
+  const maxTotal = useMemo(
+    () => Math.max(...withCapacity.map((t) => t.capacity?.total ?? 0), 1),
+    [withCapacity],
+  )
 
   /**
    * Width for one segment, in percent of the bar track.
@@ -82,14 +85,18 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
     return (lv / lmax) * 100
   }
 
-  const bands = BANDS.map((band, i) => {
-    const upper = i === 0 ? Infinity : (BANDS[i - 1]?.min ?? Infinity)
-    const members = withCapacity.filter((t) => {
-      const pct = usedPercent(t) ?? -1
-      return pct >= band.min && pct < upper
-    })
-    return { ...band, count: members.length }
-  })
+  const bands = useMemo(
+    () =>
+      BANDS.map((band, i) => {
+        const upper = i === 0 ? Infinity : (BANDS[i - 1]?.min ?? Infinity)
+        const members = withCapacity.filter((t) => {
+          const pct = usedPercent(t) ?? -1
+          return pct >= band.min && pct < upper
+        })
+        return { ...band, count: members.length }
+      }),
+    [withCapacity],
+  )
 
   // Not a plain sum: disks in one space may share a filesystem, and adding their
   // capacities produced a header larger than the hardware. See lib/space.ts.

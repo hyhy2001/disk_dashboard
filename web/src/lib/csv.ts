@@ -175,6 +175,9 @@ async function streamExport(opts: ExportOptions): Promise<ExportResult> {
   } catch (err) {
     // Abort so the partial file is not left looking complete.
     await writer.abort().catch(() => undefined)
+    // Aborting the writer rejects `piped`; swallow that rejection rather than
+    // leaving an unhandled-rejection noise on every failed stream.
+    await piped.catch(() => undefined)
     throw err
   }
 }
