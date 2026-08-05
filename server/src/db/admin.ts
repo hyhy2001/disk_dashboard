@@ -88,6 +88,7 @@ CREATE TABLE IF NOT EXISTS captcha_challenges (
   answer    INTEGER NOT NULL,
   expires   INTEGER NOT NULL
 );
+CREATE INDEX IF NOT EXISTS ix_captcha_expires ON captcha_challenges(expires);
 `
 
 /** Open (or return the cached) admin DB, applying DDL migrations on first open. */

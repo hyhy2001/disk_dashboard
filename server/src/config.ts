@@ -22,6 +22,8 @@ export interface Config {
    * many proxy hops.
    */
   trustProxy: boolean | number
+  /** API requests allowed per client IP per minute; 0 disables the limiter. */
+  apiRateLimit: number
 }
 
 function envInt(name: string, fallback: number): number {
@@ -82,5 +84,9 @@ export function loadConfig(): Config {
     host: process.env.DASHBOARD_HOST ?? '127.0.0.1',
     webDir,
     trustProxy,
+    // 1800/min = 30 requests per second per IP: generous for humans (a viewer
+    // polls statuses once every 3s) but a raw loop sending thousands/s is cut
+    // off. Set to 0 to disable.
+    apiRateLimit: envInt('DASHBOARD_API_RATE_LIMIT', 1800),
   }
 }

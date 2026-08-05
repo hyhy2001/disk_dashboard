@@ -60,6 +60,18 @@ function fail(reply: FastifyReply, code: number, message: string): ApiResponse<n
  */
 const activeExports = new Set<string>()
 
+/** Ceiling on export streams across all targets, not just per target. */
+const MAX_ACTIVE_EXPORTS = 2
+let activeExportCount = 0
+
+/** Longest an export stream may live before it is forced closed. A client that
+ * opens a download and never reads keeps its target's slot hostage otherwise. */
+const EXPORT_MAX_MS = 5 * 60_000
+
+/** How long a statuses answer is reused before the disks are walked again. */
+const STATUSES_TTL_MS = 1000
+let statusesCache: { at: number; data: ScanStatus[] } | null = null
+
 /**
  * Whether this SQLite build can do infix search (FTS5 + trigram tokenizer).
  *
@@ -103,12 +115,17 @@ function sqliteVersion(): string {
  * spreadsheet yields tabs, so both are honoured. Empty terms are dropped so a
  * trailing comma does not become a match-everything term.
  */
+/** Cap on comma/tab-separated terms in one filter, so a filter URL cannot force
+ * an arbitrarily long IN-list or per-term scan. Nobody filters by >20 paths. */
+const MAX_FILTER_TERMS = 20
+
 function splitTerms(raw: string | undefined): string[] {
   if (!raw) return []
   return raw
     .split(/[,\t\n]/)
     .map((t) => t.trim())
     .filter((t) => t.length > 0)
+    .slice(0, MAX_FILTER_TERMS)
 }
 
 /** Parse a byte-size query param. Returns undefined for absent or invalid input. */
@@ -401,6 +418,9 @@ export function registerApi(app: FastifyInstance): void {
     if (fileOffset === 'bad') {
       return fail(reply, 400, 'fileOffset must be a non-negative integer')
     }
+    // An OFFSET past this is a walking cost, not a page; cap it so a huge offset
+    // cannot force a scan of a directory's whole file set on the event loop.
+    const fileOffsetClamped = Math.min(fileOffset ?? 0, 100_000)
 
     const db = openTargetReport(target)
     if (!db) {
@@ -416,7 +436,7 @@ export function registerApi(app: FastifyInstance): void {
       childSkippedSize: childSkippedSize ?? 0,
       // Files cost an extra skip-scan, so the client opts in.
       withFiles: request.query.files === '1',
-      fileOffset: fileOffset ?? 0,
+      fileOffset: fileOffsetClamped,
       ...(limit !== undefined ? { limit } : {}),
     })
     if (!level) {
@@ -514,18 +534,32 @@ export function registerApi(app: FastifyInstance): void {
     if (activeExports.has(target)) {
       return fail(reply, 429, 'an export for this target is already running')
     }
+    if (activeExportCount >= MAX_ACTIVE_EXPORTS) {
+      return fail(reply, 429, 'too many exports running, try again shortly')
+    }
     activeExports.add(target)
+    activeExportCount += 1
+
+    // Release the lock on any early rejection path below. Idempotent: a killed
+    // stream can emit both 'error' and 'close', and each must not double-count.
+    let released = false
+    const release = (): void => {
+      if (released) return
+      released = true
+      activeExports.delete(target)
+      activeExportCount -= 1
+    }
 
     const kind = request.query.kind
     if (kind !== 'dirs' && kind !== 'files') {
-      activeExports.delete(target)
+      release()
       return fail(reply, 400, "export kind must be 'dirs' or 'files'")
     }
 
     const user = request.params.user
     const uid = findUid(opened.db, user)
     if (uid === null) {
-      activeExports.delete(target)
+      release()
       return fail(reply, 404, `no such user '${user}' in this report`)
     }
 
@@ -534,7 +568,7 @@ export function registerApi(app: FastifyInstance): void {
     // it in the UI for the same reason), so a dirs export with an ext filter
     // would silently drop the constraint. Reject it as the UI does.
     if (kind === 'dirs' && (filter.ext ?? []).length > 0) {
-      activeExports.delete(target)
+      release()
       return fail(reply, 400, 'an extension filter does not apply to a directory export')
     }
 
@@ -550,10 +584,16 @@ export function registerApi(app: FastifyInstance): void {
     // were left with a hundreds-of-MB plain CSV. No Content-Encoding header, so
     // the bytes the browser saves are exactly the .csv.gz archive.
     const stream = Readable.from(streamUserListCsv(opened.db, uid, kind, filter)).pipe(createGzip())
-    // Release the per-target lock when the stream finishes, errors, or the
-    // client disconnects.
-    stream.on('close', () => activeExports.delete(target))
-    stream.on('error', () => activeExports.delete(target))
+    // Force the stream closed if the client connects but never reads, so a
+    // slow drain cannot hold this target's (and the global) export slot hostage.
+    const killer = setTimeout(() => stream.destroy(), EXPORT_MAX_MS)
+    // Release the per-target and global locks when the stream finishes, errors,
+    // is killed, or the client disconnects.
+    stream.on('close', () => {
+      clearTimeout(killer)
+      release()
+    })
+    stream.on('error', () => release())
     return reply.send(stream)
   })
 
@@ -648,6 +688,14 @@ export function registerApi(app: FastifyInstance): void {
   // per-card scan indicator with one poll per interval instead of one request per
   // card. Same cost model as the single-target route: stat() plus one small read.
   app.get('/api/statuses', async (_request, reply): Promise<ApiResponse<ScanStatus[]>> => {
+    reply.header('cache-control', 'no-store')
+    // Memoised for a second: N pollers asking in the same window share one walk
+    // of every disk instead of N. A rescan is noticed on the next poll at worst.
+    const now = Date.now()
+    if (statusesCache && now - statusesCache.at < STATUSES_TTL_MS) {
+      return ok(statusesCache.data)
+    }
+
     const disks = getPublicConfig().spaces.flatMap((space) => space.disks)
     // One poll covers every disk, so read them concurrently rather than letting a
     // slow (or network-mounted) report directory serialise the rest.
@@ -664,7 +712,7 @@ export function registerApi(app: FastifyInstance): void {
       // card keys on the admin-DB route slug, so overwrite it.
       statuses.push({ ...status, target: slug })
     }
-    reply.header('cache-control', 'no-store')
+    statusesCache = { at: now, data: statuses }
     return ok(statuses)
   })
 }

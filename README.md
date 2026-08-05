@@ -120,6 +120,7 @@ same `.env` works on any machine:
 | `DASHBOARD_COOKIE_SECURE` | `false` | Set `true` when behind an HTTPS reverse proxy, so the admin session cookie is marked `Secure` and never sent over plain HTTP |
 | `DASHBOARD_LOG_LEVEL` | `info` | Fastify log level |
 | `DASHBOARD_TRUST_PROXY` | `false` | Set `true` (or a hop count) only when a reverse proxy that overwrites `X-Forwarded-For` is the sole entry point; off by default so a direct LAN client cannot spoof its IP to bypass the admin login rate limit |
+| `DASHBOARD_API_RATE_LIMIT` | `1800` | Requests per client IP per minute before the server answers `429` (0 disables). The report endpoints are unauthenticated, so this is the in-app stop for a loop if the port is ever reachable without nginx rate-limiting |
 
 ## Admin setup
 
