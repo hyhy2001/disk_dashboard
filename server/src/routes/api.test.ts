@@ -60,6 +60,15 @@ describe('report API', () => {
     expect(res.statusCode).toBe(400)
   })
 
+  it('accepts a search without a query term', async () => {
+    app = createTestApp()
+    const slug = await addDiskWithReport()
+    const res = await app.inject({ method: 'GET', url: `/api/search/${slug}` })
+    expect(res.statusCode).toBe(200)
+    expect(res.json().data.hits).toEqual([])
+    expect(res.json().data.hasMore).toBe(false)
+  })
+
   it('documents the report routes in the OpenAPI spec', async () => {
     app = createTestApp()
     const cookie = await login(app)

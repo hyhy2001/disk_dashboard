@@ -737,7 +737,7 @@ export function registerApi(app: FastifyInstance): void {
   // Name search across directories and files.
   app.get<{
     Params: { target: string }
-    Querystring: { q?: string; kind?: string; limit?: string     }
+    Querystring: { q?: string; kind?: string; limit?: string }
   }>('/api/search/:target', {
     schema: {
       params: pathParams(['target']),
@@ -747,7 +747,6 @@ export function registerApi(app: FastifyInstance): void {
           q: stringQuery('q', 'query'),
           kind: { type: 'string', enum: ['dir', 'file'] },
         },
-        required: ['q'],
         additionalProperties: true,
       },
       response: { 200: envelopeRef() },
