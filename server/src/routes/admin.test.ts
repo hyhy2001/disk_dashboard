@@ -90,3 +90,64 @@ describe('backup name security', () => {
     expect(res.statusCode).toBe(404)
   })
 })
+
+describe('backup and restore end-to-end', () => {
+  it('creates, lists, restores, and preserves admin data across the restore', async () => {
+    app = createTestApp()
+    const cookie = await login(app)
+
+    // Seed data that must survive the round trip.
+    let res = await app.inject({
+      method: 'POST',
+      url: '/api/admin/spaces',
+      headers: { cookie },
+      payload: { name: 'prod' },
+    })
+    expect(res.statusCode).toBe(201)
+
+    // Create the backup and confirm it is listed.
+    res = await app.inject({ method: 'POST', url: '/api/admin/backups', headers: { cookie } })
+    expect(res.statusCode).toBe(201)
+    const name = res.json().data.name as string
+    expect(name).toMatch(/^admin_backup_\d{4}-\d{2}-\d{2}T\d{4}_[0-9a-f]{4}\.db$/)
+
+    res = await app.inject({ method: 'GET', url: '/api/admin/backups', headers: { cookie } })
+    expect(res.json().data.map((b: { name: string }) => b.name)).toContain(name)
+
+    // Mutate after the backup, then restore: the mutation must be reverted.
+    res = await app.inject({
+      method: 'POST',
+      url: '/api/admin/spaces',
+      headers: { cookie },
+      payload: { name: 'temp' },
+    })
+    expect(res.statusCode).toBe(201)
+
+    res = await app.inject({
+      method: 'POST',
+      url: `/api/admin/backups/${encodeURIComponent(name)}/restore`,
+      headers: { cookie },
+    })
+    expect(res.statusCode).toBe(200)
+
+    res = await app.inject({ method: 'GET', url: '/api/admin/spaces', headers: { cookie } })
+    const spaces = res.json().data as { name: string }[]
+    expect(spaces.map((s) => s.name)).toEqual(['prod'])
+  })
+
+  it('still accepts a fresh login after a restore reopens the DB', async () => {
+    app = createTestApp()
+    const cookie = await login(app)
+    const res = await app.inject({ method: 'POST', url: '/api/admin/backups', headers: { cookie } })
+    const name = res.json().data.name as string
+    await app.inject({ method: 'POST', url: `/api/admin/backups/${encodeURIComponent(name)}/restore`, headers: { cookie } })
+
+    // The restored DB must be a working, reopenable SQLite file.
+    const login2 = await app.inject({
+      method: 'POST',
+      url: '/api/admin/login',
+      payload: { username: 'bob', password: 'long-password-1' },
+    })
+    expect(login2.statusCode).toBe(200)
+  })
+})

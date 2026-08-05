@@ -534,7 +534,7 @@ export function registerAdmin(app: FastifyInstance): void {
 
   app.post('/api/admin/backups', async (req: any, reply) => {
     if (!requireAuth(req, reply)) return
-    return reply.code(201).send({ status: 'success', data: A.createBackup() })
+    return reply.code(201).send({ status: 'success', data: await A.createBackup() })
   })
 
   app.post('/api/admin/backups/:name/restore', async (req: any, reply) => {
