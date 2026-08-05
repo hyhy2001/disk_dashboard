@@ -122,6 +122,34 @@ describe('readUserDirs', () => {
     expect(page.rows[0]?.path).toBe('/home')
   })
 
+  it('counts the total itself when the report predates owned_dirs', () => {
+    // Schema-1 reports have no detail_users.owned_dirs, and they stay on disk
+    // until the target is rescanned — so the COUNT fallback is a live path, not
+    // a legacy curiosity. The fixture is schema 1.
+    db = createFixture()
+    expect(readUserDirs(db, aliceUid()).total).toBe(3)
+  })
+
+  it('trusts owned_dirs when the scanner precomputed it', () => {
+    db = createFixture()
+    // Schema 2 moved this count into the merge so the dashboard stops scanning
+    // the user's whole dir slice on every page load.
+    db.exec('ALTER TABLE detail_users ADD COLUMN owned_dirs INTEGER NOT NULL DEFAULT 0')
+    db.exec(`UPDATE detail_users SET owned_dirs = 3 WHERE uid = ${aliceUid()}`)
+    expect(readUserDirs(db, aliceUid()).total).toBe(3)
+  })
+
+  it('still counts a filtered list rather than using owned_dirs', () => {
+    db = createFixture()
+    // owned_dirs counts every directory the user owns, which is not what a
+    // filtered list shows. Reusing it here would report 3 for a 1-row list.
+    db.exec('ALTER TABLE detail_users ADD COLUMN owned_dirs INTEGER NOT NULL DEFAULT 0')
+    db.exec(`UPDATE detail_users SET owned_dirs = 3 WHERE uid = ${aliceUid()}`)
+    const page = readUserDirs(db, aliceUid(), { filter: { query: ['alice'] } })
+    expect(page.rows).toHaveLength(1)
+    expect(page.total).toBe(1)
+  })
+
   it('filters by path substring', () => {
     db = createFixture()
     const page = readUserDirs(db, aliceUid(), { filter: { query: ['alice'] } })

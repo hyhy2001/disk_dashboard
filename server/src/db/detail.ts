@@ -65,6 +65,37 @@ const countCache = new WeakMap<Database.Database, Map<string, number>>()
  */
 const COUNT_CACHE_CAP = 200
 
+/**
+ * Which optional columns a report's tables actually carry, cached per handle.
+ *
+ * Columns added in a later schema generation are absent from reports written by
+ * an older scanner, and those reports stay on disk until the target is rescanned
+ * — which, for a multi-gigabyte report, is not soon. Probing lets one dashboard
+ * build serve both generations instead of requiring a fleet-wide rescan.
+ */
+const columnCache = new WeakMap<Database.Database, Map<string, boolean>>()
+
+/** Whether `table` has a column named `column` in this report. */
+function hasColumn(db: Database.Database, table: string, column: string): boolean {
+  const key = `${table}.${column}`
+  let known = columnCache.get(db)
+  const hit = known?.get(key)
+  if (hit !== undefined) return hit
+
+  // table_info() is a pragma over the schema, not the data, so this costs
+  // nothing even on a huge report. Quoted as an identifier: `table` is a
+  // literal at every call site, never user input.
+  const cols = db.pragma(`table_info("${table}")`) as { name: string }[]
+  const present = cols.some((c) => c.name === column)
+
+  if (!known) {
+    known = new Map()
+    columnCache.set(db, known)
+  }
+  known.set(key, present)
+  return present
+}
+
 /** COUNT(*) for one query, cached per handle so paging a filtered list scans once. */
 function countCached(db: Database.Database, sql: string, params: (string | number)[]): number {
   const key = `${sql}\u0000${JSON.stringify(params)}`
@@ -281,16 +312,27 @@ export function readUserDirs(db: Database.Database, uid: number, opts: PageOptio
   const last = page[page.length - 1]
 
   // Owner filtering means detail_users.total_dirs (the raw contribution count) no
-  // longer matches what this list shows, so the total is always counted rather
-  // than trusting totalHint. The uid+owner_uid predicate still rides the (uid,
-  // size, id) index, so the COUNT is a range scan, not a table scan. It is cached
-  // per handle (see countCached): the count depends only on the filter, which
-  // stays fixed while the user pages through the list.
-  const total = countCached(
-    db,
-    `SELECT COUNT(*) AS cnt FROM detail_dirs WHERE uid = ?${ownedClause}${filter.sql}`,
-    [uid, ownedParam, ...filter.params],
-  )
+  // longer matches what this list shows, so the total cannot come from that
+  // column. Counting it costs a range scan over every one of the user's rows —
+  // measured at 0.22s warm and 1.60s cold for root on a 1.5M-file report, and
+  // better-sqlite3 is synchronous, so that time blocks every other request too.
+  //
+  // Scanners at schema 2 and later precompute the owned-directory count into
+  // detail_users.owned_dirs during the merge, turning the scan into a primary-key
+  // lookup. It only answers the unfiltered list, though: a path filter changes
+  // which rows qualify, and that cannot be precomputed. Older reports have no
+  // such column at all, so both cases fall back to the COUNT, cached per handle
+  // (see countCached) since the filter stays fixed while the user pages.
+  const total =
+    !filter.sql && hasColumn(db, 'detail_users', 'owned_dirs')
+      ? ((db.prepare('SELECT owned_dirs AS cnt FROM detail_users WHERE uid = ?').get(uid) as
+          | { cnt: number }
+          | undefined)?.cnt ?? 0)
+      : countCached(
+          db,
+          `SELECT COUNT(*) AS cnt FROM detail_dirs WHERE uid = ?${ownedClause}${filter.sql}`,
+          [uid, ownedParam, ...filter.params],
+        )
 
   return {
     rows: page.map((r) => ({ id: r.id, path: r.path, used: r.size, files: r.files })),
