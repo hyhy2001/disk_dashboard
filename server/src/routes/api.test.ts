@@ -1,6 +1,6 @@
 import type { FastifyInstance } from 'fastify'
 import { afterEach, describe, expect, it } from 'vitest'
-import { addDiskWithReport, cleanup, createTestApp } from './helpers.js'
+import { addDiskWithReport, cleanup, createTestApp, login } from './helpers.js'
 
 let app: FastifyInstance
 
@@ -58,5 +58,15 @@ describe('report API', () => {
     const slug = await addDiskWithReport()
     const res = await app.inject({ method: 'GET', url: `/api/treemap/${slug}?childAfterSize=abc` })
     expect(res.statusCode).toBe(400)
+  })
+
+  it('documents the report routes in the OpenAPI spec', async () => {
+    app = createTestApp()
+    const cookie = await login(app)
+    const spec = (await app.inject({ method: 'GET', url: '/docs/json', headers: { cookie } })).json()
+    const detail = spec.paths['/api/detail/{target}/{user}']
+    expect(detail.get.parameters.some((p: any) => p.name === 'target' && p.in === 'path')).toBe(true)
+    const search = spec.paths['/api/search/{target}']
+    expect(search.get.parameters.some((p: any) => p.name === 'q' && p.in === 'query')).toBe(true)
   })
 })

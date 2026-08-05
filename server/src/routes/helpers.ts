@@ -9,9 +9,10 @@ import fastifySwaggerUi from '@fastify/swagger-ui'
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
+import { expect } from 'vitest'
 import { registerApi } from './api.js'
 import { registerAdmin } from './admin.js'
-import { closeAdminDb, createDisk, createSpace } from '../db/admin.js'
+import { closeAdminDb, createAdmin, createDisk, createSpace } from '../db/admin.js'
 import { adminSessionUser } from '../auth.js'
 import { createFixture } from '../db/fixture.js'
 
@@ -73,4 +74,20 @@ export function cleanup(): void {
     rmSync(dir, { recursive: true, force: true })
     dir = null
   }
+}
+
+/** Seed an owner and log in, returning the session cookie. */
+export async function login(app: FastifyInstance, password = 'long-password-1'): Promise<string> {
+  createAdmin('bob', password, 'owner')
+  const res = await app.inject({
+    method: 'POST',
+    url: '/api/admin/login',
+    payload: { username: 'bob', password },
+  })
+  expect(res.statusCode).toBe(200)
+  const setCookie = res.headers['set-cookie'] as unknown as string | string[] | undefined
+  const raw = Array.isArray(setCookie) ? setCookie : setCookie ? [setCookie] : []
+  const cookie = raw.find((c) => c.startsWith('du_sess='))
+  if (!cookie) throw new Error('no session cookie set')
+  return cookie.split(';')[0]!
 }

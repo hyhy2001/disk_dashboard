@@ -9,7 +9,10 @@ export function envelope(data: object): any {
 }
 
 export function envelopeRef(): any {
-  return envelope({ type: 'object', additionalProperties: true })
+  // The data payload is deliberately untyped: several endpoints return arrays
+  // (targets, users, statuses) and Fastify's fast-json-stringify would mangle an
+  // array under a `type: 'object'` property, so any-typed is the safe shape.
+  return envelope({})
 }
 
 export function stringParam(name: string): any {

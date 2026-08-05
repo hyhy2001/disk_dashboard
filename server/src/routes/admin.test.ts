@@ -1,7 +1,7 @@
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createAdmin } from '../db/admin.js'
-import { cleanup, createTestApp } from './helpers.js'
+import { cleanup, createTestApp, login } from './helpers.js'
 
 let app: FastifyInstance
 
@@ -9,22 +9,6 @@ afterEach(async () => {
   await app?.close()
   cleanup()
 })
-
-/** Seed an owner and log in, returning the session cookie. */
-async function login(app: FastifyInstance, password = 'long-password-1'): Promise<string> {
-  createAdmin('bob', password, 'owner')
-  const res = await app.inject({
-    method: 'POST',
-    url: '/api/admin/login',
-    payload: { username: 'bob', password },
-  })
-  expect(res.statusCode).toBe(200)
-  const setCookie = res.headers['set-cookie'] as unknown as string | string[] | undefined
-  const raw = Array.isArray(setCookie) ? setCookie : setCookie ? [setCookie] : []
-  const cookie = raw.find((c) => c.startsWith('du_sess='))
-  if (!cookie) throw new Error('no session cookie set')
-  return cookie.split(';')[0]!
-}
 
 describe('docs gate', () => {
   it('serves the docs UI only to an admin session', async () => {

@@ -42,6 +42,7 @@ import { readInodeStats } from '../db/inodes.js'
 import { searchNames } from '../db/search.js'
 import { readScanStatusAtAsync } from '../db/status.js'
 import { listDiskTeams, diskBySlug } from '../db/admin.js'
+import { envelopeRef, intQuery, pathParams, stringQuery } from './schema.js'
 
 function ok<T>(data: T): ApiResponse<T> {
   return { status: 'success', data }
@@ -302,7 +303,10 @@ function configuredTargets(adminCfg: ReturnType<typeof getPublicConfig>): Target
 }
 
 export function registerApi(app: FastifyInstance): void {
-  app.get('/api/health', async (): Promise<ApiResponse<HealthInfo>> => {
+  app.get(
+    '/api/health',
+    { schema: { response: { 200: envelopeRef() } } },
+    async (): Promise<ApiResponse<HealthInfo>> => {
     const adminCfg = getPublicConfig()
     const diskCount = adminCfg.spaces.reduce((s, sp) => s + sp.disks.length, 0)
     return ok<HealthInfo>({
@@ -317,12 +321,19 @@ export function registerApi(app: FastifyInstance): void {
     })
   })
 
-  app.get('/api/targets', async (): Promise<ApiResponse<Target[]>> => {
-    return ok(configuredTargets(getPublicConfig()))
-  })
+  app.get(
+    '/api/targets',
+    { schema: { response: { 200: envelopeRef() } } },
+    async (): Promise<ApiResponse<Target[]>> => {
+      return ok(configuredTargets(getPublicConfig()))
+    },
+  )
 
   // Targets arranged into groups for the Team → Disk sidebar.
-  app.get('/api/groups', async (): Promise<ApiResponse<TargetGroup[]>> => {
+  app.get(
+    '/api/groups',
+    { schema: { response: { 200: envelopeRef() } } },
+    async (): Promise<ApiResponse<TargetGroup[]>> => {
     const adminCfg = getPublicConfig()
     const bySlug = new Map(configuredTargets(adminCfg).map((t) => [t.slug, t]))
     const groups: TargetGroup[] = []
@@ -335,6 +346,7 @@ export function registerApi(app: FastifyInstance): void {
 
   app.get<{ Params: { target: string } }>(
     '/api/overview/:target',
+    { schema: { params: pathParams(['target']), response: { 200: envelopeRef() } } },
     async (request, reply): Promise<ApiResponse<Overview>> => {
       const { target } = request.params
       if (!isSafeTargetName(target)) {
@@ -381,7 +393,25 @@ export function registerApi(app: FastifyInstance): void {
       files?: string
       limit?: string
     }
-  }>('/api/treemap/:target', async (request, reply): Promise<ApiResponse<TreemapLevel>> => {
+  }>('/api/treemap/:target', {
+    schema: {
+      params: pathParams(['target']),
+      querystring: {
+        type: 'object',
+        properties: {
+          parent: intQuery('parent', 'directory id'),
+          childAfterSize: intQuery('childAfterSize', 'last child size'),
+          childAfterName: stringQuery('childAfterName', 'last child name'),
+          childSkippedSize: intQuery('childSkippedSize', 'covered bytes'),
+          fileOffset: intQuery('fileOffset', 'file page offset'),
+          limit: intQuery('limit', 'page size'),
+          files: { type: 'string', enum: ['1'] },
+        },
+        additionalProperties: true,
+      },
+      response: { 200: envelopeRef() },
+    },
+  }, async (request, reply): Promise<ApiResponse<TreemapLevel>> => {
     const { target } = request.params
     if (!isSafeTargetName(target)) {
       return fail(reply, 400, 'invalid target name')
@@ -465,6 +495,7 @@ export function registerApi(app: FastifyInstance): void {
   // Every account in the report, for the Detail User picker.
   app.get<{ Params: { target: string } }>(
     '/api/users/:target',
+    { schema: { params: pathParams(['target']), response: { 200: envelopeRef() } } },
     async (request, reply): Promise<ApiResponse<DetailUser[]>> => {
       const opened = withReport(request.params.target, reply)
       if ('err' in opened) return opened.err
@@ -485,7 +516,25 @@ export function registerApi(app: FastifyInstance): void {
       minSize?: string
       maxSize?: string
     }
-  }>('/api/detail/:target/:user', async (request, reply): Promise<ApiResponse<UserDetail>> => {
+  }>('/api/detail/:target/:user', {
+    schema: {
+      params: pathParams(['target', 'user']),
+      querystring: {
+        type: 'object',
+        properties: {
+          query: stringQuery('query', 'comma/tab path terms'),
+          ext: stringQuery('ext', 'comma/tab extensions'),
+          minSize: intQuery('minSize', 'bytes'),
+          maxSize: intQuery('maxSize', 'bytes'),
+          limit: intQuery('limit', 'page size'),
+          dirCursor: { type: 'string' },
+          fileCursor: { type: 'string' },
+        },
+        additionalProperties: true,
+      },
+      response: { 200: envelopeRef() },
+    },
+  }, async (request, reply): Promise<ApiResponse<UserDetail>> => {
     const opened = withReport(request.params.target, reply)
     if ('err' in opened) return opened.err
 
@@ -526,7 +575,24 @@ export function registerApi(app: FastifyInstance): void {
       minSize?: string
       maxSize?: string
     }
-  }>('/api/export/:target/:user', async (request, reply): Promise<ApiResponse<never> | void> => {
+  }>('/api/export/:target/:user', {
+    schema: {
+      params: pathParams(['target', 'user']),
+      querystring: {
+        type: 'object',
+        properties: {
+          kind: { type: 'string', enum: ['dirs', 'files'] },
+          query: stringQuery('query', 'terms'),
+          ext: stringQuery('ext', 'extensions'),
+          minSize: intQuery('minSize', 'bytes'),
+          maxSize: intQuery('maxSize', 'bytes'),
+        },
+        required: ['kind'],
+        additionalProperties: true,
+      },
+      response: { 200: { description: 'gzipped CSV' } },
+    },
+  }, async (request, reply): Promise<ApiResponse<never> | void> => {
     const { target } = request.params
     const opened = withReport(target, reply)
     if ('err' in opened) return opened.err
@@ -607,7 +673,23 @@ export function registerApi(app: FastifyInstance): void {
       itemType?: string
       path?: string
     }
-  }>('/api/permissions/:target', async (request, reply): Promise<ApiResponse<PermPage>> => {
+  }>('/api/permissions/:target', {
+    schema: {
+      params: pathParams(['target']),
+      querystring: {
+        type: 'object',
+        properties: {
+          offset: intQuery('offset', 'page offset'),
+          limit: intQuery('limit', 'page size'),
+          users: stringQuery('users', 'comma usernames'),
+          itemType: { type: 'string' },
+          path: stringQuery('path', 'path filter'),
+        },
+        additionalProperties: true,
+      },
+      response: { 200: envelopeRef() },
+    },
+  }, async (request, reply): Promise<ApiResponse<PermPage>> => {
     const opened = withReport(request.params.target, reply)
     if ('err' in opened) return opened.err
 
@@ -633,6 +715,7 @@ export function registerApi(app: FastifyInstance): void {
   // Whole-target timeline plus one series per user, for the History tab.
   app.get<{ Params: { target: string } }>(
     '/api/history/:target',
+    { schema: { params: pathParams(['target']), response: { 200: envelopeRef() } } },
     async (request, reply): Promise<ApiResponse<HistorySeries>> => {
       const opened = withReport(request.params.target, reply)
       if ('err' in opened) return opened.err
@@ -643,6 +726,7 @@ export function registerApi(app: FastifyInstance): void {
   // Inode usage: the filesystem's own figures plus the per-user breakdown.
   app.get<{ Params: { target: string } }>(
     '/api/inodes/:target',
+    { schema: { params: pathParams(['target']), response: { 200: envelopeRef() } } },
     async (request, reply): Promise<ApiResponse<InodeStats>> => {
       const opened = withReport(request.params.target, reply)
       if ('err' in opened) return opened.err
@@ -653,8 +737,22 @@ export function registerApi(app: FastifyInstance): void {
   // Name search across directories and files.
   app.get<{
     Params: { target: string }
-    Querystring: { q?: string; kind?: string; limit?: string }
-  }>('/api/search/:target', async (request, reply): Promise<ApiResponse<SearchResult>> => {
+    Querystring: { q?: string; kind?: string; limit?: string     }
+  }>('/api/search/:target', {
+    schema: {
+      params: pathParams(['target']),
+      querystring: {
+        type: 'object',
+        properties: {
+          q: stringQuery('q', 'query'),
+          kind: { type: 'string', enum: ['dir', 'file'] },
+        },
+        required: ['q'],
+        additionalProperties: true,
+      },
+      response: { 200: envelopeRef() },
+    },
+  }, async (request, reply): Promise<ApiResponse<SearchResult>> => {
     const opened = withReport(request.params.target, reply)
     if ('err' in opened) return opened.err
 
@@ -672,6 +770,7 @@ export function registerApi(app: FastifyInstance): void {
   // caching header is set because a cached response would defeat the point.
   app.get<{ Params: { target: string } }>(
     '/api/status/:target',
+    { schema: { params: pathParams(['target']), response: { 200: envelopeRef() } } },
     async (request, reply): Promise<ApiResponse<ScanStatus>> => {
       const { target } = request.params
       if (!isSafeTargetName(target)) return fail(reply, 400, 'invalid target name')
@@ -687,7 +786,10 @@ export function registerApi(app: FastifyInstance): void {
   // Freshness for every configured target at once, so the disk column can show a
   // per-card scan indicator with one poll per interval instead of one request per
   // card. Same cost model as the single-target route: stat() plus one small read.
-  app.get('/api/statuses', async (_request, reply): Promise<ApiResponse<ScanStatus[]>> => {
+  app.get(
+    '/api/statuses',
+    { schema: { response: { 200: envelopeRef() } } },
+    async (_request, reply): Promise<ApiResponse<ScanStatus[]>> => {
     reply.header('cache-control', 'no-store')
     // Memoised for a second: N pollers asking in the same window share one walk
     // of every disk instead of N. A rescan is noticed on the next poll at worst.
