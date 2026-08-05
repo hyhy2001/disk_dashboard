@@ -443,7 +443,11 @@ function targetFor(disk: { name: string; slug: string; path: string }): Target {
  * (add/remove/rename/reorder), which the report files alone would miss.
  */
 function targetsCacheKey(adminCfg: {
-  spaces: { name: string; sort_order: number; disks: { name: string; slug: string; path: string; sort_order: number }[] }[]
+  spaces: {
+    name: string
+    sort_order: number
+    disks: { name: string; slug: string; path: string; sort_order: number }[]
+  }[]
 }): string {
   let key = ''
   for (const space of adminCfg.spaces) {
@@ -500,19 +504,20 @@ export function registerApi(app: FastifyInstance): void {
     '/api/health',
     { schema: { response: { 200: HealthDataSchema } } },
     async (): Promise<ApiResponse<HealthInfo>> => {
-    const adminCfg = getPublicConfig()
-    const diskCount = adminCfg.spaces.reduce((s, sp) => s + sp.disks.length, 0)
-    return ok<HealthInfo>({
-      ok: true,
-      sqliteVersion: sqliteVersion(),
-      trigramAvailable: detectTrigram(),
-      reportsDir: '(admin DB)',
-      reportsDirExists: true,
-      targetsFound: diskCount,
-      groupConfigLoaded: adminCfg.spaces.length > 0,
-      needsSetup: adminCfg.needsSetup,
-    })
-  })
+      const adminCfg = getPublicConfig()
+      const diskCount = adminCfg.spaces.reduce((s, sp) => s + sp.disks.length, 0)
+      return ok<HealthInfo>({
+        ok: true,
+        sqliteVersion: sqliteVersion(),
+        trigramAvailable: detectTrigram(),
+        reportsDir: '(admin DB)',
+        reportsDirExists: true,
+        targetsFound: diskCount,
+        groupConfigLoaded: adminCfg.spaces.length > 0,
+        needsSetup: adminCfg.needsSetup,
+      })
+    },
+  )
 
   app.get(
     '/api/targets',
@@ -527,15 +532,16 @@ export function registerApi(app: FastifyInstance): void {
     '/api/groups',
     { schema: { response: { 200: GroupsDataSchema } } },
     async (): Promise<ApiResponse<TargetGroup[]>> => {
-    const adminCfg = getPublicConfig()
-    const bySlug = new Map(configuredTargets(adminCfg).map((t) => [t.slug, t]))
-    const groups: TargetGroup[] = []
-    for (const space of adminCfg.spaces) {
-      const members = space.disks.map((d) => bySlug.get(d.slug)).filter((t): t is Target => t !== undefined)
-      if (members.length > 0) groups.push({ name: space.name, targets: members })
-    }
-    return ok(groups)
-  })
+      const adminCfg = getPublicConfig()
+      const bySlug = new Map(configuredTargets(adminCfg).map((t) => [t.slug, t]))
+      const groups: TargetGroup[] = []
+      for (const space of adminCfg.spaces) {
+        const members = space.disks.map((d) => bySlug.get(d.slug)).filter((t): t is Target => t !== undefined)
+        if (members.length > 0) groups.push({ name: space.name, targets: members })
+      }
+      return ok(groups)
+    },
+  )
 
   app.get<{ Params: { target: string } }>(
     '/api/overview/:target',
@@ -586,87 +592,92 @@ export function registerApi(app: FastifyInstance): void {
       files?: string
       limit?: string
     }
-  }>('/api/treemap/:target', {
-    schema: {
-      params: pathParams(['target']),
-      querystring: {
-        type: 'object',
-        properties: {
-          parent: intQuery('parent', 'directory id'),
-          childAfterSize: intQuery('childAfterSize', 'last child size'),
-          childAfterName: stringQuery('childAfterName', 'last child name'),
-          childSkippedSize: intQuery('childSkippedSize', 'covered bytes'),
-          fileOffset: intQuery('fileOffset', 'file page offset'),
-          limit: intQuery('limit', 'page size'),
-          files: { type: 'string', enum: ['1'] },
+  }>(
+    '/api/treemap/:target',
+    {
+      schema: {
+        params: pathParams(['target']),
+        querystring: {
+          type: 'object',
+          properties: {
+            parent: intQuery('parent', 'directory id'),
+            childAfterSize: intQuery('childAfterSize', 'last child size'),
+            childAfterName: stringQuery('childAfterName', 'last child name'),
+            childSkippedSize: intQuery('childSkippedSize', 'covered bytes'),
+            fileOffset: intQuery('fileOffset', 'file page offset'),
+            limit: intQuery('limit', 'page size'),
+            files: { type: 'string', enum: ['1'] },
+          },
+          additionalProperties: true,
         },
-        additionalProperties: true,
+        response: { 200: TreemapDataSchema },
       },
-      response: { 200: TreemapDataSchema },
     },
-  }, async (request, reply): Promise<ApiResponse<TreemapLevel>> => {
-    const { target } = request.params
-    if (!isSafeTargetName(target)) {
-      return fail(reply, 400, 'invalid target name')
-    }
+    async (request, reply): Promise<ApiResponse<TreemapLevel>> => {
+      const { target } = request.params
+      if (!isSafeTargetName(target)) {
+        return fail(reply, 400, 'invalid target name')
+      }
 
-    /** Parse a non-negative integer query param, or null when absent. */
-    const intParam = (raw: string | undefined): number | null | 'bad' => {
-      if (raw === undefined || raw === '') return null
-      const n = Number(raw)
-      // Anything else is a malformed link rather than a missing node, so
-      // reject instead of silently falling back to a default.
-      if (!Number.isInteger(n) || n < 0) return 'bad'
-      return n
-    }
+      /** Parse a non-negative integer query param, or null when absent. */
+      const intParam = (raw: string | undefined): number | null | 'bad' => {
+        if (raw === undefined || raw === '') return null
+        const n = Number(raw)
+        // Anything else is a malformed link rather than a missing node, so
+        // reject instead of silently falling back to a default.
+        if (!Number.isInteger(n) || n < 0) return 'bad'
+        return n
+      }
 
-    const parent = intParam(request.query.parent)
-    if (parent === 'bad') return fail(reply, 400, 'parent must be a non-negative integer')
+      const parent = intParam(request.query.parent)
+      if (parent === 'bad') return fail(reply, 400, 'parent must be a non-negative integer')
 
-    // Keyset cursor: the (size, name) of the last child the client already has.
-    // A name alone is not a cursor, so require both halves together.
-    const childAfterSize = intParam(request.query.childAfterSize)
-    if (childAfterSize === 'bad') {
-      return fail(reply, 400, 'childAfterSize must be a non-negative integer')
-    }
-    const childAfterName = request.query.childAfterName
-    const childAfter = childAfterSize !== null && childAfterName ? { size: childAfterSize, name: childAfterName } : null
+      // Keyset cursor: the (size, name) of the last child the client already has.
+      // A name alone is not a cursor, so require both halves together.
+      const childAfterSize = intParam(request.query.childAfterSize)
+      if (childAfterSize === 'bad') {
+        return fail(reply, 400, 'childAfterSize must be a non-negative integer')
+      }
+      const childAfterName = request.query.childAfterName
+      const childAfter =
+        childAfterSize !== null && childAfterName ? { size: childAfterSize, name: childAfterName } : null
 
-    const childSkippedSize = intParam(request.query.childSkippedSize)
-    if (childSkippedSize === 'bad') {
-      return fail(reply, 400, 'childSkippedSize must be a non-negative integer')
-    }
+      const childSkippedSize = intParam(request.query.childSkippedSize)
+      if (childSkippedSize === 'bad') {
+        return fail(reply, 400, 'childSkippedSize must be a non-negative integer')
+      }
 
-    const fileOffset = intParam(request.query.fileOffset)
-    if (fileOffset === 'bad') {
-      return fail(reply, 400, 'fileOffset must be a non-negative integer')
-    }
-    // An OFFSET past this is a walking cost, not a page; cap it so a huge offset
-    // cannot force a scan of a directory's whole file set on the event loop.
-    const fileOffsetClamped = Math.min(fileOffset ?? 0, 100_000)
+      const fileOffset = intParam(request.query.fileOffset)
+      if (fileOffset === 'bad') {
+        return fail(reply, 400, 'fileOffset must be a non-negative integer')
+      }
+      // An OFFSET past this is a walking cost, not a page; cap it so a huge offset
+      // cannot force a scan of a directory's whole file set on the event loop.
+      const fileOffsetClamped = Math.min(fileOffset ?? 0, 100_000)
 
-    const db = openTargetReport(target)
-    if (!db) {
-      return fail(reply, 404, `no report found for target '${target}'`)
-    }
+      const db = openTargetReport(target)
+      if (!db) {
+        return fail(reply, 404, `no report found for target '${target}'`)
+      }
 
-    // sizeParam drops an unusable value rather than failing: a bad limit is a
-    // display preference, and defaulting it is friendlier than a 400.
-    const limit = sizeParam(request.query.limit)
+      // sizeParam drops an unusable value rather than failing: a bad limit is a
+      // display preference, and defaulting it is friendlier than a 400.
+      const limit = sizeParam(request.query.limit)
 
-    const level = readTreemapLevel(db, parent, {
-      childAfter,
-      childSkippedSize: childSkippedSize ?? 0,
-      // Files cost an extra skip-scan, so the client opts in.
-      withFiles: request.query.files === '1',
-      fileOffset: fileOffsetClamped,
-      ...(limit !== undefined ? { limit } : {}),
-    })
-    if (!level) {
-      return fail(reply, 404, 'directory not found in this report')
-    }
-    return ok(level)
-  })
+      const level = readTreemapLevel(db, parent, {
+        childAfter,
+        childSkippedSize: childSkippedSize ?? 0,
+        // Files cost an extra skip-scan, so the client opts in.
+        withFiles: request.query.files === '1',
+        fileOffset: fileOffsetClamped,
+        ...(limit !== undefined ? { limit } : {}),
+      })
+      if (!level) {
+        return fail(reply, 404, 'directory not found in this report')
+      }
+      return ok(level)
+    },
+  )
 
   /**
    * Open a target's report, or produce the error response for it.
@@ -709,45 +720,49 @@ export function registerApi(app: FastifyInstance): void {
       minSize?: string
       maxSize?: string
     }
-  }>('/api/detail/:target/:user', {
-    schema: {
-      params: pathParams(['target', 'user']),
-      querystring: {
-        type: 'object',
-        properties: {
-          query: stringQuery('query', 'comma/tab path terms'),
-          ext: stringQuery('ext', 'comma/tab extensions'),
-          minSize: intQuery('minSize', 'bytes'),
-          maxSize: intQuery('maxSize', 'bytes'),
-          limit: intQuery('limit', 'page size'),
-          dirCursor: { type: 'string' },
-          fileCursor: { type: 'string' },
+  }>(
+    '/api/detail/:target/:user',
+    {
+      schema: {
+        params: pathParams(['target', 'user']),
+        querystring: {
+          type: 'object',
+          properties: {
+            query: stringQuery('query', 'comma/tab path terms'),
+            ext: stringQuery('ext', 'comma/tab extensions'),
+            minSize: intQuery('minSize', 'bytes'),
+            maxSize: intQuery('maxSize', 'bytes'),
+            limit: intQuery('limit', 'page size'),
+            dirCursor: { type: 'string' },
+            fileCursor: { type: 'string' },
+          },
+          additionalProperties: true,
         },
-        additionalProperties: true,
+        response: { 200: DetailDataSchema },
       },
-      response: { 200: DetailDataSchema },
     },
-  }, async (request, reply): Promise<ApiResponse<UserDetail>> => {
-    const opened = withReport(request.params.target, reply)
-    if ('err' in opened) return opened.err
+    async (request, reply): Promise<ApiResponse<UserDetail>> => {
+      const opened = withReport(request.params.target, reply)
+      if ('err' in opened) return opened.err
 
-    // The username comes from the URL path, so it arrives percent-decoded by
-    // Fastify but may still be any string; it is only ever used as a bound
-    // parameter, never interpolated.
-    const user = request.params.user
-    const uid = findUid(opened.db, user)
-    if (uid === null) return fail(reply, 404, `no such user '${user}' in this report`)
+      // The username comes from the URL path, so it arrives percent-decoded by
+      // Fastify but may still be any string; it is only ever used as a bound
+      // parameter, never interpolated.
+      const user = request.params.user
+      const uid = findUid(opened.db, user)
+      if (uid === null) return fail(reply, 404, `no such user '${user}' in this report`)
 
-    const limit = sizeParam(request.query.limit)
-    return ok(
-      readUserDetail(opened.db, user, uid, {
-        ...(request.query.dirCursor !== undefined ? { dirCursor: request.query.dirCursor } : {}),
-        ...(request.query.fileCursor !== undefined ? { fileCursor: request.query.fileCursor } : {}),
-        ...(limit !== undefined ? { limit } : {}),
-        filter: detailFilterFrom(request.query),
-      }),
-    )
-  })
+      const limit = sizeParam(request.query.limit)
+      return ok(
+        readUserDetail(opened.db, user, uid, {
+          ...(request.query.dirCursor !== undefined ? { dirCursor: request.query.dirCursor } : {}),
+          ...(request.query.fileCursor !== undefined ? { fileCursor: request.query.fileCursor } : {}),
+          ...(limit !== undefined ? { limit } : {}),
+          filter: detailFilterFrom(request.query),
+        }),
+      )
+    },
+  )
 
   /**
    * Streaming CSV export of one user's dirs or files.
@@ -768,93 +783,97 @@ export function registerApi(app: FastifyInstance): void {
       minSize?: string
       maxSize?: string
     }
-  }>('/api/export/:target/:user', {
-    schema: {
-      params: pathParams(['target', 'user']),
-      querystring: {
-        type: 'object',
-        properties: {
-          kind: { type: 'string', enum: ['dirs', 'files'] },
-          query: stringQuery('query', 'terms'),
-          ext: stringQuery('ext', 'extensions'),
-          minSize: intQuery('minSize', 'bytes'),
-          maxSize: intQuery('maxSize', 'bytes'),
+  }>(
+    '/api/export/:target/:user',
+    {
+      schema: {
+        params: pathParams(['target', 'user']),
+        querystring: {
+          type: 'object',
+          properties: {
+            kind: { type: 'string', enum: ['dirs', 'files'] },
+            query: stringQuery('query', 'terms'),
+            ext: stringQuery('ext', 'extensions'),
+            minSize: intQuery('minSize', 'bytes'),
+            maxSize: intQuery('maxSize', 'bytes'),
+          },
+          required: ['kind'],
+          additionalProperties: true,
         },
-        required: ['kind'],
-        additionalProperties: true,
+        response: { 200: { description: 'gzipped CSV' } },
       },
-      response: { 200: { description: 'gzipped CSV' } },
     },
-  }, async (request, reply): Promise<ApiResponse<never> | void> => {
-    const { target } = request.params
-    const opened = withReport(target, reply)
-    if ('err' in opened) return opened.err
+    async (request, reply): Promise<ApiResponse<never> | void> => {
+      const { target } = request.params
+      const opened = withReport(target, reply)
+      if ('err' in opened) return opened.err
 
-    if (activeExports.has(target)) {
-      return fail(reply, 429, 'an export for this target is already running')
-    }
-    if (activeExportCount >= MAX_ACTIVE_EXPORTS) {
-      return fail(reply, 429, 'too many exports running, try again shortly')
-    }
-    activeExports.add(target)
-    activeExportCount += 1
+      if (activeExports.has(target)) {
+        return fail(reply, 429, 'an export for this target is already running')
+      }
+      if (activeExportCount >= MAX_ACTIVE_EXPORTS) {
+        return fail(reply, 429, 'too many exports running, try again shortly')
+      }
+      activeExports.add(target)
+      activeExportCount += 1
 
-    // Release the lock on any early rejection path below. Idempotent: a killed
-    // stream can emit both 'error' and 'close', and each must not double-count.
-    let released = false
-    const release = (): void => {
-      if (released) return
-      released = true
-      activeExports.delete(target)
-      activeExportCount -= 1
-    }
+      // Release the lock on any early rejection path below. Idempotent: a killed
+      // stream can emit both 'error' and 'close', and each must not double-count.
+      let released = false
+      const release = (): void => {
+        if (released) return
+        released = true
+        activeExports.delete(target)
+        activeExportCount -= 1
+      }
 
-    const kind = request.query.kind
-    if (kind !== 'dirs' && kind !== 'files') {
-      release()
-      return fail(reply, 400, "export kind must be 'dirs' or 'files'")
-    }
+      const kind = request.query.kind
+      if (kind !== 'dirs' && kind !== 'files') {
+        release()
+        return fail(reply, 400, "export kind must be 'dirs' or 'files'")
+      }
 
-    const user = request.params.user
-    const uid = findUid(opened.db, user)
-    if (uid === null) {
-      release()
-      return fail(reply, 404, `no such user '${user}' in this report`)
-    }
+      const user = request.params.user
+      const uid = findUid(opened.db, user)
+      if (uid === null) {
+        release()
+        return fail(reply, 404, `no such user '${user}' in this report`)
+      }
 
-    const filter = detailFilterFrom(request.query)
-    // The dirs list cannot be filtered by extension (readUserDetail suppresses
-    // it in the UI for the same reason), so a dirs export with an ext filter
-    // would silently drop the constraint. Reject it as the UI does.
-    if (kind === 'dirs' && (filter.ext ?? []).length > 0) {
-      release()
-      return fail(reply, 400, 'an extension filter does not apply to a directory export')
-    }
+      const filter = detailFilterFrom(request.query)
+      // The dirs list cannot be filtered by extension (readUserDetail suppresses
+      // it in the UI for the same reason), so a dirs export with an ext filter
+      // would silently drop the constraint. Reject it as the UI does.
+      if (kind === 'dirs' && (filter.ext ?? []).length > 0) {
+        release()
+        return fail(reply, 400, 'an extension filter does not apply to a directory export')
+      }
 
-    const filename = `${kind}_${safeName(user)}_${fileStamp()}.csv.gz`
-    reply
-      .code(200)
-      .header('content-type', 'application/gzip')
-      .header('content-disposition', `attachment; filename="${filename}"`)
-      .header('cache-control', 'no-store')
-    // The CSV is gzipped here rather than on the client so every browser gets a
-    // ~10x smaller download: text compresses extremely well, and the old
-    // client-side CompressionStream path only ran on Chromium — Firefox/Safari
-    // were left with a hundreds-of-MB plain CSV. No Content-Encoding header, so
-    // the bytes the browser saves are exactly the .csv.gz archive.
-    const stream = Readable.from(streamUserListCsv(opened.db, uid, kind, filter)).pipe(createGzip())
-    // Force the stream closed if the client connects but never reads, so a
-    // slow drain cannot hold this target's (and the global) export slot hostage.
-    const killer = setTimeout(() => stream.destroy(), EXPORT_MAX_MS)
-    // Release the per-target and global locks when the stream finishes, errors,
-    // is killed, or the client disconnects.
-    stream.on('close', () => {
-      clearTimeout(killer)
-      release()
-    })
-    stream.on('error', () => release())
-    return reply.send(stream)
-  })
+      const filename = `${kind}_${safeName(user)}_${fileStamp()}.csv.gz`
+      reply
+        .code(200)
+        .header('content-type', 'application/gzip')
+        .header('content-disposition', `attachment; filename="${filename}"`)
+        .header('cache-control', 'no-store')
+      // The CSV is gzipped here rather than on the client so every browser gets a
+      // ~10x smaller download: text compresses extremely well, and the old
+      // client-side CompressionStream path only ran on Chromium — Firefox/Safari
+      // were left with a hundreds-of-MB plain CSV. No Content-Encoding header, so
+      // the bytes the browser saves are exactly the .csv.gz archive.
+      const stream = Readable.from(streamUserListCsv(opened.db, uid, kind, filter)).pipe(createGzip())
+      // Force the stream closed if the client connects but never reads, so a
+      // slow drain cannot hold this target's (and the global) export slot hostage.
+      const killer = setTimeout(() => stream.destroy(), EXPORT_MAX_MS)
+      // Release the per-target and global locks when the stream finishes, errors,
+      // is killed, or the client disconnects.
+      stream.on('close', () => {
+        clearTimeout(killer)
+        release()
+      })
+      stream.on('error', () => release())
+      return reply.send(stream)
+    },
+  )
 
   // Permission issues, offset-paginated because the UI shows numbered pages.
   app.get<{
@@ -866,44 +885,48 @@ export function registerApi(app: FastifyInstance): void {
       itemType?: string
       path?: string
     }
-  }>('/api/permissions/:target', {
-    schema: {
-      params: pathParams(['target']),
-      querystring: {
-        type: 'object',
-        properties: {
-          offset: intQuery('offset', 'page offset'),
-          limit: intQuery('limit', 'page size'),
-          users: stringQuery('users', 'comma usernames'),
-          itemType: { type: 'string' },
-          path: stringQuery('path', 'path filter'),
+  }>(
+    '/api/permissions/:target',
+    {
+      schema: {
+        params: pathParams(['target']),
+        querystring: {
+          type: 'object',
+          properties: {
+            offset: intQuery('offset', 'page offset'),
+            limit: intQuery('limit', 'page size'),
+            users: stringQuery('users', 'comma usernames'),
+            itemType: { type: 'string' },
+            path: stringQuery('path', 'path filter'),
+          },
+          additionalProperties: true,
         },
-        additionalProperties: true,
+        response: { 200: PermissionsDataSchema },
       },
-      response: { 200: PermissionsDataSchema },
     },
-  }, async (request, reply): Promise<ApiResponse<PermPage>> => {
-    const opened = withReport(request.params.target, reply)
-    if ('err' in opened) return opened.err
+    async (request, reply): Promise<ApiResponse<PermPage>> => {
+      const opened = withReport(request.params.target, reply)
+      if ('err' in opened) return opened.err
 
-    const users = splitTerms(request.query.users)
-    const itemType = request.query.itemType
-    const path = request.query.path
-    const offset = sizeParam(request.query.offset)
-    const limit = sizeParam(request.query.limit)
+      const users = splitTerms(request.query.users)
+      const itemType = request.query.itemType
+      const path = request.query.path
+      const offset = sizeParam(request.query.offset)
+      const limit = sizeParam(request.query.limit)
 
-    return ok(
-      readPermIssues(opened.db, {
-        ...(users.length > 0 ? { users } : {}),
-        // Anything other than the two known values is a malformed link; ignore
-        // it rather than returning an empty list that looks like "no issues".
-        ...(itemType === 'file' || itemType === 'directory' ? { itemType } : {}),
-        ...(path !== undefined && path !== '' ? { path } : {}),
-        ...(offset !== undefined ? { offset } : {}),
-        ...(limit !== undefined ? { limit } : {}),
-      }),
-    )
-  })
+      return ok(
+        readPermIssues(opened.db, {
+          ...(users.length > 0 ? { users } : {}),
+          // Anything other than the two known values is a malformed link; ignore
+          // it rather than returning an empty list that looks like "no issues".
+          ...(itemType === 'file' || itemType === 'directory' ? { itemType } : {}),
+          ...(path !== undefined && path !== '' ? { path } : {}),
+          ...(offset !== undefined ? { offset } : {}),
+          ...(limit !== undefined ? { limit } : {}),
+        }),
+      )
+    },
+  )
 
   // Whole-target timeline plus one series per user, for the History tab.
   app.get<{ Params: { target: string } }>(
@@ -931,33 +954,37 @@ export function registerApi(app: FastifyInstance): void {
   app.get<{
     Params: { target: string }
     Querystring: { q?: string; kind?: string; limit?: string }
-  }>('/api/search/:target', {
-    schema: {
-      params: pathParams(['target']),
-      querystring: {
-        type: 'object',
-        properties: {
-          q: stringQuery('q', 'query'),
-          kind: { type: 'string', enum: ['dir', 'file'] },
-          limit: intQuery('limit', 'candidate limit'),
+  }>(
+    '/api/search/:target',
+    {
+      schema: {
+        params: pathParams(['target']),
+        querystring: {
+          type: 'object',
+          properties: {
+            q: stringQuery('q', 'query'),
+            kind: { type: 'string', enum: ['dir', 'file'] },
+            limit: intQuery('limit', 'candidate limit'),
+          },
+          additionalProperties: true,
         },
-        additionalProperties: true,
+        response: { 200: SearchDataSchema },
       },
-      response: { 200: SearchDataSchema },
     },
-  }, async (request, reply): Promise<ApiResponse<SearchResult>> => {
-    const opened = withReport(request.params.target, reply)
-    if ('err' in opened) return opened.err
+    async (request, reply): Promise<ApiResponse<SearchResult>> => {
+      const opened = withReport(request.params.target, reply)
+      if ('err' in opened) return opened.err
 
-    const kind = request.query.kind
-    const limit = sizeParam(request.query.limit)
-    return ok(
-      searchNames(opened.db, request.query.q ?? '', {
-        ...(kind === 'dir' || kind === 'file' ? { kind } : {}),
-        ...(limit !== undefined ? { limit } : {}),
-      }),
-    )
-  })
+      const kind = request.query.kind
+      const limit = sizeParam(request.query.limit)
+      return ok(
+        searchNames(opened.db, request.query.q ?? '', {
+          ...(kind === 'dir' || kind === 'file' ? { kind } : {}),
+          ...(limit !== undefined ? { limit } : {}),
+        }),
+      )
+    },
+  )
 
   // Report freshness. Polled, so it must stay a stat() plus one small read — no
   // caching header is set because a cached response would defeat the point.
@@ -983,31 +1010,32 @@ export function registerApi(app: FastifyInstance): void {
     '/api/statuses',
     { schema: { response: { 200: StatusesDataSchema } } },
     async (_request, reply): Promise<ApiResponse<ScanStatus[]>> => {
-    reply.header('cache-control', 'no-store')
-    // Memoised for a second: N pollers asking in the same window share one walk
-    // of every disk instead of N. A rescan is noticed on the next poll at worst.
-    const now = Date.now()
-    if (statusesCache && now - statusesCache.at < STATUSES_TTL_MS) {
-      return ok(statusesCache.data)
-    }
+      reply.header('cache-control', 'no-store')
+      // Memoised for a second: N pollers asking in the same window share one walk
+      // of every disk instead of N. A rescan is noticed on the next poll at worst.
+      const now = Date.now()
+      if (statusesCache && now - statusesCache.at < STATUSES_TTL_MS) {
+        return ok(statusesCache.data)
+      }
 
-    const disks = getPublicConfig().spaces.flatMap((space) => space.disks)
-    // One poll covers every disk, so read them concurrently rather than letting a
-    // slow (or network-mounted) report directory serialise the rest.
-    const read = await Promise.all(
-      disks.map(async (disk) => ({
-        slug: disk.slug,
-        status: await readScanStatusAtAsync(join(disk.path, REPORT_FILE), disk.path),
-      })),
-    )
-    const statuses: ScanStatus[] = []
-    for (const { slug, status } of read) {
-      if (!status) continue
-      // readScanStatusAtAsync names the target from the directory basename; the
-      // card keys on the admin-DB route slug, so overwrite it.
-      statuses.push({ ...status, target: slug })
-    }
-    statusesCache = { at: now, data: statuses }
-    return ok(statuses)
-  })
+      const disks = getPublicConfig().spaces.flatMap((space) => space.disks)
+      // One poll covers every disk, so read them concurrently rather than letting a
+      // slow (or network-mounted) report directory serialise the rest.
+      const read = await Promise.all(
+        disks.map(async (disk) => ({
+          slug: disk.slug,
+          status: await readScanStatusAtAsync(join(disk.path, REPORT_FILE), disk.path),
+        })),
+      )
+      const statuses: ScanStatus[] = []
+      for (const { slug, status } of read) {
+        if (!status) continue
+        // readScanStatusAtAsync names the target from the directory basename; the
+        // card keys on the admin-DB route slug, so overwrite it.
+        statuses.push({ ...status, target: slug })
+      }
+      statusesCache = { at: now, data: statuses }
+      return ok(statuses)
+    },
+  )
 }

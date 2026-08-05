@@ -26,7 +26,14 @@ describe('loadFilters validation', () => {
   it('rejects a negative rangeDays', () => {
     localStorage.setItem(
       KEYS.filters,
-      JSON.stringify({ rangeDays: -1, dateStart: '', dateEnd: '', selectedUsers: [], logScale: false, detailUser: null }),
+      JSON.stringify({
+        rangeDays: -1,
+        dateStart: '',
+        dateEnd: '',
+        selectedUsers: [],
+        logScale: false,
+        detailUser: null,
+      }),
     )
     expect(loadFilters().rangeDays).toBe(30)
   })
@@ -34,7 +41,14 @@ describe('loadFilters validation', () => {
   it('rejects a malformed dateStart', () => {
     localStorage.setItem(
       KEYS.filters,
-      JSON.stringify({ rangeDays: 30, dateStart: 'x', dateEnd: '', selectedUsers: [], logScale: false, detailUser: null }),
+      JSON.stringify({
+        rangeDays: 30,
+        dateStart: 'x',
+        dateEnd: '',
+        selectedUsers: [],
+        logScale: false,
+        detailUser: null,
+      }),
     )
     expect(loadFilters().dateStart).toBe('')
   })

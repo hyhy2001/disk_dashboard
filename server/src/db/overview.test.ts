@@ -160,7 +160,10 @@ describe('assignAdminTeams', () => {
 
   it('matches usernames case-insensitively and keeps the scanned casing', () => {
     const { users, otherUsers } = assignAdminTeams(
-      [{ username: 'ROOT', total_size: 100 }, { username: 'other', total_size: 5 }],
+      [
+        { username: 'ROOT', total_size: 100 },
+        { username: 'other', total_size: 5 },
+      ],
       [{ name: 'T', users: ['root'] }],
     )
     expect(users).toEqual([{ name: 'ROOT', used: 100, team: 'T' }])

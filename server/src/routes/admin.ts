@@ -112,13 +112,9 @@ function validateCredentials(username: unknown, password: unknown): string | nul
 
 export function registerAdmin(app: FastifyInstance): void {
   // --- Config (public) ---
-  app.get(
-    '/api/admin/config',
-    { schema: { response: { 200: envelopeRef() } } },
-    async (_req, reply: FastifyReply) => {
-      return reply.send({ status: 'success', data: A.getPublicConfig() })
-    },
-  )
+  app.get('/api/admin/config', { schema: { response: { 200: envelopeRef() } } }, async (_req, reply: FastifyReply) => {
+    return reply.send({ status: 'success', data: A.getPublicConfig() })
+  })
 
   // --- Setup (first admin, no auth needed) ---
   app.post(
@@ -154,19 +150,20 @@ export function registerAdmin(app: FastifyInstance): void {
     '/api/admin/status',
     { schema: { response: { 200: envelopeRef() } } },
     async (req: any, reply: FastifyReply) => {
-    const user = adminSessionUser(req)
-    const ip = clientIp(req)
-    const rate = A.rateLimitCheck(ip)
-    return reply.send({
-      status: 'success',
-      data: {
-        loggedIn: !!user,
-        user: user ? { id: user.id, username: user.username, role: user.role } : null,
-        rateLimit: { captcha: rate.captcha, attempts: rate.attempts },
-        needsSetup: !A.hasAnyAdmin(),
-      },
-    })
-  })
+      const user = adminSessionUser(req)
+      const ip = clientIp(req)
+      const rate = A.rateLimitCheck(ip)
+      return reply.send({
+        status: 'success',
+        data: {
+          loggedIn: !!user,
+          user: user ? { id: user.id, username: user.username, role: user.role } : null,
+          rateLimit: { captcha: rate.captcha, attempts: rate.attempts },
+          needsSetup: !A.hasAnyAdmin(),
+        },
+      })
+    },
+  )
 
   app.post(
     '/api/admin/login',
@@ -187,46 +184,47 @@ export function registerAdmin(app: FastifyInstance): void {
       },
     },
     async (req: any, reply: FastifyReply) => {
-    const ip = clientIp(req)
-    const rate = A.rateLimitCheck(ip)
-    if (!rate.allowed) {
-      return reply.code(429).send({ status: 'error', message: 'Too many attempts. Try again later.' })
-    }
-    const { username, password, captchaId, captchaAnswer } = req.body ?? {}
-    if (!username || !password) {
-      return reply.code(422).send({ status: 'error', message: 'Username and password required' })
-    }
-    // Captcha required after enough failures
-    if (rate.captcha) {
-      if (!captchaId || captchaAnswer === undefined || !A.verifyCaptcha(captchaId, Number(captchaAnswer))) {
+      const ip = clientIp(req)
+      const rate = A.rateLimitCheck(ip)
+      if (!rate.allowed) {
+        return reply.code(429).send({ status: 'error', message: 'Too many attempts. Try again later.' })
+      }
+      const { username, password, captchaId, captchaAnswer } = req.body ?? {}
+      if (!username || !password) {
+        return reply.code(422).send({ status: 'error', message: 'Username and password required' })
+      }
+      // Captcha required after enough failures
+      if (rate.captcha) {
+        if (!captchaId || captchaAnswer === undefined || !A.verifyCaptcha(captchaId, Number(captchaAnswer))) {
+          A.rateLimitRecord(ip)
+          return reply.code(401).send({
+            status: 'error',
+            message: 'Captcha answer is incorrect',
+            rateLimit: { captcha: true },
+          })
+        }
+      }
+      const admin = A.getAdminByUsername(username)
+      // Verify against a real hash even when the username does not exist, so a
+      // failed login costs the same scrypt work either way — otherwise the
+      // timing difference reveals which usernames are valid.
+      const hash = admin ? admin.password_hash : A.DUMMY_HASH
+      if (!admin || !A.verifyPassword(password, hash)) {
         A.rateLimitRecord(ip)
+        const after = A.rateLimitCheck(ip)
         return reply.code(401).send({
           status: 'error',
-          message: 'Captcha answer is incorrect',
-          rateLimit: { captcha: true },
+          message: 'Invalid credentials',
+          rateLimit: { captcha: after.captcha, attempts: after.attempts },
         })
       }
-    }
-    const admin = A.getAdminByUsername(username)
-    // Verify against a real hash even when the username does not exist, so a
-    // failed login costs the same scrypt work either way — otherwise the
-    // timing difference reveals which usernames are valid.
-    const hash = admin ? admin.password_hash : A.DUMMY_HASH
-    if (!admin || !A.verifyPassword(password, hash)) {
-      A.rateLimitRecord(ip)
-      const after = A.rateLimitCheck(ip)
-      return reply.code(401).send({
-        status: 'error',
-        message: 'Invalid credentials',
-        rateLimit: { captcha: after.captcha, attempts: after.attempts },
-      })
-    }
-    A.rateLimitClear(ip)
-    const token = A.signSession(`${admin.id}:${admin.role}:${admin.username}:${admin.session_version}`)
-    return reply
-      .setCookie(SESSION_COOKIE, token, COOKIE_OPTS)
-      .send({ status: 'success', data: { id: admin.id, username: admin.username, role: admin.role } })
-  })
+      A.rateLimitClear(ip)
+      const token = A.signSession(`${admin.id}:${admin.role}:${admin.username}:${admin.session_version}`)
+      return reply
+        .setCookie(SESSION_COOKIE, token, COOKIE_OPTS)
+        .send({ status: 'success', data: { id: admin.id, username: admin.username, role: admin.role } })
+    },
+  )
 
   app.get(
     '/api/admin/captcha',
@@ -262,23 +260,28 @@ export function registerAdmin(app: FastifyInstance): void {
         body: {
           type: 'object',
           additionalProperties: true,
-          properties: { username: { type: 'string' }, password: { type: 'string' }, role: { type: 'string', enum: ['owner', 'admin'] } },
+          properties: {
+            username: { type: 'string' },
+            password: { type: 'string' },
+            role: { type: 'string', enum: ['owner', 'admin'] },
+          },
           required: ['username', 'password'],
         },
         response: { 200: envelopeRef() },
       },
     },
     async (req: any, reply: FastifyReply) => {
-    if (!requireOwner(req, reply)) return
-    const { username, password, role } = req.body ?? {}
-    const invalid = validateCredentials(username, password)
-    if (invalid) return reply.code(422).send({ status: 'error', message: invalid })
-    if (role !== undefined && role !== 'admin' && role !== 'owner') {
-      return reply.code(422).send({ status: 'error', message: 'Role must be admin or owner' })
-    }
-    const admin = A.createAdmin(username, password, role ?? 'admin')
-    return reply.code(201).send({ status: 'success', data: admin })
-  })
+      if (!requireOwner(req, reply)) return
+      const { username, password, role } = req.body ?? {}
+      const invalid = validateCredentials(username, password)
+      if (invalid) return reply.code(422).send({ status: 'error', message: invalid })
+      if (role !== undefined && role !== 'admin' && role !== 'owner') {
+        return reply.code(422).send({ status: 'error', message: 'Role must be admin or owner' })
+      }
+      const admin = A.createAdmin(username, password, role ?? 'admin')
+      return reply.code(201).send({ status: 'success', data: admin })
+    },
+  )
 
   app.delete(
     '/api/admin/accounts/:id',
@@ -308,17 +311,18 @@ export function registerAdmin(app: FastifyInstance): void {
       },
     },
     async (req: any, reply: FastifyReply) => {
-    if (!requireOwner(req, reply)) return
-    const id = intParam(req.params.id)
-    if (!id) return reply.code(422).send({ status: 'error', message: 'Invalid id' })
-    const { password } = req.body ?? {}
-    if (!password || password.length < 10) {
-      return reply.code(422).send({ status: 'error', message: 'Password must be at least 10 characters' })
-    }
-    const ok = A.changePassword(id, password)
-    if (!ok) return reply.code(404).send({ status: 'error', message: 'Account not found' })
-    return reply.send({ status: 'success', data: null })
-  })
+      if (!requireOwner(req, reply)) return
+      const id = intParam(req.params.id)
+      if (!id) return reply.code(422).send({ status: 'error', message: 'Invalid id' })
+      const { password } = req.body ?? {}
+      if (!password || password.length < 10) {
+        return reply.code(422).send({ status: 'error', message: 'Password must be at least 10 characters' })
+      }
+      const ok = A.changePassword(id, password)
+      if (!ok) return reply.code(404).send({ status: 'error', message: 'Account not found' })
+      return reply.send({ status: 'success', data: null })
+    },
+  )
 
   // Change own password (any auth user)
   app.post(
@@ -402,17 +406,18 @@ export function registerAdmin(app: FastifyInstance): void {
       },
     },
     async (req: any, reply: FastifyReply) => {
-    if (!requireAuth(req, reply)) return
-    const id = intParam(req.params.id)
-    const { name } = req.body ?? {}
-    if (!id || !name) return reply.code(422).send({ status: 'error', message: 'Invalid request' })
-    try {
-      A.updateSpace(id, name)
-    } catch (e) {
-      uniqueGuard(reply, e, 'space name')
-    }
-    return reply.send({ status: 'success', data: null })
-  })
+      if (!requireAuth(req, reply)) return
+      const id = intParam(req.params.id)
+      const { name } = req.body ?? {}
+      if (!id || !name) return reply.code(422).send({ status: 'error', message: 'Invalid request' })
+      try {
+        A.updateSpace(id, name)
+      } catch (e) {
+        uniqueGuard(reply, e, 'space name')
+      }
+      return reply.send({ status: 'success', data: null })
+    },
+  )
 
   app.delete(
     '/api/admin/spaces/:id',
@@ -469,26 +474,27 @@ export function registerAdmin(app: FastifyInstance): void {
       },
     },
     async (req: any, reply: FastifyReply) => {
-    if (!requireAuth(req, reply)) return
-    const id = intParam(req.params.id)
-    const { name, path } = req.body ?? {}
-    if (!id) return reply.code(422).send({ status: 'error', message: 'Invalid id' })
-    if (path !== undefined) {
-      const valid = A.validateDiskPath(path)
-      if (!valid.ok) return reply.code(422).send({ status: 'error', message: valid.reason })
-    }
-    // Repointing a disk leaves the old report.db's readonly handle cached under
-    // its absolute path, so reads would keep serving the previous file. The cache
-    // only reopens when the *same* path's stamp moves, which never happens here.
-    const before = path !== undefined ? A.diskById(id) : null
-    try {
-      A.updateDisk(id, { name, path })
-      if (before && before.path !== path) evictReport(join(before.path, REPORT_FILE), before.slug)
-    } catch (e) {
-      uniqueGuard(reply, e, 'disk name in this space')
-    }
-    return reply.send({ status: 'success', data: null })
-  })
+      if (!requireAuth(req, reply)) return
+      const id = intParam(req.params.id)
+      const { name, path } = req.body ?? {}
+      if (!id) return reply.code(422).send({ status: 'error', message: 'Invalid id' })
+      if (path !== undefined) {
+        const valid = A.validateDiskPath(path)
+        if (!valid.ok) return reply.code(422).send({ status: 'error', message: valid.reason })
+      }
+      // Repointing a disk leaves the old report.db's readonly handle cached under
+      // its absolute path, so reads would keep serving the previous file. The cache
+      // only reopens when the *same* path's stamp moves, which never happens here.
+      const before = path !== undefined ? A.diskById(id) : null
+      try {
+        A.updateDisk(id, { name, path })
+        if (before && before.path !== path) evictReport(join(before.path, REPORT_FILE), before.slug)
+      } catch (e) {
+        uniqueGuard(reply, e, 'disk name in this space')
+      }
+      return reply.send({ status: 'success', data: null })
+    },
+  )
 
   app.post(
     '/api/admin/disks/test-read',
@@ -518,86 +524,88 @@ export function registerAdmin(app: FastifyInstance): void {
     '/api/admin/disks/:id/import-teams',
     { schema: { params: pathParams(['id']), response: { 200: envelopeRef() } } },
     async (req: any, reply: FastifyReply) => {
-    if (!requireAuth(req, reply)) return
-    const diskId = intParam(req.params.id)
-    if (!diskId) return reply.code(422).send({ status: 'error', message: 'Invalid disk id' })
+      if (!requireAuth(req, reply)) return
+      const diskId = intParam(req.params.id)
+      if (!diskId) return reply.code(422).send({ status: 'error', message: 'Invalid disk id' })
 
-    // Get disk path from admin.db
-    const spaces = A.listSpacesWithDisks()
-    const disk = spaces.flatMap((s) => s.disks).find((d) => d.id === diskId)
-    if (!disk) return reply.code(404).send({ status: 'error', message: 'Disk not found' })
+      // Get disk path from admin.db
+      const spaces = A.listSpacesWithDisks()
+      const disk = spaces.flatMap((s) => s.disks).find((d) => d.id === diskId)
+      if (!disk) return reply.code(404).send({ status: 'error', message: 'Disk not found' })
 
-    const rp = join(disk.path, 'report.db')
-    if (!existsSync(rp))
-      return reply.code(404).send({ status: 'error', message: 'report.db not found at ' + disk.path })
+      const rp = join(disk.path, 'report.db')
+      if (!existsSync(rp))
+        return reply.code(404).send({ status: 'error', message: 'report.db not found at ' + disk.path })
 
-    let reportDb: Database.Database | null = null
-    try {
-      reportDb = new Database(rp, { readonly: true })
+      let reportDb: Database.Database | null = null
+      try {
+        reportDb = new Database(rp, { readonly: true })
 
-      // Read teams from hist_team_usage
-      const teamRows = reportDb
-        .prepare("SELECT DISTINCT team_id AS id, name FROM hist_team_usage WHERE name IS NOT NULL AND name != ''")
-        .all() as { id: string; name: string }[]
+        // Read teams from hist_team_usage
+        const teamRows = reportDb
+          .prepare("SELECT DISTINCT team_id AS id, name FROM hist_team_usage WHERE name IS NOT NULL AND name != ''")
+          .all() as { id: string; name: string }[]
 
-      // Read users per team from newest snapshot
-      const snapRow = reportDb.prepare('SELECT id FROM hist_snapshots ORDER BY scan_date DESC LIMIT 1').get() as
-        { id: number } | undefined
-      const usersByTeam: Record<string, string[]> = {}
-      if (snapRow) {
-        const userRows = reportDb
-          .prepare(`SELECT u.username, u.team_id FROM detail_users u WHERE u.team_id IS NOT NULL AND u.team_id != ''`)
-          .all() as { username: string; team_id: string }[]
-        for (const u of userRows) {
-          if (!usersByTeam[u.team_id]) usersByTeam[u.team_id] = []
-          usersByTeam[u.team_id]!.push(u.username)
+        // Read users per team from newest snapshot
+        const snapRow = reportDb.prepare('SELECT id FROM hist_snapshots ORDER BY scan_date DESC LIMIT 1').get() as
+          { id: number } | undefined
+        const usersByTeam: Record<string, string[]> = {}
+        if (snapRow) {
+          const userRows = reportDb
+            .prepare(`SELECT u.username, u.team_id FROM detail_users u WHERE u.team_id IS NOT NULL AND u.team_id != ''`)
+            .all() as { username: string; team_id: string }[]
+          for (const u of userRows) {
+            if (!usersByTeam[u.team_id]) usersByTeam[u.team_id] = []
+            usersByTeam[u.team_id]!.push(u.username)
+          }
         }
+
+        // Replace the disk's teams atomically (idempotent: existing ones are
+        // cleared inside the same transaction as the inserts).
+        const imported = A.importDiskTeams(
+          diskId,
+          teamRows.map((t) => ({ name: t.name, users: usersByTeam[t.id] || [] })),
+        )
+
+        reportDb.close()
+        return reply.send({ status: 'success', data: { imported, teams: A.listDiskTeams(diskId) } })
+      } catch {
+        if (reportDb) reportDb.close()
+        return reply.code(500).send({ status: 'error', message: 'Could not import teams from this report' })
       }
-
-      // Replace the disk's teams atomically (idempotent: existing ones are
-      // cleared inside the same transaction as the inserts).
-      const imported = A.importDiskTeams(
-        diskId,
-        teamRows.map((t) => ({ name: t.name, users: usersByTeam[t.id] || [] })),
-      )
-
-      reportDb.close()
-      return reply.send({ status: 'success', data: { imported, teams: A.listDiskTeams(diskId) } })
-    } catch {
-      if (reportDb) reportDb.close()
-      return reply.code(500).send({ status: 'error', message: 'Could not import teams from this report' })
-    }
-  })
+    },
+  )
 
   // Get all user names from report.db for a disk
   app.get(
     '/api/admin/disks/:id/users',
     { schema: { params: pathParams(['id']), response: { 200: envelopeRef() } } },
     async (req: any, reply: FastifyReply) => {
-    if (!requireAuth(req, reply)) return
-    const diskId = intParam(req.params.id)
-    if (!diskId) return reply.code(422).send({ status: 'error', message: 'Invalid disk id' })
+      if (!requireAuth(req, reply)) return
+      const diskId = intParam(req.params.id)
+      if (!diskId) return reply.code(422).send({ status: 'error', message: 'Invalid disk id' })
 
-    const spaces = A.listSpacesWithDisks()
-    const disk = spaces.flatMap((s) => s.disks).find((d) => d.id === diskId)
-    if (!disk) return reply.code(404).send({ status: 'error', message: 'Disk not found' })
+      const spaces = A.listSpacesWithDisks()
+      const disk = spaces.flatMap((s) => s.disks).find((d) => d.id === diskId)
+      if (!disk) return reply.code(404).send({ status: 'error', message: 'Disk not found' })
 
-    const rp = join(disk.path, 'report.db')
-    if (!existsSync(rp)) return reply.code(404).send({ status: 'error', message: 'report.db not found' })
+      const rp = join(disk.path, 'report.db')
+      if (!existsSync(rp)) return reply.code(404).send({ status: 'error', message: 'report.db not found' })
 
-    let reportDb: Database.Database | null = null
-    try {
-      reportDb = new Database(rp, { readonly: true })
-      const rows = reportDb
-        .prepare('SELECT DISTINCT username FROM detail_users WHERE total_size > 0 ORDER BY username')
-        .all() as { username: string }[]
-      reportDb.close()
-      return reply.send({ status: 'success', data: rows.map((r) => r.username) })
-    } catch {
-      if (reportDb) reportDb.close()
-      return reply.code(500).send({ status: 'error', message: 'Could not read users from this report' })
-    }
-  })
+      let reportDb: Database.Database | null = null
+      try {
+        reportDb = new Database(rp, { readonly: true })
+        const rows = reportDb
+          .prepare('SELECT DISTINCT username FROM detail_users WHERE total_size > 0 ORDER BY username')
+          .all() as { username: string }[]
+        reportDb.close()
+        return reply.send({ status: 'success', data: rows.map((r) => r.username) })
+      } catch {
+        if (reportDb) reportDb.close()
+        return reply.code(500).send({ status: 'error', message: 'Could not read users from this report' })
+      }
+    },
+  )
 
   app.delete(
     '/api/admin/disks/:id',
@@ -643,15 +651,16 @@ export function registerAdmin(app: FastifyInstance): void {
       },
     },
     async (req: any, reply: FastifyReply) => {
-    if (!requireAuth(req, reply)) return
-    const diskId = intParam(req.params.id)
-    const { name } = req.body ?? {}
-    if (!diskId) return reply.code(422).send({ status: 'error', message: 'Invalid disk id' })
-    if (!name || typeof name !== 'string') {
-      return reply.code(422).send({ status: 'error', message: 'Team name required' })
-    }
-    return reply.code(201).send({ status: 'success', data: A.createDiskTeam(diskId, name) })
-  })
+      if (!requireAuth(req, reply)) return
+      const diskId = intParam(req.params.id)
+      const { name } = req.body ?? {}
+      if (!diskId) return reply.code(422).send({ status: 'error', message: 'Invalid disk id' })
+      if (!name || typeof name !== 'string') {
+        return reply.code(422).send({ status: 'error', message: 'Team name required' })
+      }
+      return reply.code(201).send({ status: 'success', data: A.createDiskTeam(diskId, name) })
+    },
+  )
 
   app.put(
     '/api/admin/teams/:id',

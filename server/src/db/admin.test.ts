@@ -148,7 +148,7 @@ describe('session revocation', () => {
     createDisk(sp.id, 'data', diskPath)
 
     const info = await createBackup()
-        expect(info.name).toMatch(/^admin_backup_\d{4}-\d{2}-\d{2}T\d{4}_[0-9a-f]{4}\.db$/)
+    expect(info.name).toMatch(/^admin_backup_\d{4}-\d{2}-\d{2}T\d{4}_[0-9a-f]{4}\.db$/)
     expect(info.size).toBeGreaterThan(0)
 
     const dest = join(base, 'backups', info.name)
@@ -195,7 +195,7 @@ describe('login timing mitigation', () => {
 })
 
 describe('importDiskTeams', () => {
-  it('replaces a disk\'s teams with the imported set in one pass', () => {
+  it("replaces a disk's teams with the imported set in one pass", () => {
     const base = withTempDb()
     const diskPath = join(base, 'vol1')
     mkdirSync(diskPath, { recursive: true })

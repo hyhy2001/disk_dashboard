@@ -45,16 +45,19 @@ export function ColumnResizer(): JSX.Element {
     syncAria(width.current)
   }, [syncAria])
 
-  const onMove = useCallback((e: PointerEvent) => {
-    if (!dragging.current) return
-    // Measure from the column's own left edge so the handle tracks the pointer
-    // exactly regardless of what is to the left of it.
-    const left = document.querySelector('.diskcol')?.getBoundingClientRect().left ?? 0
-    const next = Math.min(MAX, Math.max(MIN, e.clientX - left))
-    width.current = next
-    applyColumnWidth(next)
-    syncAria(next)
-  }, [syncAria])
+  const onMove = useCallback(
+    (e: PointerEvent) => {
+      if (!dragging.current) return
+      // Measure from the column's own left edge so the handle tracks the pointer
+      // exactly regardless of what is to the left of it.
+      const left = document.querySelector('.diskcol')?.getBoundingClientRect().left ?? 0
+      const next = Math.min(MAX, Math.max(MIN, e.clientX - left))
+      width.current = next
+      applyColumnWidth(next)
+      syncAria(next)
+    },
+    [syncAria],
+  )
 
   const onUp = useCallback(() => {
     if (!dragging.current) return
@@ -75,17 +78,20 @@ export function ColumnResizer(): JSX.Element {
   }, [onMove, onUp])
 
   /** Keyboard resizing, so the column is adjustable without a pointer. */
-  const onKey = useCallback((e: React.KeyboardEvent<HTMLDivElement>) => {
-    const step = e.shiftKey ? 40 : 10
-    const delta = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0
-    if (delta === 0) return
-    e.preventDefault()
-    const next = Math.min(MAX, Math.max(MIN, width.current + delta))
-    width.current = next
-    applyColumnWidth(next)
-    syncAria(next)
-    writeString(KEYS.diskColumnWidth, String(next))
-  }, [syncAria])
+  const onKey = useCallback(
+    (e: React.KeyboardEvent<HTMLDivElement>) => {
+      const step = e.shiftKey ? 40 : 10
+      const delta = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0
+      if (delta === 0) return
+      e.preventDefault()
+      const next = Math.min(MAX, Math.max(MIN, width.current + delta))
+      width.current = next
+      applyColumnWidth(next)
+      syncAria(next)
+      writeString(KEYS.diskColumnWidth, String(next))
+    },
+    [syncAria],
+  )
 
   return (
     <div

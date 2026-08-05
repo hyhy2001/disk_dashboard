@@ -32,9 +32,7 @@ describe('adminApi session expiry', () => {
       .fn()
       .mockImplementationOnce(() => Promise.resolve(new Response(JSON.stringify(LOGGED_IN), { status: 200 })))
       .mockImplementationOnce(() =>
-        Promise.resolve(
-          new Response(JSON.stringify({ message: 'session expired' }), { status: 401 }),
-        ),
+        Promise.resolve(new Response(JSON.stringify({ message: 'session expired' }), { status: 401 })),
       )
 
     const listener = vi.fn()
@@ -63,9 +61,7 @@ describe('adminApi session expiry', () => {
     let calls = 0
     globalThis.fetch = vi.fn(async () => {
       calls += 1
-      return Promise.resolve(
-        new Response(JSON.stringify(calls === 1 ? LOGGED_IN : LOGGED_OUT), { status: 200 }),
-      )
+      return Promise.resolve(new Response(JSON.stringify(calls === 1 ? LOGGED_IN : LOGGED_OUT), { status: 200 }))
     })
 
     expect((await fetchAuthStatus()).loggedIn).toBe(true)

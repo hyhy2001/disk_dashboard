@@ -25,7 +25,13 @@ describe('resolveVarsIn', () => {
     path.setAttribute('fill', 'var(--accent)')
     svg.appendChild(path)
 
-    resolveVarsIn(svg, new Map([['--amber-400', '#fbbf24'], ['--accent', '#10b981']]))
+    resolveVarsIn(
+      svg,
+      new Map([
+        ['--amber-400', '#fbbf24'],
+        ['--accent', '#10b981'],
+      ]),
+    )
 
     expect(path.getAttribute('stroke')).toBe('#fbbf24')
     expect(path.getAttribute('fill')).toBe('#10b981')

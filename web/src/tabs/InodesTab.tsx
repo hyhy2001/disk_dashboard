@@ -28,7 +28,11 @@ const MAX_USERS = 200
 
 function tone(pct: number): string {
   const t = usageTone(pct)
-  return t === 'critical' ? 'text-[var(--rose-400)]' : t === 'warning' ? 'text-[var(--amber-400)]' : 'text-[var(--emerald-500)]'
+  return t === 'critical'
+    ? 'text-[var(--rose-400)]'
+    : t === 'warning'
+      ? 'text-[var(--amber-400)]'
+      : 'text-[var(--emerald-500)]'
 }
 
 function InodeRing({ total, used, scanned }: { total: number; used: number; scanned: number }) {
@@ -210,7 +214,9 @@ export function InodesTab({ target }: Props): JSX.Element {
             {filtered.length !== 1 ? 's' : ''}
           </span>
           {truncated && (
-            <span className="text-[12px] text-muted-foreground/70 italic">showing first {formatCount(MAX_USERS)} — narrow the search</span>
+            <span className="text-[12px] text-muted-foreground/70 italic">
+              showing first {formatCount(MAX_USERS)} — narrow the search
+            </span>
           )}
           <div className="flex-1 hidden md:block" />
           <Input

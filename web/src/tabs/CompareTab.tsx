@@ -63,10 +63,7 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
   const unknown = rows.length - withCapacity.length
 
   /** Bar scale denominator: the largest capacity in the space. */
-  const maxTotal = useMemo(
-    () => Math.max(...withCapacity.map((t) => t.capacity?.total ?? 0), 1),
-    [withCapacity],
-  )
+  const maxTotal = useMemo(() => Math.max(...withCapacity.map((t) => t.capacity?.total ?? 0), 1), [withCapacity])
 
   /**
    * Width for one segment, in percent of the bar track.

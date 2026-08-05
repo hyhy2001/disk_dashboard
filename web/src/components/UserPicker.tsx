@@ -160,7 +160,8 @@ export function UserPicker({ users, selected, onSelect }: Props): JSX.Element {
                   <span className="text-muted-foreground tabular-nums shrink-0">
                     {formatSize(u.used)}
                     <span className="hidden min-[440px]:inline">
-                      {' '}· {formatCount(u.files)} files
+                      {' '}
+                      · {formatCount(u.files)} files
                       {!u.hasDetail && ' · no breakdown'}
                     </span>
                   </span>

@@ -14,13 +14,7 @@
 // in the URL. Segments are percent-encoded.
 
 /** Detail sub-tabs, in the order the tab bar shows them. */
-export const DETAIL_TABS = [
-  'treemap',
-  'history',
-  'detail-user',
-  'permissions',
-  'inodes',
-] as const
+export const DETAIL_TABS = ['treemap', 'history', 'detail-user', 'permissions', 'inodes'] as const
 
 export type DetailTab = (typeof DETAIL_TABS)[number]
 

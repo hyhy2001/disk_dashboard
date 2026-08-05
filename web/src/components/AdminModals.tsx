@@ -422,8 +422,7 @@ function SpacesContent() {
                     >
                       {testResult[d._key]!.reportReadable
                         ? `✓ ${testResult[d._key]!.totalFiles} files · ${testResult[d._key]!.scanRoot ?? 'no scan_root'}`
-                        : `✗ ${testResult[d._key]!.message ?? 'not readable'}`
-                          .replace(testResult[d._key]!.path, '…')}
+                        : `✗ ${testResult[d._key]!.message ?? 'not readable'}`.replace(testResult[d._key]!.path, '…')}
                     </div>
                   )}
                   {d.id && d.slug && (
@@ -525,7 +524,6 @@ function SpacesContent() {
     </div>
   )
 }
-
 
 // ── Accounts Content ────────────────────────────────────────────────
 

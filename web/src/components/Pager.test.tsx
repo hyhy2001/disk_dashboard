@@ -22,7 +22,9 @@ describe('NumberPager', () => {
 
 describe('StepPager', () => {
   it('renders nothing when there is nowhere to step', () => {
-    const { container } = render(<StepPager page={1} hasPrev={false} hasNext={false} onPrev={() => {}} onNext={() => {}} />)
+    const { container } = render(
+      <StepPager page={1} hasPrev={false} hasNext={false} onPrev={() => {}} onNext={() => {}} />,
+    )
     expect(container.firstChild).toBeNull()
   })
 })

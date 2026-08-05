@@ -266,33 +266,36 @@ export function PermissionsTab({ target }: Props): JSX.Element {
                   <span>Error</span>
                 </div>
                 <div className="divide-y divide-border/50">
-                {data.rows.map((r) => (
-                  <div
-                    key={r.path}
-                    className="group grid grid-cols-[18px_minmax(0,140px)_1fr_minmax(0,160px)] items-center gap-2 px-4 py-1.5 hover:bg-muted/30 transition-colors text-xs"
-                  >
-                    {r.itemType === 'directory' ? (
-                      <Folder className="size-3 text-muted-foreground shrink-0" />
-                    ) : (
-                      <File className="size-3 text-muted-foreground shrink-0" />
-                    )}
-                    <Badge
-                      variant="secondary"
-                      className={cn('text-[11px] justify-self-start max-w-full truncate', r.user === UNKNOWN && 'opacity-50')}
+                  {data.rows.map((r) => (
+                    <div
+                      key={r.path}
+                      className="group grid grid-cols-[18px_minmax(0,140px)_1fr_minmax(0,160px)] items-center gap-2 px-4 py-1.5 hover:bg-muted/30 transition-colors text-xs"
                     >
-                      {r.user === UNKNOWN ? 'unknown' : r.user}
-                    </Badge>
-                    <button
-                      onClick={() => void copyPath(r.path)}
-                      className="truncate text-left font-mono text-[13px] text-muted-foreground hover:text-foreground transition-colors"
-                      title={`${r.path} — click to copy`}
-                    >
-                      <Copy className="size-2.5 inline mr-1 opacity-0 group-hover:opacity-100" />
-                      {r.path}
-                    </button>
-                    <span className="text-[12px] text-muted-foreground truncate">{r.error}</span>
-                  </div>
-                ))}
+                      {r.itemType === 'directory' ? (
+                        <Folder className="size-3 text-muted-foreground shrink-0" />
+                      ) : (
+                        <File className="size-3 text-muted-foreground shrink-0" />
+                      )}
+                      <Badge
+                        variant="secondary"
+                        className={cn(
+                          'text-[11px] justify-self-start max-w-full truncate',
+                          r.user === UNKNOWN && 'opacity-50',
+                        )}
+                      >
+                        {r.user === UNKNOWN ? 'unknown' : r.user}
+                      </Badge>
+                      <button
+                        onClick={() => void copyPath(r.path)}
+                        className="truncate text-left font-mono text-[13px] text-muted-foreground hover:text-foreground transition-colors"
+                        title={`${r.path} — click to copy`}
+                      >
+                        <Copy className="size-2.5 inline mr-1 opacity-0 group-hover:opacity-100" />
+                        {r.path}
+                      </button>
+                      <span className="text-[12px] text-muted-foreground truncate">{r.error}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             )}

@@ -335,14 +335,14 @@ export function readUserDirs(db: Database.Database, uid: number, opts: PageOptio
   // (see countCached) since the filter stays fixed while the user pages.
   const total =
     !filter.sql && hasColumn(db, 'detail_users', 'owned_dirs')
-      ? ((db.prepare('SELECT owned_dirs AS cnt FROM detail_users WHERE uid = ?').get(uid) as
-          | { cnt: number }
-          | undefined)?.cnt ?? 0)
-      : countCached(
-          db,
-          `SELECT COUNT(*) AS cnt FROM detail_dirs WHERE uid = ?${ownedClause}${filter.sql}`,
-          [uid, ownedParam, ...filter.params],
-        )
+      ? ((
+          db.prepare('SELECT owned_dirs AS cnt FROM detail_users WHERE uid = ?').get(uid) as { cnt: number } | undefined
+        )?.cnt ?? 0)
+      : countCached(db, `SELECT COUNT(*) AS cnt FROM detail_dirs WHERE uid = ?${ownedClause}${filter.sql}`, [
+          uid,
+          ownedParam,
+          ...filter.params,
+        ])
 
   return {
     rows: page.map((r) => ({ id: r.id, path: r.path, used: r.size, files: r.files })),

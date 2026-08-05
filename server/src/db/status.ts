@@ -120,10 +120,7 @@ export function readScanStatusAt(reportDbPath: string, targetDir: string): ScanS
  * to (possibly network-mounted) report directories.
  */
 export async function readScanStatusAtAsync(reportDbPath: string, targetDir: string): Promise<ScanStatus | null> {
-  const [st, status] = await Promise.all([
-    stat(reportDbPath).catch(() => null),
-    readStatusFileAsync(targetDir),
-  ])
+  const [st, status] = await Promise.all([stat(reportDbPath).catch(() => null), readStatusFileAsync(targetDir)])
   if (!st) return null
   return build(reportDbPath, targetDir, st.ino, st.mtimeMs, st.size, status)
 }
@@ -174,6 +171,7 @@ function build(
     // process is gone — say "not running" rather than "Scanning…" forever.
     running:
       !(status?.running === true && updatedAt !== undefined && Math.floor(Date.now() / 1000) - updatedAt > 30) &&
-      (status?.running === true || (status?.running === undefined && stage !== undefined && !TERMINAL_STAGES.has(stage))),
+      (status?.running === true ||
+        (status?.running === undefined && stage !== undefined && !TERMINAL_STAGES.has(stage))),
   }
 }

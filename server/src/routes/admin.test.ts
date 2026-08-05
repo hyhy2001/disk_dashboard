@@ -68,7 +68,11 @@ describe('admin auth', () => {
   it('rejects every admin mutation route without a session', async () => {
     app = createTestApp()
     const mutations: { method: 'POST' | 'DELETE' | 'PUT'; url: string; payload?: object }[] = [
-      { method: 'POST', url: '/api/admin/accounts', payload: { username: 'x', password: 'long-password', role: 'admin' } },
+      {
+        method: 'POST',
+        url: '/api/admin/accounts',
+        payload: { username: 'x', password: 'long-password', role: 'admin' },
+      },
       { method: 'POST', url: '/api/admin/spaces', payload: { name: 'x' } },
       { method: 'POST', url: '/api/admin/disks', payload: { space_id: 1, name: 'x', path: '/tmp' } },
       { method: 'POST', url: '/api/admin/backups' },
@@ -191,7 +195,11 @@ describe('backup and restore end-to-end', () => {
     const cookie = await login(app)
     const res = await app.inject({ method: 'POST', url: '/api/admin/backups', headers: { cookie } })
     const name = res.json().data.name as string
-    await app.inject({ method: 'POST', url: `/api/admin/backups/${encodeURIComponent(name)}/restore`, headers: { cookie } })
+    await app.inject({
+      method: 'POST',
+      url: `/api/admin/backups/${encodeURIComponent(name)}/restore`,
+      headers: { cookie },
+    })
 
     // The restored DB must be a working, reopenable SQLite file.
     const login2 = await app.inject({

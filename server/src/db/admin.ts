@@ -467,9 +467,8 @@ export function diskBySlug(slug: string): Disk | null {
 
 /** Look up a disk by id. Needed to learn a disk's path before it is changed. */
 export function diskById(id: number): Disk | null {
-  const row = adminDb()
-    .prepare('SELECT id, space_id, name, path, slug, sort_order FROM disks WHERE id = ?')
-    .get(id) as Disk | undefined
+  const row = adminDb().prepare('SELECT id, space_id, name, path, slug, sort_order FROM disks WHERE id = ?').get(id) as
+    Disk | undefined
   return row ?? null
 }
 
@@ -618,9 +617,8 @@ export function listDiskTeams(diskId: number): DiskTeam[] {
 }
 
 export function getDiskTeam(id: number): DiskTeam | null {
-  const r = adminDb()
-    .prepare('SELECT id, disk_id, name, users FROM disk_teams WHERE id = ?')
-    .get(id) as { id: number; disk_id: number; name: string; users: string } | undefined
+  const r = adminDb().prepare('SELECT id, disk_id, name, users FROM disk_teams WHERE id = ?').get(id) as
+    { id: number; disk_id: number; name: string; users: string } | undefined
   return r ? { ...r, users: JSON.parse(r.users) as string[] } : null
 }
 

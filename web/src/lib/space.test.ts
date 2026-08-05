@@ -2,7 +2,10 @@ import { describe, expect, it } from 'vitest'
 import type { Target } from '../../../shared/api.js'
 import { spaceTotals } from './space.js'
 
-function target(scanRoot: string, cap: { total: number; used: number; available: number; scanned: number } | null): Target {
+function target(
+  scanRoot: string,
+  cap: { total: number; used: number; available: number; scanned: number } | null,
+): Target {
   return {
     name: scanRoot,
     slug: scanRoot,
@@ -44,10 +47,7 @@ describe('spaceTotals', () => {
   })
 
   it('keeps sibling roots on one filesystem, which walk disjoint trees', () => {
-    const t = spaceTotals([
-      target('/home', { ...DEV_A, scanned: 10 }),
-      target('/var', { ...DEV_A, scanned: 25 }),
-    ])
+    const t = spaceTotals([target('/home', { ...DEV_A, scanned: 10 }), target('/var', { ...DEV_A, scanned: 25 })])
     expect(t.scanned).toBe(35)
     expect(t.total).toBe(DEV_A.total)
   })
@@ -71,10 +71,7 @@ describe('spaceTotals', () => {
 
   it('does not confuse a prefix match with containment', () => {
     // `/varlib` is not inside `/var`.
-    const t = spaceTotals([
-      target('/var', { ...DEV_A, scanned: 10 }),
-      target('/varlib', { ...DEV_A, scanned: 5 }),
-    ])
+    const t = spaceTotals([target('/var', { ...DEV_A, scanned: 10 }), target('/varlib', { ...DEV_A, scanned: 5 })])
     expect(t.scanned).toBe(15)
   })
 

@@ -9,7 +9,11 @@ describe('schema helpers', () => {
   })
 
   it('builds a string path param', () => {
-    expect(stringParam('target')).toEqual({ type: 'object', properties: { target: { type: 'string' } }, required: ['target'] })
+    expect(stringParam('target')).toEqual({
+      type: 'object',
+      properties: { target: { type: 'string' } },
+      required: ['target'],
+    })
   })
 
   it('accepts both integer and string for a numeric query', () => {

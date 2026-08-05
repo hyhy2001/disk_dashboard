@@ -117,38 +117,38 @@ export function BarChart({ rows, limit = 10, logScale = false }: Props): JSX.Ele
           role="img"
           aria-label={`Top ${data.length} users by disk usage${logScale ? ', logarithmic scale' : ''}`}
         >
-        {data.map((r, i) => {
-          const y = i * rowH
-          const w = Math.max(2, widthFor(r.used))
-          const mid = y + barH / 2 + 5
-          return (
-            <g key={r.name}>
-              {/* Every name renders. Chart.js autoSkip would drop every other
+          {data.map((r, i) => {
+            const y = i * rowH
+            const w = Math.max(2, widthFor(r.used))
+            const mid = y + barH / 2 + 5
+            return (
+              <g key={r.name}>
+                {/* Every name renders. Chart.js autoSkip would drop every other
                   label when narrow, showing 10 bars but 5 names. */}
-              <text className="chart__axis" x={LABEL_W - 8} y={mid} textAnchor="end">
-                {r.name.length > 16 ? `${r.name.slice(0, 15)}…` : r.name}
-              </text>
-              <rect x={LABEL_W} y={y + 2} width={trackW} height={barH} rx={4} fill="var(--bg-hover)" />
-              <rect className="chart__bar" x={LABEL_W} y={y + 2} width={w} height={barH} rx={4} fill="var(--sky-400)">
-                <title>{`${r.name}: ${formatSize(r.used)}`}</title>
-              </rect>
-              <text className="chart__axis chart__axis--mono" x={width - 4} y={mid} textAnchor="end">
-                {formatSize(r.used)}
-              </text>
-            </g>
-          )
-        })}
+                <text className="chart__axis" x={LABEL_W - 8} y={mid} textAnchor="end">
+                  {r.name.length > 16 ? `${r.name.slice(0, 15)}…` : r.name}
+                </text>
+                <rect x={LABEL_W} y={y + 2} width={trackW} height={barH} rx={4} fill="var(--bg-hover)" />
+                <rect className="chart__bar" x={LABEL_W} y={y + 2} width={w} height={barH} rx={4} fill="var(--sky-400)">
+                  <title>{`${r.name}: ${formatSize(r.used)}`}</title>
+                </rect>
+                <text className="chart__axis chart__axis--mono" x={width - 4} y={mid} textAnchor="end">
+                  {formatSize(r.used)}
+                </text>
+              </g>
+            )
+          })}
 
-        {/* Size axis at the bottom, aligned to the bar track. */}
-        <line className="chart__grid" x1={LABEL_W} y1={axisY} x2={LABEL_W + trackW} y2={axisY} />
-        {AXIS_TICKS.map((t) => {
-          const x = LABEL_W + t * trackW
-          return (
-            <text key={t} className="chart__axis chart__axis--mono" x={x} y={axisY + 10} textAnchor="middle">
-              {formatSize(valueAt(t))}
-            </text>
-          )
-        })}
+          {/* Size axis at the bottom, aligned to the bar track. */}
+          <line className="chart__grid" x1={LABEL_W} y1={axisY} x2={LABEL_W + trackW} y2={axisY} />
+          {AXIS_TICKS.map((t) => {
+            const x = LABEL_W + t * trackW
+            return (
+              <text key={t} className="chart__axis chart__axis--mono" x={x} y={axisY + 10} textAnchor="middle">
+                {formatSize(valueAt(t))}
+              </text>
+            )
+          })}
         </svg>
       </div>
     </div>

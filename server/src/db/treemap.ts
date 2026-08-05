@@ -147,7 +147,6 @@ function idsWithChildren(db: Database.Database, ids: number[]): Set<number> {
   return new Set(rows.map((r) => r.p))
 }
 
-
 /**
  * Path from the scan root down to `id`, root first. Walks the parent chain with a
  * recursive CTE — bounded by tree depth, measured at 13ms for a depth-20 node.
@@ -216,8 +215,7 @@ export function readTreemapLevel(
   // every skipped row on each "Load more", which is quadratic over a directory
   // with tens of thousands of children. `ix_treemap_dirs_parent_size` lets the
   // keyset seek straight to the last child seen instead.
-  const base =
-    `SELECT d.id, n.name, d.total_size, d.file_count, d.dir_count,
+  const base = `SELECT d.id, n.name, d.total_size, d.file_count, d.dir_count,
             d.owner_uid, o.username, d.has_files
        FROM treemap_dirs d
        JOIN treemap_names n ON n.id = d.name_id
@@ -241,7 +239,10 @@ export function readTreemapLevel(
         .all(id, pageSize + 1) as ChildRow[])
 
   const shown = rows.slice(0, pageSize)
-  const withChildren = idsWithChildren(db, shown.map((r) => r.id))
+  const withChildren = idsWithChildren(
+    db,
+    shown.map((r) => r.id),
+  )
   const children = shown.map((r) => toNode(r, withChildren.has(r.id)))
   const truncated = rows.length > pageSize
 
@@ -296,5 +297,3 @@ export function readTreemapLevel(
     childTotal: childAfter === null && rows.length === 0 ? 0 : node.dir_count,
   }
 }
-
-

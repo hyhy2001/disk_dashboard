@@ -51,7 +51,8 @@ describe('isSupportedSchema', () => {
   })
 })
 
-describe('reportPath', () => {  it('joins the target directory and report file name', () => {
+describe('reportPath', () => {
+  it('joins the target directory and report file name', () => {
     expect(reportPath('/reports', 'Test')).toBe('/reports/Test/report.db')
   })
 })
