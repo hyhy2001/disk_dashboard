@@ -60,7 +60,9 @@ export function writeString(key: string, value: string): void {
 
 export function readNumber(key: string, fallback: number): number {
   const raw = readString(key)
-  if (raw === null) return fallback
+  // '' and whitespace both coerce to 0 via Number(), which would masquerade as a
+  // real stored zero — treat them as missing.
+  if (raw === null || raw.trim() === '') return fallback
   const n = Number(raw)
   return Number.isFinite(n) ? n : fallback
 }
@@ -94,13 +96,25 @@ export const DEFAULT_FILTERS: FilterState = {
   detailUser: null,
 }
 
+/** Dates are stored as '' or yyyy-mm-dd; anything else was hand-edited. */
+function isStoredDate(value: string): boolean {
+  return value === '' || /^\d{4}-\d{2}-\d{2}$/.test(value)
+}
+
 function isFilterState(v: unknown): v is FilterState {
   if (typeof v !== 'object' || v === null) return false
   const o = v as Record<string, unknown>
   return (
     typeof o.rangeDays === 'number' &&
+    Number.isInteger(o.rangeDays) &&
+    o.rangeDays >= 0 &&
+    // ~10 years in days. Anything larger is a hand-edited value, and a negative
+    // window would flip the history filter into the future.
+    o.rangeDays <= 3660 &&
     typeof o.dateStart === 'string' &&
+    isStoredDate(o.dateStart) &&
     typeof o.dateEnd === 'string' &&
+    isStoredDate(o.dateEnd) &&
     Array.isArray(o.selectedUsers) &&
     o.selectedUsers.every((u) => typeof u === 'string') &&
     typeof o.logScale === 'boolean' &&

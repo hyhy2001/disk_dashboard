@@ -16,6 +16,25 @@ server/        Fastify + better-sqlite3, readonly access to report.db
 web/           React + TypeScript + Vite
 ```
 
+## Developing
+
+The web UI ships a live Change Log (Settings → Change Log in the sidebar). Every
+user-facing change — a feature, a fixed bug a user would notice, or a UX change —
+adds an entry to the `CHANGES` array at the bottom of `web/src/App.tsx`, newest
+first. Internal refactors and test-only work do not need an entry.
+
+```sh
+make test         # vitest run
+make typecheck    # tsc --noEmit for server & web
+make lint         # eslint
+```
+
+There is also a real-browser layout suite, `web/src/styles/viewport.test.ts`,
+that is excluded from `make test` because it drives the deployed dashboard:
+`DASHBOARD_URL=http://127.0.0.1:5311 npm run test:e2e` runs it against a local
+build. It guards against the shell scrolling and against list page sizes
+oscillating.
+
 ## Run
 
 The toolchain is fully portable — Node, a relocatable Python (used by node-gyp
@@ -154,7 +173,7 @@ reload:
 /                              first space, comparison view
 /<space>                       one space, comparison view
 /<space>/<disk>/overview       Overview
-/<space>/<disk>/detail/<tab>   treemap | history | detail-user | permissions
+/<space>/<disk>/detail/<tab>   treemap | history | detail-user | permissions | inodes
 ```
 
 The server serves the SPA shell for any non-API path, so deep links reload

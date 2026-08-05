@@ -102,12 +102,21 @@ export function currentRoute(): Route {
 export function writeRoute(route: Route): void {
   const next = buildPath(route)
   if (next === window.location.pathname) return
-  window.history.replaceState(null, '', next)
+  try {
+    window.history.replaceState(null, '', next)
+  } catch {
+    // A sandboxed iframe or restricted embed can forbid history writes. The
+    // in-memory route still works; only the address bar stays as it was.
+  }
 }
 
 /** Push a route as a new history entry, for navigation the user can undo. */
 export function pushRoute(route: Route): void {
   const next = buildPath(route)
   if (next === window.location.pathname) return
-  window.history.pushState(null, '', next)
+  try {
+    window.history.pushState(null, '', next)
+  } catch {
+    // See writeRoute.
+  }
 }

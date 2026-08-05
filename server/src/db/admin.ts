@@ -4,7 +4,7 @@
 // The DB lives at DASHBOARD_ADMIN_DB with a default next to the server module.
 
 import Database from 'better-sqlite3'
-import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
+import { createHash, randomBytes, scryptSync, timingSafeEqual } from 'node:crypto'
 import { existsSync, mkdirSync, readdirSync, statSync, copyFileSync, unlinkSync } from 'node:fs'
 import { dirname, isAbsolute, resolve, join } from 'node:path'
 
@@ -209,7 +209,13 @@ export function verifyPassword(password: string, stored: string): boolean {
 let _sessionKey: Buffer | null = null
 
 function sessionKey(): Buffer {
-  if (!_sessionKey) _sessionKey = randomBytes(32)
+  if (!_sessionKey) {
+    // When DASHBOARD_COOKIE_SECRET is set, derive the signing key from it so
+    // sessions survive a restart. Otherwise fall back to an ephemeral key, which
+    // quietly signs everyone out on every restart.
+    const secret = process.env.DASHBOARD_COOKIE_SECRET
+    _sessionKey = secret ? createHash('sha256').update(secret).digest() : randomBytes(32)
+  }
   return _sessionKey
 }
 
@@ -680,10 +686,22 @@ export interface BackupInfo {
   size: number
 }
 
+/**
+ * A backup file name must be exactly what createBackup emits — a strict regex,
+ * so no path separator, dot-dot or URL-encoded variant can slip through. Backup
+ * names arrive from the URL, so they are attacker-controlled once an admin
+ * session exists.
+ */
+export function safeBackupName(name: string): boolean {
+  return /^admin_backup_\d{4}-\d{2}-\d{2}T\d{4}_[0-9a-f]{4}\.db$/.test(name)
+}
+
 export async function createBackup(): Promise<BackupInfo> {
   const db = adminDb()
   const stamp = new Date().toISOString().replace(/[:.]/g, '').slice(0, 15)
-  const name = `admin_backup_${stamp}.db`
+  // The random suffix stops two backups started in the same second from silently
+  // overwriting each other.
+  const name = `admin_backup_${stamp}_${randomBytes(2).toString('hex')}.db`
   const dest = join(backupDir(), name)
   // better-sqlite3's backup() is async — it streams in chunks and resolves only
   // once the file is complete. Await it before stat'ing the result, otherwise
@@ -704,6 +722,7 @@ export function listBackups(): BackupInfo[] {
 }
 
 export function restoreBackup(name: string): boolean {
+  if (!safeBackupName(name)) return false
   const src = join(backupDir(), name)
   if (!existsSync(src)) return false
   adminDb().close()
@@ -717,6 +736,7 @@ export function restoreBackup(name: string): boolean {
 }
 
 export function deleteBackup(name: string): boolean {
+  if (!safeBackupName(name)) return false
   const p = join(backupDir(), name)
   if (!existsSync(p)) return false
   unlinkSync(p)

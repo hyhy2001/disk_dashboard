@@ -20,7 +20,7 @@ export function formatCount(n: number): string {
 }
 
 export function formatPercent(part: number, whole: number): string {
-  if (whole <= 0) return '0%'
+  if (!Number.isFinite(part) || !Number.isFinite(whole) || whole <= 0) return '0%'
   return `${((part / whole) * 100).toFixed(1)}%`
 }
 

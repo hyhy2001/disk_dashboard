@@ -139,7 +139,7 @@ export function Donut({ rows, size = 148, onSelect, selected, totalUsed, otherUs
         aria-label={`Usage split across ${slices.length} groups, total ${formatSize(total)}`}
       >
         <g transform={`rotate(-90 ${size / 2} ${size / 2})`}>
-          {slices.map((s) => {
+          {slices.map((s, i) => {
             const length = (s.used / total) * circumference
             const dash = `${length} ${circumference - length}`
             // The synthetic "others" wedge is an aggregate, so it has no single
@@ -147,7 +147,7 @@ export function Donut({ rows, size = 148, onSelect, selected, totalUsed, otherUs
             const clickable = onSelect !== undefined && s.selectable
             const el = (
               <circle
-                key={s.name}
+                key={`${s.name}-${i}`}
                 className={`donut__slice${clickable ? ' donut__slice--click' : ''}${
                   selected === s.name ? ' donut__slice--on' : ''
                 }`}
@@ -184,7 +184,7 @@ export function Donut({ rows, size = 148, onSelect, selected, totalUsed, otherUs
       </svg>
 
       <ul className="legend">
-        {slices.map((s) => {
+        {slices.map((s, i) => {
           const clickable = onSelect !== undefined && s.selectable
           const body = (
             <>
@@ -196,7 +196,7 @@ export function Donut({ rows, size = 148, onSelect, selected, totalUsed, otherUs
             </>
           )
           return (
-            <li key={s.name}>
+            <li key={`${s.name}-${i}`}>
               {/* Clicking a legend row does the same as clicking its slice —
                   thin slices are hard to hit precisely. */}
               {clickable ? (

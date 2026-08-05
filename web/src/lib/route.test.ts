@@ -4,8 +4,12 @@
 // paths, links from an older build, names containing slashes. None of those may
 // throw, because a bad path on boot would mean a blank page.
 
-import { describe, expect, it } from 'vitest'
-import { buildPath, DEFAULT_ROUTE, DETAIL_TABS, parsePath } from './route.js'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { buildPath, DEFAULT_ROUTE, DETAIL_TABS, parsePath, pushRoute, writeRoute } from './route.js'
+
+afterEach(() => {
+  vi.restoreAllMocks()
+})
 
 describe('parsePath', () => {
   it('treats an empty path as the default route', () => {
@@ -99,5 +103,21 @@ describe('buildPath', () => {
       const route2 = { space: 'Backend', disk: 'primary', page: 'overview' as const, tab: 'treemap' as const }
       expect(parsePath(buildPath(route2))).toEqual(route2)
     }
+  })
+})
+
+describe('writeRoute / pushRoute', () => {
+  it('degrades to a no-op when the browser rejects a replaceState write', () => {
+    vi.spyOn(window.history, 'replaceState').mockImplementation(() => {
+      throw new DOMException('blocked', 'SecurityError')
+    })
+    expect(() => writeRoute({ ...DEFAULT_ROUTE, space: 'Prod' })).not.toThrow()
+  })
+
+  it('degrades to a no-op when the browser rejects a pushState write', () => {
+    vi.spyOn(window.history, 'pushState').mockImplementation(() => {
+      throw new DOMException('blocked', 'SecurityError')
+    })
+    expect(() => pushRoute({ ...DEFAULT_ROUTE, space: 'Prod' })).not.toThrow()
   })
 })

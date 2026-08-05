@@ -12,6 +12,26 @@ import { formatCount } from './format.js'
 /** Permission issues are a smaller list and the endpoint caps at 5000. */
 const PERM_EXPORT_PAGE = 5000
 
+/**
+ * DetailUser filter fields it is safe to forward to the server export. Cursors
+ * and page limits are meaningless when the whole list is exported — a future
+ * caller passing `limit` would silently truncate the download and label it
+ * complete — so they are never forwarded.
+ */
+const EXPORT_FILTER_KEYS = ['query', 'ext', 'minSize', 'maxSize'] as const
+
+/** Build the query string for a user export from the filter, kind included. */
+export function exportQuery(kind: 'dirs' | 'files', filter: DetailQuery): string {
+  const params = new URLSearchParams()
+  params.set('kind', kind)
+  for (const key of EXPORT_FILTER_KEYS) {
+    const value = filter[key]
+    if (value === undefined || value === '') continue
+    params.set(key, String(value))
+  }
+  return params.toString()
+}
+
 function reportOutcome(label: string, result: Awaited<ReturnType<typeof exportCsv>>): void {
   if (result.kind === 'cancelled') {
     info('Export cancelled', 'The save dialog was closed.')
@@ -41,13 +61,7 @@ export async function exportUserList(
 ): Promise<void> {
   const label = kind === 'dirs' ? 'Directories' : 'Files'
 
-  const params = new URLSearchParams()
-  params.set('kind', kind)
-  for (const [key, value] of Object.entries(filter)) {
-    if (value === undefined || value === '') continue
-    params.set(key, String(value))
-  }
-  const qs = params.toString()
+  const qs = exportQuery(kind, filter)
   const url = `/api/export/${encodeURIComponent(target)}/${encodeURIComponent(user)}${qs ? `?${qs}` : ''}`
 
   const suggested = `${kind}_${safeName(user)}_${fileStamp()}`

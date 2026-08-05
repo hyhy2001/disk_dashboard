@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { mkdtempSync, mkdirSync, rmSync, statSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, rmSync, statSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -11,8 +11,11 @@ import {
   createDiskTeam,
   createSpace,
   deleteAdmin,
+  deleteBackup,
   getAdminById,
   listBackups,
+  restoreBackup,
+  safeBackupName,
   signSession,
   teamUserClashes,
   updateDisk,
@@ -141,13 +144,40 @@ describe('session revocation', () => {
     createDisk(sp.id, 'data', diskPath)
 
     const info = await createBackup()
-        expect(info.name).toMatch(/^admin_backup_\d{4}-\d{2}-\d{2}T\d{4}\.db$/)
+        expect(info.name).toMatch(/^admin_backup_\d{4}-\d{2}-\d{2}T\d{4}_[0-9a-f]{4}\.db$/)
     expect(info.size).toBeGreaterThan(0)
 
     const dest = join(base, 'backups', info.name)
     const st = statSync(dest)
     expect(st.size).toBe(info.size)
     expect(listBackups().some((b) => b.name === info.name)).toBe(true)
+  })
+})
+
+describe('backup name validation', () => {
+  it('accepts a name produced by createBackup', () => {
+    expect(safeBackupName('admin_backup_2026-08-05T1200_1a2b.db')).toBe(true)
+  })
+
+  it('rejects names that could escape the backup directory', () => {
+    expect(safeBackupName('../admin.db')).toBe(false)
+    expect(safeBackupName('..%2Fadmin.db')).toBe(false)
+    expect(safeBackupName('admin_backup_2026-08-05T120000.db.gz')).toBe(false)
+    expect(safeBackupName('admin_backup_2026-08-05T120000_1a2b.db/extra')).toBe(false)
+  })
+
+  it('refuses to delete a file outside the backup directory via a traversal name', () => {
+    const base = withTempDb()
+    createSpace('prod') // forces the admin DB to be created on disk
+    const liveDb = join(base, 'admin.db')
+    expect(existsSync(liveDb)).toBe(true)
+    expect(deleteBackup('../admin.db')).toBe(false)
+    expect(existsSync(liveDb)).toBe(true)
+  })
+
+  it('refuses to restore a traversal name', () => {
+    withTempDb()
+    expect(restoreBackup('../admin.db')).toBe(false)
   })
 })
 

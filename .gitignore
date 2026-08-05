@@ -15,3 +15,8 @@ server/admin.db
 server/admin.db-shm
 server/admin.db-wal
 server/backups/
+
+# Playwright MCP session artifacts and audit screenshots.
+.playwright-mcp/
+audit-*.png
+ui-*.png

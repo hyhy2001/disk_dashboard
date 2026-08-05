@@ -294,7 +294,7 @@ function LoginForm({
       setBusy(false)
     }
   }
-  const remaining = 10 - rateLimit.attempts
+  const remaining = Math.max(0, 10 - rateLimit.attempts)
   return (
     <div>
       {rateLimit.attempts > 0 &&
