@@ -52,6 +52,26 @@ describe('readScanStatus', () => {
     expect(status?.stage).toBeUndefined()
   })
 
+  it('does not report a running scan whose heartbeat has gone stale', () => {
+    // The scanner heartbeats every ~2s; a SIGKILLed scan leaves `running: true`
+    // frozen in the file. Trusting it verbatim would say "Scanning…" forever.
+    makeReport('Test')
+    writeFileSync(
+      join(dir, 'Test', STATUS_FILE),
+      JSON.stringify({ running: true, stage: 'scanning', updated_at: Math.floor(Date.now() / 1000) - 120 }),
+    )
+    expect(readScanStatus(dir, 'Test')?.running).toBe(false)
+  })
+
+  it('reports a running scan whose heartbeat is fresh', () => {
+    makeReport('Test')
+    writeFileSync(
+      join(dir, 'Test', STATUS_FILE),
+      JSON.stringify({ running: true, stage: 'scanning', updated_at: Math.floor(Date.now() / 1000) }),
+    )
+    expect(readScanStatus(dir, 'Test')?.running).toBe(true)
+  })
+
   it('gives the same stamp for an unchanged file', () => {
     makeReport('Test')
     expect(readScanStatus(dir, 'Test')?.stamp).toBe(readScanStatus(dir, 'Test')?.stamp)

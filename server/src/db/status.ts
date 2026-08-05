@@ -167,6 +167,13 @@ function build(
     // A stage that is not a terminal one means work is still in flight. Trusting
     // an explicit `running: false` matters: duscan leaves the file behind for
     // good after finishing, and a stale 'done' should not read as a live scan.
-    running: status?.running === true || (status?.running === undefined && stage !== undefined && !TERMINAL_STAGES.has(stage)),
+    //
+    // A killed scan (SIGKILL / OOM) leaves `running: true` frozen in the file,
+    // because it never gets to write a terminal stage. The scanner heartbeats
+    // every ~2s, so an `updated_at` older than that by a wide margin means the
+    // process is gone — say "not running" rather than "Scanning…" forever.
+    running:
+      !(status?.running === true && updatedAt !== undefined && Math.floor(Date.now() / 1000) - updatedAt > 30) &&
+      (status?.running === true || (status?.running === undefined && stage !== undefined && !TERMINAL_STAGES.has(stage))),
   }
 }

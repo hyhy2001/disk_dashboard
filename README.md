@@ -197,9 +197,10 @@ Both lead with `uid`, so one user's rows are already a contiguous range in displ
 order. Pagination is keyset, not `OFFSET`, so page 500 costs what page 1 does.
 Measured warm on a 1.5M-file report: directories 1.7ms, files 28ms per page.
 
-The exception is the extension filter — `ext` is not in the covering index, so each
-candidate needs a row lookup and a rare extension scans a long way before filling a
-page (~1s cold). Fixing it would need an index we cannot add to a readonly report.
+Extension filters ride the `ix_detail_files_uid_ext_size_dir_name` index a modern
+`duscan` builds, so they cost the same as an unfiltered page (measured 3–10 ms
+cold on the 1.5M-file report). Reports written before that index existed fall
+back to a per-row lookup, which is slower but still bounded by the page size.
 
 ### Page sizes
 
