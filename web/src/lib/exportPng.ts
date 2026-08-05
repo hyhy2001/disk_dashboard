@@ -33,6 +33,8 @@ const TOKENS = [
   '--bg-base',
   '--bg-raised',
   '--bg-hover',
+  '--border',
+  '--border-strong',
   '--grid-line',
   '--amber-400',
   '--rose-400',
@@ -48,24 +50,27 @@ const TOKENS = [
   '--font-mono',
 ]
 
-/** Minimal stand-ins for the stylesheet rules the charts depend on. */
-const INLINE_CSS = `
+/**
+ * Stand-ins for the stylesheet rules the charts depend on, with theme color
+ * tokens resolved to literals. Rules like `.chart__axis { fill: var(--text-muted) }`
+ * live in the page stylesheet and never travel with the clone; without them the
+ * axis text and grid render black (invisible on the dark theme) once the SVG is
+ * an isolated <img>.
+ */
+function inlineCss(map: Map<string, string>): string {
+  const t = (name: string): string => map.get(name) ?? name
+  return `
   text { font-family: -apple-system, system-ui, sans-serif; }
-  .chart__grid { stroke-width: 1; }
+  .chart__grid { stroke: ${t('--border')}; stroke-width: 1; }
+  .chart__axis { fill: ${t('--text-muted')}; }
   .chart__line { fill: none; stroke-width: 2; stroke-linejoin: round; }
-  .chart__ref { stroke-dasharray: 3 3; stroke-width: 1; }
+  .chart__ref { stroke: ${t('--text-faint')}; stroke-dasharray: 3 3; stroke-width: 1; }
   .tile__name { font-size: 13px; font-weight: 600; fill: #fff; }
   .tile__size { font-size: 12px; fill: rgba(255,255,255,0.85); }
 `
+}
 
-function resolveVars(svg: SVGSVGElement, source: Element): void {
-  const computed = getComputedStyle(source)
-  const map = new Map<string, string>()
-  for (const name of TOKENS) {
-    const value = computed.getPropertyValue(name).trim()
-    if (value) map.set(name, value)
-  }
-
+export function resolveVarsIn(svg: SVGSVGElement, map: Map<string, string>): void {
   // var() can nest (--accent: var(--emerald-500)), so resolve repeatedly until
   // stable rather than assuming one pass is enough.
   const resolve = (input: string): string => {
@@ -77,7 +82,10 @@ function resolveVars(svg: SVGSVGElement, source: Element): void {
   }
 
   for (const el of svg.querySelectorAll('*')) {
-    for (const attr of ['fill', 'stroke', 'font-family']) {
+    // stop-color carries var(--…) in the charts' gradient fills; leaving it
+    // unresolved would render the gradient stops black once the SVG leaves the
+    // page and the <img> has no custom-property scope to resolve against.
+    for (const attr of ['fill', 'stroke', 'stop-color', 'font-family']) {
       const raw = el.getAttribute(attr)
       if (raw?.includes('var(')) el.setAttribute(attr, resolve(raw))
     }
@@ -86,13 +94,25 @@ function resolveVars(svg: SVGSVGElement, source: Element): void {
   }
 }
 
+/** Resolve var(--token) references against the live theme's computed values. */
+function resolveVars(svg: SVGSVGElement, source: Element): Map<string, string> {
+  const computed = getComputedStyle(source)
+  const map = new Map<string, string>()
+  for (const name of TOKENS) {
+    const value = computed.getPropertyValue(name).trim()
+    if (value) map.set(name, value)
+  }
+  resolveVarsIn(svg, map)
+  return map
+}
+
 /**
  * Rasterise `svg` and trigger a download. `scale` oversamples so the PNG is
  * usable in a document rather than looking like a screenshot.
  */
 export async function downloadSvgAsPng(svg: SVGSVGElement, filename: string, scale = 2): Promise<void> {
   const clone = svg.cloneNode(true) as SVGSVGElement
-  resolveVars(clone, svg)
+  const map = resolveVars(clone, svg)
 
   const box = svg.getBoundingClientRect()
   const vb = svg.viewBox.baseVal
@@ -104,7 +124,7 @@ export async function downloadSvgAsPng(svg: SVGSVGElement, filename: string, sca
   clone.setAttribute('height', String(height))
 
   const style = document.createElementNS('http://www.w3.org/2000/svg', 'style')
-  style.textContent = INLINE_CSS
+  style.textContent = inlineCss(map)
   clone.insertBefore(style, clone.firstChild)
 
   const markup = new XMLSerializer().serializeToString(clone)

@@ -830,6 +830,7 @@ const CHANGES = [
       'Scan status wording is consistent everywhere, a cancelled scan is shown as failed rather than up to date, and a report replaced by a new scan is always picked up.',
       'Users tab: opening a user with many directories no longer stalls the whole dashboard for up to a second and a half — the scanner now counts them ahead of time. Takes effect on the next scan of each disk.',
       'Users tab: with a filter active, the card headers no longer show counts and sizes that ignored it — the directory count is dropped when an extension filter hides the list, and the account-wide size is labelled as such instead of reading like the size of the matches.',
+      'Fixed: exported chart PNGs are no longer a black block — the area-fill gradient, axis labels and grid lines now render correctly in both dark and light themes.',
       'Admin: every API endpoint is now documented with its parameters and response shape in the machine-readable spec behind Admin → /docs, so clients and the Swagger UI always describe the real API.',
     ],
   },
