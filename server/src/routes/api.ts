@@ -40,7 +40,7 @@ import { readPermIssues } from '../db/perms.js'
 import { readHistorySeries } from '../db/history.js'
 import { readInodeStats } from '../db/inodes.js'
 import { searchNames } from '../db/search.js'
-import { readScanStatusAt } from '../db/status.js'
+import { readScanStatusAtAsync } from '../db/status.js'
 import { listDiskTeams, diskBySlug } from '../db/admin.js'
 
 function ok<T>(data: T): ApiResponse<T> {
@@ -599,7 +599,7 @@ export function registerApi(app: FastifyInstance): void {
       if (!isSafeTargetName(target)) return fail(reply, 400, 'invalid target name')
       const dir = diskPath(target)
       if (!dir) return fail(reply, 404, `no disk configured for target '${target}'`)
-      const status = readScanStatusAt(join(dir, REPORT_FILE), dir)
+      const status = await readScanStatusAtAsync(join(dir, REPORT_FILE), dir)
       if (!status) return fail(reply, 404, `no report found for target '${target}'`)
       reply.header('cache-control', 'no-store')
       return ok(status)
@@ -609,16 +609,22 @@ export function registerApi(app: FastifyInstance): void {
   // Freshness for every configured target at once, so the disk column can show a
   // per-card scan indicator with one poll per interval instead of one request per
   // card. Same cost model as the single-target route: stat() plus one small read.
-  app.get('/api/statuses', async (request, reply): Promise<ApiResponse<ScanStatus[]>> => {
+  app.get('/api/statuses', async (_request, reply): Promise<ApiResponse<ScanStatus[]>> => {
+    const disks = getPublicConfig().spaces.flatMap((space) => space.disks)
+    // One poll covers every disk, so read them concurrently rather than letting a
+    // slow (or network-mounted) report directory serialise the rest.
+    const read = await Promise.all(
+      disks.map(async (disk) => ({
+        slug: disk.slug,
+        status: await readScanStatusAtAsync(join(disk.path, REPORT_FILE), disk.path),
+      })),
+    )
     const statuses: ScanStatus[] = []
-    for (const space of getPublicConfig().spaces) {
-      for (const disk of space.disks) {
-        const status = readScanStatusAt(join(disk.path, REPORT_FILE), disk.path)
-        if (!status) continue
-        // readScanStatusAt names the target from the directory basename; the card
-        // keys on the admin-DB route slug, so overwrite it.
-        statuses.push({ ...status, target: disk.slug })
-      }
+    for (const { slug, status } of read) {
+      if (!status) continue
+      // readScanStatusAtAsync names the target from the directory basename; the
+      // card keys on the admin-DB route slug, so overwrite it.
+      statuses.push({ ...status, target: slug })
     }
     reply.header('cache-control', 'no-store')
     return ok(statuses)

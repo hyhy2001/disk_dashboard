@@ -45,10 +45,14 @@ describe('listUsers', () => {
     expect(users.find((u) => u.name === 'alice')?.hasDetail).toBe(true)
   })
 
-  it('carries the permission-issue count through', () => {
+  it('does not read detail_users.permission_issues', () => {
     db = createFixture()
-    // The fixture leaves this at the column default, so every user reads 0.
-    expect(listUsers(db).every((u) => u.permissionIssues === 0)).toBe(true)
+    // duscan declares the column but always writes 0, so it is not part of the
+    // payload; perms.ts serves the real counts from perm_issues. Dropping the
+    // column entirely must not break the query.
+    db.exec('CREATE TABLE u2 AS SELECT uid, username, team_id, total_files, total_dirs, total_size FROM detail_users')
+    db.exec('DROP TABLE detail_users; ALTER TABLE u2 RENAME TO detail_users')
+    expect(listUsers(db).map((u) => u.name)).toContain('alice')
   })
 })
 

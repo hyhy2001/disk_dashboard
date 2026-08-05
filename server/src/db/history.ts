@@ -57,6 +57,15 @@ function readSnapshots(db: Database.Database): HistoryPoint[] {
  * A user who existed in older scans but not the newest still gets a series, so
  * the chart can show an account's footprint disappearing rather than silently
  * dropping the line. Their rank comes from their last known size.
+ *
+ * `kind` is deliberately NOT filtered here, unlike duscan's own CLI reports which
+ * select `kind = 'user'`. The column records whether the account appeared in the
+ * *scanner's* config team_map at scan time (`cli/src/main.rs`,
+ * write_history_snapshot): mapped accounts get 'user', everyone else 'other'.
+ * The dashboard assigns teams from admin.db instead and never reads the scanner's
+ * config, so that split means nothing here — and on a disk scanned with no teams
+ * configured every row is 'other', which would leave the chart with no lines at
+ * all. Every account is plotted; ranking decides what is worth showing.
  */
 function readUserTrends(db: Database.Database): UserTrend[] {
   const rows = db

@@ -6,7 +6,7 @@
 import type BetterSqlite3 from 'better-sqlite3'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createFixture } from './fixture.js'
-import { isSafeTargetName, readCapacity, reportPath } from './reports.js'
+import { isSafeTargetName, isSupportedSchema, readCapacity, reportPath, SUPPORTED_SCHEMA_VERSION } from './reports.js'
 
 describe('isSafeTargetName', () => {
   it('accepts ordinary target names', () => {
@@ -28,8 +28,27 @@ describe('isSafeTargetName', () => {
   })
 })
 
-describe('reportPath', () => {
-  it('joins the target directory and report file name', () => {
+describe('isSupportedSchema', () => {
+  it('accepts the generation this build is written against, and older ones', () => {
+    expect(isSupportedSchema(String(SUPPORTED_SCHEMA_VERSION))).toBe(true)
+    expect(isSupportedSchema('0')).toBe(true)
+  })
+
+  it('rejects a newer generation', () => {
+    // The case that matters: a renamed or re-meaning column would make the
+    // queries return confidently wrong numbers rather than fail.
+    expect(isSupportedSchema(String(SUPPORTED_SCHEMA_VERSION + 1))).toBe(false)
+  })
+
+  it('treats a missing or unparseable value as compatible', () => {
+    // Reports written before meta.schema_version existed are still readable.
+    expect(isSupportedSchema(undefined)).toBe(true)
+    expect(isSupportedSchema('')).toBe(true)
+    expect(isSupportedSchema('not-a-number')).toBe(true)
+  })
+})
+
+describe('reportPath', () => {  it('joins the target directory and report file name', () => {
     expect(reportPath('/reports', 'Test')).toBe('/reports/Test/report.db')
   })
 })

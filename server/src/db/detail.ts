@@ -151,11 +151,16 @@ export function findUid(db: Database.Database, username: string): number | null 
  * `hasDetail` is derived from total_files/total_dirs rather than by probing the
  * detail tables: a user with zero of both cannot have rows there, and the check
  * is free. It drives the picker's "no breakdown available" state.
+ *
+ * detail_users.permission_issues is deliberately not selected. duscan declares
+ * the column but its only writer hardcodes 0 (core/src/report_pipeline.rs, the
+ * single UserRow construction site), so it never carries a real count. Per-user
+ * permission figures come from the perm_issues table via perms.ts.
  */
 export function listUsers(db: Database.Database): DetailUser[] {
   const rows = db
     .prepare(
-      `SELECT username, total_size, total_files, total_dirs, permission_issues
+      `SELECT username, total_size, total_files, total_dirs
          FROM detail_users
         ORDER BY total_size DESC, username ASC`,
     )
@@ -164,7 +169,6 @@ export function listUsers(db: Database.Database): DetailUser[] {
     total_size: number
     total_files: number
     total_dirs: number
-    permission_issues: number
   }[]
 
   return rows.map((r) => ({
@@ -172,7 +176,6 @@ export function listUsers(db: Database.Database): DetailUser[] {
     used: r.total_size,
     files: r.total_files,
     dirs: r.total_dirs,
-    permissionIssues: r.permission_issues,
     hasDetail: r.total_files > 0 || r.total_dirs > 0,
   }))
 }

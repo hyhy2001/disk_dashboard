@@ -18,6 +18,33 @@ import { adminDb } from './admin.js'
 
 export const REPORT_FILE = 'report.db'
 
+/**
+ * Report schema generation this dashboard's queries are written against.
+ *
+ * duscan stamps `meta.schema_version` (core/src/report_pipeline.rs) and the merge
+ * carries it into report.db via `INSERT OR IGNORE INTO meta SELECT ... FROM
+ * srcdetail.meta`. That makes the meta row the only dependable gate: the
+ * `user_version` pragma is set by stamp_db(), which merge_into_single_db never
+ * calls, and `application_id` is only written when open_merged_db creates the
+ * file. Both read 0 / stale on real reports — verified against the reports on
+ * this host.
+ */
+export const SUPPORTED_SCHEMA_VERSION = 1
+
+/**
+ * Whether a report's schema generation is one this build understands.
+ *
+ * A *newer* report is the case worth catching: added columns are harmless, but a
+ * renamed or re-meaning column would make the queries return confidently wrong
+ * numbers rather than fail. A missing or unparseable value is treated as
+ * compatible, because reports written before the key existed are still readable.
+ */
+export function isSupportedSchema(version: string | undefined): boolean {
+  if (version === undefined) return true
+  const n = Number(version)
+  return !Number.isFinite(n) || n <= SUPPORTED_SCHEMA_VERSION
+}
+
 interface CachedDb {
   db: Database.Database
   /** Identity of the file this handle was opened on — see stampOf. */
@@ -60,6 +87,26 @@ export function evictReport(path: string, target?: string): void {
   }
 }
 
+/** Paths already warned about, so one poll per interval does not spam the log. */
+const warnedSchemas = new Set<string>()
+
+/**
+ * Complain once per report about a schema this build predates.
+ *
+ * Deliberately a warning and not a skip: hiding a disk from the picker would look
+ * like the disk vanished, which is a worse failure than numbers that may be off.
+ * The operator gets a line naming the file and both versions.
+ */
+export function warnIfUnsupportedSchema(path: string, meta: Record<string, string>): void {
+  const version = meta.schema_version
+  if (isSupportedSchema(version) || warnedSchemas.has(path)) return
+  warnedSchemas.add(path)
+  process.stderr.write(
+    `warn: ${path} has meta.schema_version=${version}, newer than the supported ${SUPPORTED_SCHEMA_VERSION}; ` +
+      'figures may be wrong until the dashboard is updated\n',
+  )
+}
+
 /** Absolute path to a target's report.db (not checked for existence). */
 export function reportPath(reportsDir: string, target: string): string {
   return join(reportsDir, target, REPORT_FILE)
@@ -98,6 +145,7 @@ export function openReportAt(path: string): { db: Database.Database; name: strin
     db.pragma('mmap_size = 268435456')
     db.pragma('cache_size = -65536')
     pathCache.set(path, { db, stamp })
+    warnIfUnsupportedSchema(path, readMeta(db))
     return { db, name }
   } catch {
     return null
@@ -212,6 +260,7 @@ export function listTargets(reportsDir: string): Target[] {
       const db = openReport(reportsDir, entry.name)
       if (!db) continue
       const meta = readMeta(db)
+      warnIfUnsupportedSchema(path, meta)
       out.push({
         name: entry.name,
         slug: entry.name,
