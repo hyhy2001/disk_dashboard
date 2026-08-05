@@ -46,8 +46,10 @@ function SizeCell({ size, total }: { size: number; total: number }): JSX.Element
   return (
     <span className="flex items-center justify-end gap-2">
       <span className="tabular-nums text-[13px] font-medium text-right w-24 shrink-0">{formatSize(size)}</span>
+      {/* The proportion bar is the first thing to go on a phone: it needs 24px of
+          its own plus a gap, and the figure beside it carries the same information. */}
       <span
-        className="h-1 flex-1 rounded-full bg-muted overflow-hidden min-w-[24px] cursor-help"
+        className="hidden h-1 flex-1 rounded-full bg-muted overflow-hidden min-w-[24px] cursor-help sm:block"
         data-tooltip={`${pctLabel} of disk`}
         data-tooltip-pos="top"
       >
@@ -62,6 +64,15 @@ function SizeCell({ size, total }: { size: number; total: number }): JSX.Element
     </span>
   )
 }
+
+/**
+ * Row template. Below sm the Owner column is dropped and Size narrows to just its
+ * figure: the four full-width columns need 460px, which forced a horizontal scroll
+ * on a phone and hid the Size column — the one people came for. Owner stays
+ * reachable through the row's title attribute and the Users tab.
+ */
+const ROW =
+  'grid grid-cols-[minmax(0,1fr)_104px_32px] sm:grid-cols-[minmax(0,1fr)_80px_160px_32px] items-center gap-2 sm:gap-4'
 
 export function EntryList({
   dirs,
@@ -79,22 +90,24 @@ export function EntryList({
   }
 
   return (
-    <div className="flex flex-col h-full overflow-x-auto">
-      <div className="grid grid-cols-[minmax(0,1fr)_80px_160px_32px] items-center gap-4 px-4 py-1.5 border-b border-border/30 text-[12px] text-muted-foreground uppercase tracking-wider shrink-0 min-w-[460px]">
+    <div className="flex flex-col h-full">
+      <div
+        className={`${ROW} px-4 py-1.5 border-b border-border/30 text-[12px] text-muted-foreground uppercase tracking-wider shrink-0`}
+      >
         <span className="truncate">Folder</span>
-        <span className="truncate">Owner</span>
+        <span className="hidden truncate sm:inline">Owner</span>
         <span className="text-right">Size</span>
         <span className="text-right">Type</span>
       </div>
 
-      <div className="flex-1 overflow-auto divide-y divide-border/20 min-w-[460px]">
+      <div className="flex-1 overflow-auto divide-y divide-border/20">
         {dirs.map((d) => (
           <button
             type="button"
-            className="grid grid-cols-[minmax(0,1fr)_80px_160px_32px] items-center gap-4 w-full px-4 py-1.5 hover:bg-white/[0.03] transition-colors text-left text-[13px]"
+            className={`${ROW} w-full px-4 py-1.5 hover:bg-white/[0.03] transition-colors text-left text-[13px]`}
             key={`d${d.id}`}
             onClick={() => onOpen(d)}
-            title={`${d.name} — ${formatCount(d.fileCount)} files, ${formatCount(d.dirCount)} subdirectories`}
+            title={`${d.name} — owner ${d.owner}, ${formatCount(d.fileCount)} files, ${formatCount(d.dirCount)} subdirectories`}
           >
             <span className="flex items-center gap-1.5 min-w-0">
               <span className="text-muted-foreground shrink-0">
@@ -106,14 +119,14 @@ export function EntryList({
                 {d.name}
               </span>
             </span>
-            <span className="truncate text-muted-foreground">{d.owner}</span>
+            <span className="hidden truncate text-muted-foreground sm:inline">{d.owner}</span>
             <SizeCell size={d.size} total={totalSize} />
             <span className="text-right text-muted-foreground">dir</span>
           </button>
         ))}
 
         {fileCount > 0 && (
-          <div className="grid grid-cols-[minmax(0,1fr)_80px_160px_32px] items-center gap-4 px-4 py-1.5 text-[13px] text-muted-foreground">
+          <div className={`${ROW} px-4 py-1.5 text-[13px] text-muted-foreground`}>
             <span className="flex items-center gap-1.5 min-w-0">
               <span className="shrink-0 opacity-60">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -123,21 +136,21 @@ export function EntryList({
               </span>
               <span className="font-mono">[files]</span>
             </span>
-            <span className="truncate">{formatCount(fileCount)} files</span>
+            <span className="hidden truncate sm:inline">{formatCount(fileCount)} files</span>
             <SizeCell size={filesSize} total={totalSize} />
             <span className="text-right text-[12px]">files</span>
           </div>
         )}
       </div>
 
-      <div className="flex items-center justify-between px-4 py-1.5 border-t border-border/30 text-[12px] text-muted-foreground shrink-0">
-        <span className="tabular-nums">
+      <div className="flex items-center justify-between gap-2 px-4 py-1.5 border-t border-border/30 text-[12px] text-muted-foreground shrink-0">
+        <span className="min-w-0 truncate tabular-nums">
           Showing {formatCount(shownCount)} of {formatCount(totalCount)} subdirectories
         </span>
         {onLoadMore && (
           <button
             type="button"
-            className="inline-flex items-center rounded-sm border border-border bg-transparent px-3 py-1.5 text-xs hover:bg-muted transition-colors"
+            className="inline-flex shrink-0 items-center rounded-sm border border-border bg-transparent px-3 py-1.5 text-xs hover:bg-muted transition-colors"
             onClick={onLoadMore}
             disabled={loadingMore}
           >

@@ -83,10 +83,13 @@ function Stat({
 }): JSX.Element {
   const shown = useCountUp(value)
   return (
-    <div className={`flex flex-col items-center gap-0.5 ${className}`} title={title}>
-      <div className="flex items-baseline gap-1">
+    <div className={`flex min-w-0 flex-col items-center gap-0.5 ${className}`} title={title}>
+      <div className="flex min-w-0 items-baseline gap-1">
+        {/* The figure shrinks a step below 640px: five stats at text-lg need ~358px
+            of min-content, which is wider than a phone once the sync pill has taken
+            its share, and the last two used to land off-screen entirely. */}
         <span
-          className={`text-lg font-bold tabular-nums ${
+          className={`text-sm font-bold tabular-nums sm:text-lg ${
             tone === 'used'
               ? 'text-[var(--amber-400)]'
               : tone === 'scanned'
@@ -98,9 +101,11 @@ function Stat({
         >
           {shown.toFixed(2)}
         </span>
-        <span className="text-[12px] text-muted-foreground">{unit}</span>
+        <span className="text-[10px] text-muted-foreground sm:text-[12px]">{unit}</span>
       </div>
-      <div className="text-[12px] text-muted-foreground uppercase tracking-wider">{label}</div>
+      <div className="max-w-full truncate text-[10px] text-muted-foreground uppercase tracking-wider sm:text-[12px]">
+        {label}
+      </div>
     </div>
   )
 }
@@ -115,27 +120,27 @@ export function StatBar({ capacity }: Props): JSX.Element {
   const unscanned = Math.max(0, used - scanned)
 
   return (
-    <div className="flex flex-1 items-center divide-x divide-border/20 bg-surface/20">
-      <Stat value={toTB(total)} unit="TB" label="Total" className="flex-1" />
-      <Stat value={toTB(used)} unit="TB" label="Used" tone="used" className="flex-1" />
+    <div className="flex min-w-0 flex-1 items-center divide-x divide-border/20 bg-surface/20">
+      <Stat value={toTB(total)} unit="TB" label="Total" className="min-w-0 flex-1" />
+      <Stat value={toTB(used)} unit="TB" label="Used" tone="used" className="min-w-0 flex-1" />
       <Stat
         value={toTB(scanned)}
         unit="TB"
         label="Scanned"
         tone="scanned"
-        className="flex-1"
+        className="min-w-0 flex-1"
         title={
           unscanned > 0
             ? `${toTB(unscanned).toFixed(2)} TB of used space was not walked by the scan`
             : 'The scan walked all used space'
         }
       />
-      <Stat value={toTB(available)} unit="TB" label="Free" className="flex-1" />
+      <Stat value={toTB(available)} unit="TB" label="Free" className="min-w-0 flex-1" />
       <Stat
         value={usagePct}
         unit="%"
         label="Usage"
-        className="flex-1"
+        className="min-w-0 flex-1"
         tone={usagePct > HOT_PERCENT ? 'hot' : undefined}
       />
     </div>

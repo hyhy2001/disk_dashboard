@@ -66,7 +66,10 @@ export function SyncPill({ target, status, onStale, refreshing }: Props): JSX.El
   const failed = isFailedStage(status?.stage)
 
   return (
-    <div className="flex items-center gap-2 text-[13px]">
+    // min-w-0 lets the pill give ground to the capacity strip beside it: on a phone
+    // the two together are wider than the viewport, and the strip is the part
+    // carrying the numbers.
+    <div className="flex min-w-0 items-center gap-2 text-[13px]">
       {/* Dot */}
       <span
         className={cn(
@@ -80,7 +83,18 @@ export function SyncPill({ target, status, onStale, refreshing }: Props): JSX.El
         <span
           className={cn(
             'font-medium truncate',
-            running ? 'text-[var(--amber-400)]' : failed ? 'text-[var(--rose-400)]' : stale ? 'text-[var(--amber-400)]' : 'text-muted-foreground',
+            // "Up to date" is the state the dot beside it already conveys, so on a
+            // phone it gives its width to the capacity figures. The states worth
+            // interrupting for — a running scan, a failure, a new report — keep
+            // their label at every width.
+            !running && !failed && !stale && 'hidden sm:inline',
+            running
+              ? 'text-[var(--amber-400)]'
+              : failed
+                ? 'text-[var(--rose-400)]'
+                : stale
+                  ? 'text-[var(--amber-400)]'
+                  : 'text-muted-foreground',
           )}
         >
           {running
@@ -92,6 +106,9 @@ export function SyncPill({ target, status, onStale, refreshing }: Props): JSX.El
                 : 'Up to date'}
         </span>
         {running && <RotateCw className="size-3 animate-spin text-[var(--amber-400)]/70" />}
+        {/* The hidden-below-sm label above is a visual economy, not an information
+            one: a screen reader still gets the state at every width. */}
+        {!running && !failed && !stale && <span className="sr-only sm:hidden">Up to date</span>}
         <span className="text-muted-foreground/50 hidden sm:inline">
           {status?.scanTimestamp ? formatTimestamp(status.scanTimestamp) : '—'}
         </span>
@@ -102,7 +119,8 @@ export function SyncPill({ target, status, onStale, refreshing }: Props): JSX.El
         onClick={refresh}
         disabled={refreshing}
         className={cn(
-          'inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 text-[12px] font-medium transition-colors',
+          // size-6 keeps the hit area at 24×24 (WCAG 2.5.8) even with no label text.
+          'inline-flex min-h-6 min-w-6 shrink-0 items-center justify-center gap-1 rounded-sm px-1.5 py-0.5 text-[12px] font-medium transition-colors',
           stale
             ? 'bg-amber-400/15 text-foreground hover:bg-amber-400/25'
             : 'text-muted-foreground/60 hover:text-foreground hover:bg-white/[0.04]',

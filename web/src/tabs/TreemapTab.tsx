@@ -260,7 +260,7 @@ export function TreemapTab({ target, totalSize }: Props): JSX.Element {
         ) : (
           <>
             <Treemap level={level} onOpen={open} />
-            <p className="text-center text-[12px] text-muted-foreground p-2">
+            <p className="shrink-0 text-center text-[12px] text-muted-foreground p-2">
               Click a tile to drill in. Tiles without subdirectories are not clickable.
               {level.truncated && ' Smaller entries are grouped — switch to List to page through them.'}
             </p>

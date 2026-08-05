@@ -719,7 +719,13 @@ export function App() {
                 <OverviewTab overview={overview} />
               ) : (
                 <div className="flex flex-1 flex-col min-h-0">
-                  <nav className="flex flex-wrap items-center gap-1 border-b border-border px-4" role="tablist">
+                  {/* One scrolling row rather than a wrapping one: below ~420px the
+                      five tabs wrapped to a second line, costing 42px of content on
+                      exactly the screens with the least to spare. */}
+                  <nav
+                    className="flex shrink-0 items-center gap-1 overflow-x-auto border-b border-border px-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                    role="tablist"
+                  >
                     {DETAIL_TABS.map((id) => (
                       <button
                         key={id}
@@ -727,7 +733,7 @@ export function App() {
                         aria-selected={route.tab === id}
                         onClick={() => setTab(id)}
                         className={cn(
-                          'inline-flex items-center border-b-2 px-3 py-2 text-xs font-medium transition-colors active:scale-[0.97]',
+                          'inline-flex shrink-0 items-center border-b-2 px-3 py-2 text-xs font-medium transition-colors active:scale-[0.97]',
                           route.tab === id
                             ? 'border-primary text-foreground'
                             : 'border-transparent text-muted-foreground hover:text-foreground',
@@ -832,6 +838,11 @@ const CHANGES = [
       'Users tab: with a filter active, the card headers no longer show counts and sizes that ignored it — the directory count is dropped when an extension filter hides the list, and the account-wide size is labelled as such instead of reading like the size of the matches.',
       'Fixed: exported chart PNGs are no longer a black block — the area-fill gradient, axis labels and grid lines now render correctly in both dark and light themes.',
       'Admin: every API endpoint is now documented with its parameters and response shape in the machine-readable spec behind Admin → /docs, so clients and the Swagger UI always describe the real API.',
+      'Phone and tablet layouts: the capacity strip no longer pushes "Free" and "Usage" off the right edge of the screen, the Detail tab bar stays on one row down to 320px, and the folder list fits without scrolling sideways.',
+      'Disk cards now show their Total / Used / Scanned / Free figures in full instead of truncating them ("110 …"), at every window width.',
+      'Treemap tiles are readable at any window size — labels no longer shrink to 5px on a phone or balloon on a wide monitor, and the canvas fills the space it has instead of running past the bottom of the screen on a short laptop.',
+      'Overview fits one screen on short desktop windows down to 560px tall, and uses the extra height on tall monitors instead of leaving it blank.',
+      'The refresh and copy-path buttons are now large enough to tap reliably.',
     ],
   },
   {

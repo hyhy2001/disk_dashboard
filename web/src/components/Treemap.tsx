@@ -13,18 +13,30 @@ import type { TreemapLevel, TreemapNode } from '../../../shared/api.js'
 import { formatCount, formatPercent, formatSize } from '../lib/format.js'
 import { squarify } from '../lib/squarify.js'
 import { truncateLabel } from '../lib/truncate.js'
+import { useSize } from '../lib/useSize.js'
 
 interface Props {
   level: TreemapLevel
   onOpen: (node: TreemapNode) => void
 }
 
-const WIDTH = 900
-const HEIGHT = 460
+/**
+ * Fallback box for the first render, before the container has been measured.
+ *
+ * The canvas used to be a fixed 900×460 viewBox scaled to fit, which tied its
+ * height to its width: on a 1440×700 laptop that made it 472px tall and pushed the
+ * page into a scroll, and at 360px wide the scaled-down tile labels rendered at
+ * ~5px. Measuring instead means the viewBox is in real pixels, so labels are the
+ * size they declare at every width — the same reason the other charts use useSize.
+ */
+const FALLBACK = { width: 900, height: 460 }
 
 /** Tile must be at least this big before it gets a text label. */
 const LABEL_MIN_W = 54
 const LABEL_MIN_H = 26
+
+/** Rough pixel width of one narrow glyph at the tile label's 13px font size. */
+const LABEL_CHAR_PX = 7.2
 
 /** Synthetic tile standing in for the truncated tail plus this dir's own files. */
 interface Cell {
@@ -52,6 +64,7 @@ function fillFor(cell: Cell): string {
 }
 
 export function Treemap({ level, onOpen }: Props): JSX.Element {
+  const [box, size] = useSize<HTMLDivElement>()
   const cells = useMemo<Cell[]>(() => {
     const list: Cell[] = level.children.map((n) => ({ node: n, name: n.name, size: n.size }))
     if (level.remainder > 0) {
@@ -64,7 +77,15 @@ export function Treemap({ level, onOpen }: Props): JSX.Element {
     return list
   }, [level])
 
-  const layout = useMemo(() => squarify(cells, (c) => c.size, { x: 0, y: 0, w: WIDTH, h: HEIGHT }), [cells])
+  // Round the measured box before it reaches the layout: sub-pixel widths would
+  // shift every tile edge on a scrollbar appearing, re-running squarify for nothing.
+  const width = Math.max(1, Math.round(size?.width ?? FALLBACK.width))
+  const height = Math.max(1, Math.round(size?.height ?? FALLBACK.height))
+
+  const layout = useMemo(
+    () => squarify(cells, (c) => c.size, { x: 0, y: 0, w: width, h: height }),
+    [cells, width, height],
+  )
 
   if (cells.length === 0) {
     return (
@@ -80,64 +101,69 @@ export function Treemap({ level, onOpen }: Props): JSX.Element {
 
   return (
     <div className="treemap">
-      <svg
-        className="treemap__svg"
-        viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
-        preserveAspectRatio="xMidYMid meet"
-        role="group"
-        aria-label={`Contents of ${level.node.name}, ${layout.length} tiles`}
-      >
-        {layout.map(({ item, x, y, w, h }) => {
-          const clickable = item.node !== null && item.node.hasChildren
-          const label = `${item.name} — ${formatSize(item.size)} (${formatPercent(item.size, level.node.size)})`
+      {/* The measured element wraps the svg alone, not the note below it: measuring
+          the outer box would feed the note's height back into the canvas height and
+          make the two fight each other on every resize. */}
+      <div className="treemap__canvas" ref={box}>
+        <svg
+          className="treemap__svg"
+          viewBox={`0 0 ${width} ${height}`}
+          preserveAspectRatio="xMidYMid meet"
+          role="group"
+          aria-label={`Contents of ${level.node.name}, ${layout.length} tiles`}
+        >
+          {layout.map(({ item, x, y, w, h }) => {
+            const clickable = item.node !== null && item.node.hasChildren
+            const label = `${item.name} — ${formatSize(item.size)} (${formatPercent(item.size, level.node.size)})`
 
-          return (
-            <g
-              key={item.node ? `n${item.node.id}` : 'remainder'}
-              className={`tile${clickable ? ' tile--open' : ''}`}
-              transform={`translate(${x} ${y})`}
-              onClick={clickable && item.node ? () => onOpen(item.node as TreemapNode) : undefined}
-              onKeyDown={
-                clickable && item.node
-                  ? (e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        onOpen(item.node as TreemapNode)
+            return (
+              <g
+                key={item.node ? `n${item.node.id}` : 'remainder'}
+                className={`tile${clickable ? ' tile--open' : ''}`}
+                transform={`translate(${x} ${y})`}
+                onClick={clickable && item.node ? () => onOpen(item.node as TreemapNode) : undefined}
+                onKeyDown={
+                  clickable && item.node
+                    ? (e) => {
+                        if (e.key === 'Enter' || e.key === ' ') {
+                          e.preventDefault()
+                          onOpen(item.node as TreemapNode)
+                        }
                       }
-                    }
-                  : undefined
-              }
-              tabIndex={clickable ? 0 : -1}
-              role={clickable ? 'button' : undefined}
-              aria-label={clickable ? `Open ${label}` : label}
-            >
-              <title>
-                {label}
-                {item.node ? `\n${formatCount(item.node.fileCount)} files · owner ${item.node.owner}` : ''}
-              </title>
-              <rect
-                className="tile__rect"
-                width={Math.max(0, w - 1.5)}
-                height={Math.max(0, h - 1.5)}
-                rx={3}
-                fill={fillFor(item)}
-              />
-              {w >= LABEL_MIN_W && h >= LABEL_MIN_H && (
-                <>
-                  <text className="tile__name" x={6} y={15}>
-                    {truncateLabel(item.name, Math.floor(w / 8))}
-                  </text>
-                  {h >= 40 && (
-                    <text className="tile__size" x={6} y={29}>
-                      {formatSize(item.size)}
+                    : undefined
+                }
+                tabIndex={clickable ? 0 : -1}
+                role={clickable ? 'button' : undefined}
+                aria-label={clickable ? `Open ${label}` : label}
+              >
+                <title>
+                  {label}
+                  {item.node ? `\n${formatCount(item.node.fileCount)} files · owner ${item.node.owner}` : ''}
+                </title>
+                <rect
+                  className="tile__rect"
+                  width={Math.max(0, w - 1.5)}
+                  height={Math.max(0, h - 1.5)}
+                  rx={3}
+                  fill={fillFor(item)}
+                />
+                {w >= LABEL_MIN_W && h >= LABEL_MIN_H && (
+                  <>
+                    <text className="tile__name" x={6} y={15}>
+                      {truncateLabel(item.name, Math.floor((w - 10) / LABEL_CHAR_PX))}
                     </text>
-                  )}
-                </>
-              )}
-            </g>
-          )
-        })}
-      </svg>
+                    {h >= 40 && (
+                      <text className="tile__size" x={6} y={29}>
+                        {formatSize(item.size)}
+                      </text>
+                    )}
+                  </>
+                )}
+              </g>
+            )
+          })}
+        </svg>
+      </div>
 
       {hidden > 0 && (
         <p className="treemap__note">

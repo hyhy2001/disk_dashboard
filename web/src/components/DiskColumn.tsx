@@ -169,7 +169,14 @@ const DiskCard = memo(function DiskCard({
             {pct.toFixed(0)}%
           </span>
         )}
-        {stageText && <span className={cn('inline-block size-1 rounded-full shrink-0', failed ? 'bg-rose-500' : 'bg-amber-400 animate-pulse')} />}
+        {stageText && (
+          <span
+            className={cn(
+              'inline-block size-1 rounded-full shrink-0',
+              failed ? 'bg-rose-500' : 'bg-amber-400 animate-pulse',
+            )}
+          />
+        )}
       </button>
     )
   }
@@ -238,22 +245,26 @@ const DiskCard = memo(function DiskCard({
             />
           </div>
 
-          {/* Headline figures, matching legacy's extended-disk-stats. */}
-          <div className="mt-2 grid grid-cols-4 gap-1.5 border-t border-border/40 pt-2">
+          {/* Headline figures, matching legacy's extended-disk-stats.
+              Two rows of two by default: at the column's 260px width a quarter is
+              48px, which clipped both the figures ("110 GB" needs 52px) and the
+              "Scanned" label (58px). `.diskstats` restores four columns via a
+              container query once the dragged column is wide enough — see index.css. */}
+          <div className="diskstats mt-2 grid grid-cols-2 gap-x-2 gap-y-1.5 border-t border-border/40 pt-2">
             <div className="min-w-0">
-              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60">Total</p>
+              <p className="truncate text-[11px] uppercase tracking-wider text-muted-foreground/60">Total</p>
               <p className="text-[13px] font-semibold tabular-nums truncate">{formatSize(cap.total)}</p>
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60">Used</p>
+              <p className="truncate text-[11px] uppercase tracking-wider text-muted-foreground/60">Used</p>
               <p className="text-[13px] font-semibold tabular-nums truncate">{formatSize(cap.used)}</p>
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60">Scanned</p>
+              <p className="truncate text-[11px] uppercase tracking-wider text-muted-foreground/60">Scanned</p>
               <p className="text-[13px] font-semibold tabular-nums truncate">{formatSize(cap.scanned)}</p>
             </div>
             <div className="min-w-0">
-              <p className="text-[11px] uppercase tracking-wider text-muted-foreground/60">Free</p>
+              <p className="truncate text-[11px] uppercase tracking-wider text-muted-foreground/60">Free</p>
               <p className="text-[13px] font-semibold tabular-nums truncate">{formatSize(cap.available)}</p>
             </div>
           </div>
@@ -275,13 +286,7 @@ const DiskCard = memo(function DiskCard({
   )
 })
 
-export function DiskColumn({
-  groupName,
-  targets,
-  statuses,
-  selected,
-  onSelect,
-}: Props) {
+export function DiskColumn({ groupName, targets, statuses, selected, onSelect }: Props) {
   const [sort, setSort] = useState<DiskSort>('usage-desc')
   const [query, setQuery] = useState('')
   const [view, setView] = useState<DiskView>(() => {
@@ -343,9 +348,37 @@ export function DiskColumn({
               aria-label={view === 'grid' ? 'Switch to compact list' : 'Switch to card grid'}
             >
               {view === 'grid' ? (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                >
+                  <line x1="8" y1="6" x2="21" y2="6" />
+                  <line x1="8" y1="12" x2="21" y2="12" />
+                  <line x1="8" y1="18" x2="21" y2="18" />
+                  <line x1="3" y1="6" x2="3.01" y2="6" />
+                  <line x1="3" y1="12" x2="3.01" y2="12" />
+                  <line x1="3" y1="18" x2="3.01" y2="18" />
+                </svg>
               ) : (
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /></svg>
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                >
+                  <rect x="3" y="3" width="7" height="7" rx="1" />
+                  <rect x="14" y="3" width="7" height="7" rx="1" />
+                  <rect x="14" y="14" width="7" height="7" rx="1" />
+                  <rect x="3" y="14" width="7" height="7" rx="1" />
+                </svg>
               )}
             </button>
             <select

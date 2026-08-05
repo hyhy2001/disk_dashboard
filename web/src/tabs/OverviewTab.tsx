@@ -45,10 +45,7 @@ export function OverviewTab({ overview }: Props): JSX.Element {
   const shownHistory = useMemo(() => filterByRange(history, range), [history, range])
   // RangePicker calls this once per preset on every render; keep it stable so
   // those calls do not each re-filter the whole history series.
-  const rangeAvailable = useCallback(
-    (v: RangeDays): boolean => filterByRange(history, v).length > 1,
-    [history],
-  )
+  const rangeAvailable = useCallback((v: RangeDays): boolean => filterByRange(history, v).length > 1, [history])
 
   return (
     <>
@@ -63,7 +60,7 @@ export function OverviewTab({ overview }: Props): JSX.Element {
               <ExpandButton onClick={() => setExpanded('timeline')} />
             </div>
           </div>
-          <div className="p-3 pb-1" style={{ height: 'clamp(150px, 24vh, 380px)' }}>
+          <div className="panel-chart p-3 pb-1">
             <AreaChart points={shownHistory} showLegend={false} />
           </div>
           <div className="px-3 pb-3">
@@ -77,7 +74,7 @@ export function OverviewTab({ overview }: Props): JSX.Element {
             <h2 className="text-sm font-semibold">Usage by Teams</h2>
             <ExpandButton onClick={() => setExpanded('teams')} />
           </div>
-          <div className="p-3 flex flex-col justify-center" style={{ height: 'clamp(190px, 26vh, 420px)' }}>
+          <div className="panel-chart--half p-3 flex flex-col justify-center">
             <Donut
               rows={teams}
               size={200}
@@ -114,7 +111,7 @@ export function OverviewTab({ overview }: Props): JSX.Element {
               <ExpandButton onClick={() => setExpanded('users')} />
             </div>
           </div>
-          <div className="p-3" style={{ height: 'clamp(190px, 26vh, 420px)' }}>
+          <div className="panel-chart--half p-3">
             {shownUsers.length === 0 ? (
               <div className="flex flex-col items-center justify-center h-full gap-1 text-muted-foreground">
                 <p className="text-sm font-semibold text-foreground">No consumer data</p>

@@ -13,8 +13,14 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 
 const URL = process.env.DASHBOARD_URL ?? 'https://dashboard.hydev.me/'
 
+/** `URL` above shadows the global, so paths are joined by hand. */
+function absolute(path: string): string {
+  return URL.replace(/\/+$/, '') + path
+}
+
 /** Laptop through desktop. 700 is the shortest viewport we claim to support. */
 const VIEWPORTS = [
+  { w: 1280, h: 560, name: '1280x560 (short window)' },
   { w: 1440, h: 700, name: '1440x700 (short laptop)' },
   { w: 1440, h: 768, name: '1440x768 (laptop)' },
   { w: 1680, h: 900, name: '1680x900' },
@@ -24,8 +30,39 @@ const VIEWPORTS = [
 /** Disk cards carry data-tooltip; the column header buttons do not. */
 const DISK_CARD = '.diskcol button[data-tooltip]'
 
+/** Tab label to its URL segment, for the deep-link path openTab takes below `lg`. */
+const TAB_SLUGS: Record<string, string> = {
+  Treemap: 'treemap',
+  History: 'history',
+  Users: 'detail-user',
+  Perms: 'permissions',
+  Inodes: 'inodes',
+}
+
 let browser: Browser | null = null
 let reachable = false
+/** First disk's route segments, discovered once from the API. See diskPath(). */
+let firstDisk: { space: string; slug: string } | null = null
+
+/**
+ * Path to the first disk on the machine, for viewports that cannot click a card.
+ *
+ * The click-through navigation below is the preferred route because it exercises
+ * what a user does, but the disk column is `hidden lg:block` — below 1024px there
+ * is no card to click, and a phone-width test would time out waiting for one. So
+ * narrow viewports deep-link instead, using whatever targets actually exist rather
+ * than a hardcoded slug.
+ */
+async function diskPath(page: import('playwright').Page, suffix: string): Promise<string> {
+  if (!firstDisk) {
+    const res = await page.request.get(absolute('/api/groups'))
+    const body = (await res.json()) as { data: { name: string; targets: { slug: string }[] }[] }
+    const group = body.data.find((g) => g.targets.length > 0)
+    if (!group?.targets[0]) throw new Error('no disks with reports on this machine')
+    firstDisk = { space: group.name, slug: group.targets[0].slug }
+  }
+  return `/${encodeURIComponent(firstDisk.space)}/${encodeURIComponent(firstDisk.slug)}/${suffix}`
+}
 
 /**
  * Open a page showing a disk's Overview.
@@ -33,14 +70,22 @@ let reachable = false
  * The root URL lands on the space comparison view, because a space with no disk
  * chosen has nothing else useful to show. So these tests navigate: load the shell,
  * then click the first disk card. Clicking rather than constructing a URL keeps
- * the test independent of which targets happen to exist on the machine.
+ * the test independent of which targets happen to exist on the machine. Below the
+ * `lg` breakpoint the column that holds those cards is hidden, so there the route
+ * is deep-linked instead — see diskPath.
  */
 async function openOverview(width: number, height: number): Promise<import('playwright').Page> {
   if (!browser) throw new Error('browser not launched')
   const page = await browser.newPage({ viewport: { width, height } })
   await page.goto(URL, { waitUntil: 'networkidle' })
-  await page.waitForSelector(DISK_CARD, { timeout: 15_000 })
-  await page.click(DISK_CARD)
+
+  if (width >= 1024) {
+    await page.waitForSelector(DISK_CARD, { timeout: 15_000 })
+    await page.click(DISK_CARD)
+  } else {
+    await page.goto(absolute(await diskPath(page, 'overview')), { waitUntil: 'networkidle' })
+  }
+
   await page.waitForSelector('.main svg.chart', { timeout: 15_000 })
   // Let ResizeObserver deliver the first measurement before anything is measured.
   await page.waitForTimeout(500)
@@ -155,22 +200,242 @@ describe('Overview fits one viewport', () => {
   }, 45_000)
 })
 
+/*
+ * Nothing may be pushed off the right edge of the screen.
+ *
+ * The capacity strip was five fixed-size figures in a flex row, so its width was
+ * whatever its contents needed: on a 390px phone "Free" and "Usage" laid out past
+ * x=390 and no scroll container could reach them, which reads as the dashboard
+ * simply not having those numbers. That class of bug is invisible to a desktop-only
+ * suite and to any unit test, so it is measured here at phone widths.
+ */
+describe('nothing lands off the right edge', () => {
+  const NARROW = [
+    { w: 320, h: 640, name: '320x640' },
+    { w: 360, h: 640, name: '360x640' },
+    { w: 390, h: 844, name: '390x844' },
+    { w: 768, h: 1024, name: '768x1024' },
+  ]
+
+  for (const vp of NARROW) {
+    it(`shows all five capacity figures at ${vp.name}`, async () => {
+      if (!reachable || !browser) {
+        console.warn(`skipped: ${URL} unreachable`)
+        return
+      }
+
+      const page = await openOverview(vp.w, vp.h)
+      // The count-up animation only moves the digits, not the boxes, but let it
+      // finish so a mid-animation width cannot be what is measured.
+      await page.waitForTimeout(1400)
+
+      const stats = await page.evaluate(() => {
+        const out: { label: string; right: number; visible: boolean }[] = []
+        for (const el of document.querySelectorAll('div')) {
+          if (el.children.length > 0) continue
+          const label = (el.textContent ?? '').trim()
+          if (!/^(Total|Used|Scanned|Free|Usage)$/i.test(label)) continue
+          const r = el.getBoundingClientRect()
+          out.push({ label, right: Math.round(r.right), visible: r.right <= window.innerWidth + 1 && r.left >= -1 })
+        }
+        return out
+      })
+      await page.close()
+
+      expect(stats).toHaveLength(5)
+      const hidden = stats.filter((s) => !s.visible)
+      expect(hidden, `off-screen capacity figures: ${JSON.stringify(hidden)}`).toEqual([])
+    }, 45_000)
+
+    it(`does not scroll horizontally at ${vp.name}`, async () => {
+      if (!reachable || !browser) {
+        console.warn(`skipped: ${URL} unreachable`)
+        return
+      }
+
+      const page = await openOverview(vp.w, vp.h)
+      const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)
+      await page.close()
+
+      expect(overflow, `the page scrolls sideways by ${overflow}px`).toBeLessThanOrEqual(2)
+    }, 45_000)
+  }
+})
+
+/*
+ * The disk cards' four capacity figures must not be clipped.
+ *
+ * The column is user-resizable from 200px, and at its 260px default a four-column
+ * grid gives each cell 48px — narrower than both "110 GB" (52px) and the word
+ * "Scanned" (58px), so every card silently truncated its own numbers at every
+ * viewport width, desktop included. `truncate` makes that failure look deliberate,
+ * which is why it needs measuring rather than eyeballing.
+ */
+describe('disk card figures are not clipped', () => {
+  for (const [w, h] of [
+    [1280, 800],
+    [1920, 1080],
+  ] as const) {
+    it(`fits every card figure at ${w}x${h}`, async () => {
+      if (!reachable || !browser) {
+        console.warn(`skipped: ${URL} unreachable`)
+        return
+      }
+
+      const page = await browser.newPage({ viewport: { width: w, height: h } })
+      await page.goto(URL, { waitUntil: 'networkidle' })
+      await page.waitForSelector(DISK_CARD, { timeout: 15_000 })
+      await page.waitForTimeout(600)
+
+      const clipped = await page.evaluate(() => {
+        const bad: string[] = []
+        for (const el of document.querySelectorAll('.diskcol p, .diskcol span')) {
+          // sr-only text is clipped on purpose — it is sized to 1px by design.
+          if (el.classList.contains('sr-only') || el.children.length > 0) continue
+          if (el.scrollWidth > el.clientWidth + 1) {
+            bad.push(`«${(el.textContent ?? '').trim()}» needs ${el.scrollWidth}px, has ${el.clientWidth}px`)
+          }
+        }
+        return bad
+      })
+      await page.close()
+
+      expect(clipped, `clipped disk card text: ${clipped.join('; ')}`).toEqual([])
+    }, 45_000)
+  }
+})
+
+/*
+ * Treemap tile labels must render at the size they declare.
+ *
+ * The canvas was a fixed 900x460 viewBox scaled to fit its box, which scaled the
+ * text with it: the same 13px label rendered at 5px on a phone and 30px on a wide
+ * monitor. Tying height to width also made the canvas 472px tall on a 1440x700
+ * laptop and pushed the page into a scroll. Both are measured, because a viewBox
+ * mistake produces a perfectly valid-looking DOM.
+ */
+describe('treemap canvas scales with its box', () => {
+  const SIZES = [
+    [390, 844],
+    [1440, 700],
+    [1920, 1080],
+    [2560, 1440],
+  ] as const
+
+  for (const [w, h] of SIZES) {
+    it(`renders tile labels at 13px and stays on screen at ${w}x${h}`, async () => {
+      if (!reachable || !browser) {
+        console.warn(`skipped: ${URL} unreachable`)
+        return
+      }
+
+      const page = await openTab('Treemap', 'input[aria-label="Search this disk"]', w, h)
+      await page.click('.main button[aria-pressed]:text-is("Treemap")')
+      await page.waitForSelector('.treemap__svg', { timeout: 15_000 })
+      await page.waitForTimeout(900)
+
+      const geo = await page.evaluate(() => {
+        const svg = document.querySelector('.treemap__svg')
+        if (!(svg instanceof SVGSVGElement)) return null
+        const box = svg.getBoundingClientRect()
+        const vb = svg.viewBox.baseVal
+        const text = svg.querySelector('text')
+        const declared = text ? parseFloat(getComputedStyle(text).fontSize) : 0
+        const scale = vb.width > 0 ? box.width / vb.width : 0
+        return {
+          rendered: Math.round(declared * scale * 10) / 10,
+          belowFold: Math.round(Math.max(0, box.bottom - window.innerHeight)),
+        }
+      })
+      await page.close()
+
+      expect(geo).not.toBeNull()
+      // Scale 1 means a declared 13px label is 13px on screen at every width.
+      expect(geo!.rendered, `tile labels render at ${geo!.rendered}px`).toBeCloseTo(13, 0)
+      expect(geo!.belowFold, `canvas extends ${geo!.belowFold}px below the fold`).toBeLessThanOrEqual(2)
+    }, 60_000)
+  }
+})
+
+/*
+ * Every control must be big enough to hit.
+ *
+ * WCAG 2.5.8 asks for 24x24 CSS px. Two controls sat under it — the sync pill's
+ * refresh button at 24x16 and the breadcrumb copy button at 20x20 — both because
+ * they hold only a small icon and were sized to it rather than to a target.
+ */
+describe('touch targets meet the 24px minimum', () => {
+  it('has no control smaller than 24x24 on a phone', async () => {
+    if (!reachable || !browser) {
+      console.warn(`skipped: ${URL} unreachable`)
+      return
+    }
+
+    const page = await openTab('Treemap', 'input[aria-label="Search this disk"]', 390, 844)
+    const small = await page.evaluate(() => {
+      const out: string[] = []
+      for (const el of document.querySelectorAll('button, a[href], input, [role="tab"]')) {
+        const r = el.getBoundingClientRect()
+        // Skip anything not currently rendered: an off-canvas drawer's contents
+        // are not a target until it is open.
+        if (r.width === 0 || r.height === 0 || r.right < 0) continue
+        if (r.width < 24 || r.height < 24) {
+          const name = el.getAttribute('aria-label') ?? (el.textContent ?? '').trim().slice(0, 24)
+          out.push(`«${name}» is ${Math.round(r.width)}x${Math.round(r.height)}`)
+        }
+      }
+      return out
+    })
+    await page.close()
+
+    expect(small, `undersized controls: ${small.join('; ')}`).toEqual([])
+  }, 45_000)
+
+  it('keeps the Detail tab bar on one row down to 320px', async () => {
+    if (!reachable || !browser) {
+      console.warn(`skipped: ${URL} unreachable`)
+      return
+    }
+
+    const page = await openTab('Treemap', 'input[aria-label="Search this disk"]', 320, 640)
+    const rows = await page.evaluate(() => {
+      const nav = document.querySelector('.main nav[role="tablist"]')
+      if (!nav) return null
+      // Tabs wrapping to a second line show up as more than one distinct top edge.
+      return new Set([...nav.children].map((c) => Math.round(c.getBoundingClientRect().top))).size
+    })
+    await page.close()
+
+    expect(rows).not.toBeNull()
+    expect(rows, `the tab bar wrapped onto ${rows} rows`).toBe(1)
+  }, 45_000)
+})
+
 /**
  * Open a Detail sub-tab and wait for its content.
  *
  * Same navigation reason as openOverview: the root URL shows the space comparison,
- * so a disk has to be picked before a Detail tab exists.
+ * so a disk has to be picked before a Detail tab exists — and the same breakpoint
+ * caveat, so below `lg` the route is deep-linked rather than clicked.
  */
 async function openTab(tab: string, ready: string, width: number, height: number): Promise<import('playwright').Page> {
   if (!browser) throw new Error('browser not launched')
   const page = await browser.newPage({ viewport: { width, height } })
   await page.goto(URL, { waitUntil: 'networkidle' })
-  await page.waitForSelector(DISK_CARD, { timeout: 15_000 })
-  await page.click(DISK_CARD)
-  // Picking a disk lands on Overview by design, so the Detail page comes first —
-  // the sub-tabs do not exist until it is open.
-  await page.click('header nav[role="tablist"] button:text-is("Detail")')
-  await page.click(`.main nav[role="tablist"] button:text-is("${tab}")`)
+
+  if (width >= 1024) {
+    await page.waitForSelector(DISK_CARD, { timeout: 15_000 })
+    await page.click(DISK_CARD)
+    // Picking a disk lands on Overview by design, so the Detail page comes first —
+    // the sub-tabs do not exist until it is open.
+    await page.click('header nav[role="tablist"] button:text-is("Detail")')
+    await page.click(`.main nav[role="tablist"] button:text-is("${tab}")`)
+  } else {
+    const slug = TAB_SLUGS[tab]
+    if (slug === undefined) throw new Error(`no route slug known for the ${tab} tab`)
+    await page.goto(absolute(await diskPath(page, `detail/${slug}`)), { waitUntil: 'networkidle' })
+  }
+
   await page.waitForSelector(ready, { timeout: 15_000 })
   // Let the fit measurement settle and its page land.
   await page.waitForTimeout(1200)
@@ -282,7 +547,9 @@ describe('list tabs fit one viewport', () => {
     // And gone from a tab it does not drive.
     await page.click('.main nav[role="tablist"] button:text-is("History")')
     await page.waitForTimeout(400)
-    const onOtherTab = await page.evaluate(() => document.querySelector('input[aria-label="Search this disk"]') !== null)
+    const onOtherTab = await page.evaluate(
+      () => document.querySelector('input[aria-label="Search this disk"]') !== null,
+    )
     await page.close()
 
     expect(placement).not.toBeNull()
@@ -301,7 +568,9 @@ describe('list tabs fit one viewport', () => {
     await page.fill('input[aria-label="Search this disk"]', 'lib')
     await page.waitForSelector('div.fixed.z-50 li button', { timeout: 15_000 })
 
-    const before = await page.evaluate(() => document.querySelectorAll('nav[aria-label="Directory path"] button').length)
+    const before = await page.evaluate(
+      () => document.querySelectorAll('nav[aria-label="Directory path"] button').length,
+    )
     // A real click, not dispatchEvent: the bug was the panel intercepting pointer
     // events, which a synthetic event would sail straight past.
     await page.click('div.fixed.z-50 li button >> nth=0', { timeout: 10_000 })

@@ -61,7 +61,7 @@ export function Breadcrumbs({ path, onNavigate }: Props): JSX.Element {
       </nav>
       <button
         type="button"
-        className="shrink-0 inline-flex size-5 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+        className="shrink-0 inline-flex size-6 items-center justify-center rounded-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
         onClick={() => void copyPath(fullPath(path))}
         aria-label="Copy full path"
         data-tooltip="Copy full path"
