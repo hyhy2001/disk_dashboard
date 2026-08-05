@@ -42,7 +42,200 @@ import { readInodeStats } from '../db/inodes.js'
 import { searchNames } from '../db/search.js'
 import { readScanStatusAtAsync } from '../db/status.js'
 import { listDiskTeams, diskBySlug } from '../db/admin.js'
-import { envelopeRef, intQuery, pathParams, stringQuery } from './schema.js'
+import { envelope, intQuery, pathParams, stringQuery } from './schema.js'
+
+// ── Response data shapes ────────────────────────────────────────────────────
+// Documented for the OpenAPI spec. These mirror the shared/api.ts types but are
+// deliberately loose — top-level keys are named, nested shapes are open — so the
+// spec reads well without becoming a validator that would fight real reports.
+
+const CapacitySchema = { type: ['object', 'null'], additionalProperties: true }
+
+const TargetSchema = {
+  type: 'object',
+  properties: {
+    name: { type: 'string' },
+    slug: { type: 'string' },
+    scanRoot: { type: 'string' },
+    scanTimestamp: { type: 'integer' },
+    totalFiles: { type: 'integer' },
+    totalDirs: { type: 'integer' },
+    totalSize: { type: 'integer' },
+    dbSizeBytes: { type: 'integer' },
+    capacity: CapacitySchema,
+  },
+  additionalProperties: true,
+}
+
+const GroupSchema = {
+  type: 'object',
+  properties: {
+    name: { type: 'string' },
+    targets: { type: 'array', items: TargetSchema },
+  },
+  additionalProperties: true,
+}
+
+const UsageRowSchema = { type: 'object', additionalProperties: true }
+const HistoryPointSchema = { type: 'object', additionalProperties: true }
+const LooseObjectArray = { type: 'array', items: { type: 'object', additionalProperties: true } }
+
+const StatusSchema = {
+  type: 'object',
+  properties: {
+    target: { type: 'string' },
+    stamp: { type: 'string' },
+    scanTimestamp: { type: 'integer' },
+    reportMtime: { type: 'integer' },
+    stage: { type: 'string' },
+    running: { type: 'boolean' },
+  },
+  additionalProperties: true,
+}
+
+const DetailUserSchema = {
+  type: 'object',
+  properties: {
+    name: { type: 'string' },
+    used: { type: 'integer' },
+    files: { type: 'integer' },
+    dirs: { type: 'integer' },
+    hasDetail: { type: 'boolean' },
+  },
+  additionalProperties: true,
+}
+
+const DetailPageSchema = {
+  type: 'object',
+  properties: {
+    rows: LooseObjectArray,
+    nextCursor: { type: ['string', 'null'] },
+    hasMore: { type: 'boolean' },
+    pageTotal: { type: 'integer' },
+    total: { type: 'integer' },
+  },
+  additionalProperties: true,
+}
+
+const TreemapNodeSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'integer' },
+    name: { type: 'string' },
+    size: { type: 'integer' },
+  },
+  additionalProperties: true,
+}
+
+const HealthDataSchema = envelope({
+  type: 'object',
+  properties: {
+    ok: { type: 'boolean' },
+    sqliteVersion: { type: 'string' },
+    trigramAvailable: { type: 'boolean' },
+    reportsDir: { type: 'string' },
+    reportsDirExists: { type: 'boolean' },
+    targetsFound: { type: 'integer' },
+    groupConfigLoaded: { type: 'boolean' },
+    needsSetup: { type: 'boolean' },
+  },
+  additionalProperties: true,
+})
+
+const TargetsDataSchema = envelope({ type: 'array', items: TargetSchema })
+const GroupsDataSchema = envelope({ type: 'array', items: GroupSchema })
+
+const OverviewDataSchema = envelope({
+  type: 'object',
+  properties: {
+    target: TargetSchema,
+    capacity: CapacitySchema,
+    teams: { type: 'array', items: UsageRowSchema },
+    users: { type: 'array', items: UsageRowSchema },
+    otherUsers: { type: 'array', items: UsageRowSchema },
+    history: { type: 'array', items: HistoryPointSchema },
+  },
+  additionalProperties: true,
+})
+
+const TreemapDataSchema = envelope({
+  type: 'object',
+  properties: {
+    node: TreemapNodeSchema,
+    path: LooseObjectArray,
+    children: { type: 'array', items: TreemapNodeSchema },
+    files: LooseObjectArray,
+    fileTotal: { type: 'integer' },
+    remainder: { type: 'integer' },
+    filesSize: { type: 'integer' },
+    truncated: { type: 'boolean' },
+    childTotal: { type: 'integer' },
+  },
+  additionalProperties: true,
+})
+
+const UsersDataSchema = envelope({ type: 'array', items: DetailUserSchema })
+
+const DetailDataSchema = envelope({
+  type: 'object',
+  properties: {
+    user: { type: 'string' },
+    userTotal: { type: 'integer' },
+    dirs: DetailPageSchema,
+    files: DetailPageSchema,
+    dirsSuppressed: { type: 'boolean' },
+  },
+  additionalProperties: true,
+})
+
+const PermissionsDataSchema = envelope({
+  type: 'object',
+  properties: {
+    rows: LooseObjectArray,
+    total: { type: 'integer' },
+    offset: { type: 'integer' },
+    hasMore: { type: 'boolean' },
+    userCounts: LooseObjectArray,
+    errorCounts: LooseObjectArray,
+  },
+  additionalProperties: true,
+})
+
+const HistoryDataSchema = envelope({
+  type: 'object',
+  properties: {
+    snapshots: { type: 'array', items: HistoryPointSchema },
+    users: LooseObjectArray,
+  },
+  additionalProperties: true,
+})
+
+const InodesDataSchema = envelope({
+  type: 'object',
+  properties: {
+    total: { type: ['integer', 'null'] },
+    used: { type: ['integer', 'null'] },
+    free: { type: ['integer', 'null'] },
+    scanned: { type: 'integer' },
+    timestamp: { type: 'integer' },
+    systemAvailable: { type: 'boolean' },
+    users: LooseObjectArray,
+  },
+  additionalProperties: true,
+})
+
+const SearchDataSchema = envelope({
+  type: 'object',
+  properties: {
+    hits: LooseObjectArray,
+    hasMore: { type: 'boolean' },
+    searched: { type: 'object', additionalProperties: true },
+  },
+  additionalProperties: true,
+})
+
+const StatusDataSchema = envelope(StatusSchema)
+const StatusesDataSchema = envelope({ type: 'array', items: StatusSchema })
 
 function ok<T>(data: T): ApiResponse<T> {
   return { status: 'success', data }
@@ -305,7 +498,7 @@ function configuredTargets(adminCfg: ReturnType<typeof getPublicConfig>): Target
 export function registerApi(app: FastifyInstance): void {
   app.get(
     '/api/health',
-    { schema: { response: { 200: envelopeRef() } } },
+    { schema: { response: { 200: HealthDataSchema } } },
     async (): Promise<ApiResponse<HealthInfo>> => {
     const adminCfg = getPublicConfig()
     const diskCount = adminCfg.spaces.reduce((s, sp) => s + sp.disks.length, 0)
@@ -323,7 +516,7 @@ export function registerApi(app: FastifyInstance): void {
 
   app.get(
     '/api/targets',
-    { schema: { response: { 200: envelopeRef() } } },
+    { schema: { response: { 200: TargetsDataSchema } } },
     async (): Promise<ApiResponse<Target[]>> => {
       return ok(configuredTargets(getPublicConfig()))
     },
@@ -332,7 +525,7 @@ export function registerApi(app: FastifyInstance): void {
   // Targets arranged into groups for the Team → Disk sidebar.
   app.get(
     '/api/groups',
-    { schema: { response: { 200: envelopeRef() } } },
+    { schema: { response: { 200: GroupsDataSchema } } },
     async (): Promise<ApiResponse<TargetGroup[]>> => {
     const adminCfg = getPublicConfig()
     const bySlug = new Map(configuredTargets(adminCfg).map((t) => [t.slug, t]))
@@ -346,7 +539,7 @@ export function registerApi(app: FastifyInstance): void {
 
   app.get<{ Params: { target: string } }>(
     '/api/overview/:target',
-    { schema: { params: pathParams(['target']), response: { 200: envelopeRef() } } },
+    { schema: { params: pathParams(['target']), response: { 200: OverviewDataSchema } } },
     async (request, reply): Promise<ApiResponse<Overview>> => {
       const { target } = request.params
       if (!isSafeTargetName(target)) {
@@ -409,7 +602,7 @@ export function registerApi(app: FastifyInstance): void {
         },
         additionalProperties: true,
       },
-      response: { 200: envelopeRef() },
+      response: { 200: TreemapDataSchema },
     },
   }, async (request, reply): Promise<ApiResponse<TreemapLevel>> => {
     const { target } = request.params
@@ -495,7 +688,7 @@ export function registerApi(app: FastifyInstance): void {
   // Every account in the report, for the Detail User picker.
   app.get<{ Params: { target: string } }>(
     '/api/users/:target',
-    { schema: { params: pathParams(['target']), response: { 200: envelopeRef() } } },
+    { schema: { params: pathParams(['target']), response: { 200: UsersDataSchema } } },
     async (request, reply): Promise<ApiResponse<DetailUser[]>> => {
       const opened = withReport(request.params.target, reply)
       if ('err' in opened) return opened.err
@@ -532,7 +725,7 @@ export function registerApi(app: FastifyInstance): void {
         },
         additionalProperties: true,
       },
-      response: { 200: envelopeRef() },
+      response: { 200: DetailDataSchema },
     },
   }, async (request, reply): Promise<ApiResponse<UserDetail>> => {
     const opened = withReport(request.params.target, reply)
@@ -687,7 +880,7 @@ export function registerApi(app: FastifyInstance): void {
         },
         additionalProperties: true,
       },
-      response: { 200: envelopeRef() },
+      response: { 200: PermissionsDataSchema },
     },
   }, async (request, reply): Promise<ApiResponse<PermPage>> => {
     const opened = withReport(request.params.target, reply)
@@ -715,7 +908,7 @@ export function registerApi(app: FastifyInstance): void {
   // Whole-target timeline plus one series per user, for the History tab.
   app.get<{ Params: { target: string } }>(
     '/api/history/:target',
-    { schema: { params: pathParams(['target']), response: { 200: envelopeRef() } } },
+    { schema: { params: pathParams(['target']), response: { 200: HistoryDataSchema } } },
     async (request, reply): Promise<ApiResponse<HistorySeries>> => {
       const opened = withReport(request.params.target, reply)
       if ('err' in opened) return opened.err
@@ -726,7 +919,7 @@ export function registerApi(app: FastifyInstance): void {
   // Inode usage: the filesystem's own figures plus the per-user breakdown.
   app.get<{ Params: { target: string } }>(
     '/api/inodes/:target',
-    { schema: { params: pathParams(['target']), response: { 200: envelopeRef() } } },
+    { schema: { params: pathParams(['target']), response: { 200: InodesDataSchema } } },
     async (request, reply): Promise<ApiResponse<InodeStats>> => {
       const opened = withReport(request.params.target, reply)
       if ('err' in opened) return opened.err
@@ -749,7 +942,7 @@ export function registerApi(app: FastifyInstance): void {
         },
         additionalProperties: true,
       },
-      response: { 200: envelopeRef() },
+      response: { 200: SearchDataSchema },
     },
   }, async (request, reply): Promise<ApiResponse<SearchResult>> => {
     const opened = withReport(request.params.target, reply)
@@ -769,7 +962,7 @@ export function registerApi(app: FastifyInstance): void {
   // caching header is set because a cached response would defeat the point.
   app.get<{ Params: { target: string } }>(
     '/api/status/:target',
-    { schema: { params: pathParams(['target']), response: { 200: envelopeRef() } } },
+    { schema: { params: pathParams(['target']), response: { 200: StatusDataSchema } } },
     async (request, reply): Promise<ApiResponse<ScanStatus>> => {
       const { target } = request.params
       if (!isSafeTargetName(target)) return fail(reply, 400, 'invalid target name')
@@ -787,7 +980,7 @@ export function registerApi(app: FastifyInstance): void {
   // card. Same cost model as the single-target route: stat() plus one small read.
   app.get(
     '/api/statuses',
-    { schema: { response: { 200: envelopeRef() } } },
+    { schema: { response: { 200: StatusesDataSchema } } },
     async (_request, reply): Promise<ApiResponse<ScanStatus[]>> => {
     reply.header('cache-control', 'no-store')
     // Memoised for a second: N pollers asking in the same window share one walk

@@ -77,5 +77,7 @@ describe('report API', () => {
     expect(detail.get.parameters.some((p: any) => p.name === 'target' && p.in === 'path')).toBe(true)
     const search = spec.paths['/api/search/{target}']
     expect(search.get.parameters.some((p: any) => p.name === 'q' && p.in === 'query')).toBe(true)
+    const ov = spec.paths['/api/overview/{target}'].get.responses['200'].content['application/json'].schema
+    expect(ov.properties.data.properties.capacity).toBeTruthy()
   })
 })
