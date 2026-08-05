@@ -131,7 +131,7 @@ export function registerAdmin(app: FastifyInstance): void {
           properties: { username: { type: 'string' }, password: { type: 'string' } },
           required: ['username', 'password'],
         },
-        response: { 200: envelopeRef(), 403: { type: 'object' } },
+        response: { 200: envelopeRef() },
       },
     },
     async (req: any, reply: FastifyReply) => {
@@ -263,7 +263,7 @@ export function registerAdmin(app: FastifyInstance): void {
           type: 'object',
           additionalProperties: true,
           properties: { username: { type: 'string' }, password: { type: 'string' }, role: { type: 'string', enum: ['owner', 'admin'] } },
-          required: ['username', 'password', 'role'],
+          required: ['username', 'password'],
         },
         response: { 200: envelopeRef() },
       },
@@ -374,6 +374,7 @@ export function registerAdmin(app: FastifyInstance): void {
       },
     },
     async (req: any, reply: FastifyReply) => {
+      if (!requireAuth(req, reply)) return
       const { name } = req.body ?? {}
       if (!name || typeof name !== 'string') {
         return reply.code(422).send({ status: 'error', message: 'Name required' })

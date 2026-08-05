@@ -939,6 +939,7 @@ export function registerApi(app: FastifyInstance): void {
         properties: {
           q: stringQuery('q', 'query'),
           kind: { type: 'string', enum: ['dir', 'file'] },
+          limit: intQuery('limit', 'candidate limit'),
         },
         additionalProperties: true,
       },

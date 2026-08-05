@@ -59,6 +59,28 @@ describe('admin auth', () => {
     expect(res.statusCode).toBe(401)
   })
 
+  it('rejects creating a space without a session', async () => {
+    app = createTestApp()
+    const res = await app.inject({ method: 'POST', url: '/api/admin/spaces', payload: { name: 'x' } })
+    expect(res.statusCode).toBe(401)
+  })
+
+  it('rejects every admin mutation route without a session', async () => {
+    app = createTestApp()
+    const mutations: { method: 'POST' | 'DELETE' | 'PUT'; url: string; payload?: object }[] = [
+      { method: 'POST', url: '/api/admin/accounts', payload: { username: 'x', password: 'long-password', role: 'admin' } },
+      { method: 'POST', url: '/api/admin/spaces', payload: { name: 'x' } },
+      { method: 'POST', url: '/api/admin/disks', payload: { space_id: 1, name: 'x', path: '/tmp' } },
+      { method: 'POST', url: '/api/admin/backups' },
+      { method: 'DELETE', url: '/api/admin/teams/1' },
+      { method: 'PUT', url: '/api/admin/spaces/1', payload: { name: 'y' } },
+    ]
+    for (const mutation of mutations) {
+      const res = await app.inject({ method: mutation.method, url: mutation.url, payload: mutation.payload })
+      expect(res.statusCode).toBe(401)
+    }
+  })
+
   it('serves admin stats with a valid session', async () => {
     app = createTestApp()
     const cookie = await login(app)
@@ -103,6 +125,20 @@ describe('backup name security', () => {
       headers: { cookie },
     })
     expect(res.statusCode).toBe(404)
+  })
+})
+
+describe('setup', () => {
+  it('keeps the error body when setup has already completed', async () => {
+    app = createTestApp()
+    createAdmin('bob', 'long-password-1', 'owner')
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/admin/setup',
+      payload: { username: 'x', password: 'long-password' },
+    })
+    expect(res.statusCode).toBe(403)
+    expect(res.json()).toEqual({ status: 'error', message: 'Setup already completed' })
   })
 })
 
