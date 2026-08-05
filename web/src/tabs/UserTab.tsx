@@ -358,9 +358,27 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
             <section className="rounded-lg border border-border bg-surface/50 shadow-sm flex flex-col min-h-0 md:h-full">
               <header className="flex items-center gap-2 border-b border-border/40 px-3 py-2 shrink-0">
                 <h2 className="text-sm font-semibold flex-1">Top directories</h2>
+                {/* userTotal is the account's whole footprint — it is the denominator
+                    for the per-row bars and never reflects the filter. Saying "total
+                    for <user>" beside a filtered count read as the size of the match,
+                    so under a filter the wording names whose total it is instead.
+                    When an extension filter suppresses the list there is no count to
+                    show: falling back to the user list's dir tally would print a
+                    number that ignores the filter and comes from a column that counts
+                    contributed-to rather than owned directories. */}
                 <span className="text-[12px] text-muted-foreground">
-                  {formatCount(detail.dirs.total ?? selectedMeta?.dirs ?? 0)} dirs, {formatSize(detail.userTotal)} total
-                  for {user}
+                  {detail.dirsSuppressed ? (
+                    <>Hidden by the extension filter</>
+                  ) : filterBadge > 0 ? (
+                    <>
+                      {formatCount(detail.dirs.total ?? 0)} dirs match · {user} owns {formatSize(detail.userTotal)} in
+                      all
+                    </>
+                  ) : (
+                    <>
+                      {formatCount(detail.dirs.total ?? 0)} dirs, {formatSize(detail.userTotal)} total for {user}
+                    </>
+                  )}
                 </span>
               </header>
 
@@ -430,7 +448,7 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
               <header className="flex items-center gap-2 border-b border-border/40 px-3 py-2 shrink-0">
                 <h2 className="text-sm font-semibold flex-1">Top files</h2>
                 <span className="text-[12px] text-muted-foreground">
-                  {formatCount(detail.files.total ?? selectedMeta?.files ?? 0)} files,{' '}
+                  {formatCount(detail.files.total ?? 0)} files{filterBadge > 0 ? ' match' : ''},{' '}
                   {formatSize(detail.files.pageTotal)} on this page
                 </span>
               </header>
