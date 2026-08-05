@@ -141,7 +141,7 @@ export function AreaChart({ points, showLegend }: Props): JSX.Element {
   const TIP_W = 168
   const tipH = 20 + SERIES.length * 16
   const tipX = hover === null ? 0 : x(hover) + 12 + TIP_W > width - PAD_R ? x(hover) - 12 - TIP_W : x(hover) + 12
-  const tipY = Math.min(Math.max(PAD_T, (cursorY ?? PAD_T) - tipH / 2), PAD_T + plotH - tipH)
+  const tipY = Math.max(0, Math.min(Math.max(PAD_T, (cursorY ?? PAD_T) - tipH / 2), PAD_T + plotH - tipH))
 
   return (
     <>

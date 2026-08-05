@@ -35,6 +35,14 @@ const cache = new Map<string, unknown>()
 const inflight = new Map<string, Promise<unknown>>()
 
 /**
+ * In-flight search requests, deduplicated separately from the main GET cache.
+ * Search results are typed per keystroke and not worth caching beyond the life
+ * of the request, but two bursty keystrokes asking the same thing should still
+ * share one request rather than racing two.
+ */
+const searchInflight = new Map<string, Promise<unknown>>()
+
+/**
  * Ceiling on the number of cached GET responses.
  *
  * The cache has no expiry — report data is immutable until a rescan, and the
@@ -61,6 +69,7 @@ function cacheSet(path: string, data: unknown): void {
 export function clearApiCache(): void {
   cache.clear()
   inflight.clear()
+  searchInflight.clear()
 }
 
 async function get<T>(path: string, signal?: AbortSignal, cacheable = false): Promise<T> {
@@ -221,8 +230,15 @@ export function fetchSearch(
   kind?: 'dir' | 'file',
   signal?: AbortSignal,
 ): Promise<SearchResult> {
-  const base = `/api/search/${encodeURIComponent(target)}`
-  return get<SearchResult>(withParams(base, { q: query, ...(kind ? { kind } : {}) }), signal)
+  const path = withParams(`/api/search/${encodeURIComponent(target)}`, { q: query, ...(kind ? { kind } : {}) })
+  const pending = searchInflight.get(path)
+  if (pending && !signal?.aborted) return pending as Promise<SearchResult>
+  const promise = get<SearchResult>(path, signal)
+  searchInflight.set(path, promise)
+  // The .finally-derived promise is not what callers await, so swallow its
+  // rejection to avoid an unhandled-rejection noise when the search fails.
+  promise.finally(() => searchInflight.delete(path)).catch(() => undefined)
+  return promise
 }
 
 /**

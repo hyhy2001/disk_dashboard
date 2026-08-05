@@ -73,6 +73,8 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
   const [loading, setLoading] = useState(false)
   const [showFilters, setShowFilters] = useState(false)
   const filterRef = useRef<HTMLDivElement>(null)
+  const filterBtnRef = useRef<HTMLButtonElement>(null)
+  const filterPopRef = useRef<HTMLDivElement>(null)
 
   // Draft is what the form shows; `applied` is what the request uses. Separating
   // them is what makes Apply mean something.
@@ -209,6 +211,26 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
     return () => document.removeEventListener('mousedown', onDown)
   }, [showFilters])
 
+  // Escape closes the popover and returns focus to the trigger, so a keyboard
+  // user is never stranded inside it.
+  useEffect(() => {
+    if (!showFilters) return
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key === 'Escape') {
+        setShowFilters(false)
+        filterBtnRef.current?.focus()
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [showFilters])
+
+  // Move focus into the popover when it opens, so typing lands in the first field.
+  useEffect(() => {
+    if (!showFilters) return
+    filterPopRef.current?.querySelector<HTMLElement>('input, button, select')?.focus()
+  }, [showFilters])
+
   if (error) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -247,8 +269,10 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
         <div className="relative" ref={filterRef}>
           <button
             type="button"
+            ref={filterBtnRef}
             className="inline-flex items-center rounded-sm border border-border bg-transparent px-3 py-1.5 text-xs hover:bg-muted transition-colors"
             aria-expanded={showFilters}
+            aria-haspopup="dialog"
             onClick={() => setShowFilters((v) => !v)}
           >
             Filters
@@ -261,7 +285,10 @@ export function UserTab({ target, initialUser }: Props): JSX.Element {
 
           {showFilters && (
             <div
+              ref={filterPopRef}
               className="absolute top-full left-0 mt-1 z-20 glass rounded-sm shadow-md p-3 space-y-3 w-64"
+              role="dialog"
+              aria-label="Filters"
               onMouseDown={(e) => e.stopPropagation()}
             >
               <TagInput

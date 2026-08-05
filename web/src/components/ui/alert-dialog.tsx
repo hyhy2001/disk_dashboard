@@ -1,11 +1,15 @@
-import { createContext, useContext, useEffect, useRef, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useId, useRef, type ReactNode } from 'react'
+import { Slot } from '@radix-ui/react-slot'
 import { cn } from '@/lib/utils.js'
+import { useFocusTrap } from '@/lib/useFocusTrap.js'
 
 interface AlertDialogContext {
   open: boolean
   onOpenChange: (v: boolean) => void
+  titleId: string
+  descriptionId: string
 }
-const Ctx = createContext<AlertDialogContext>({ open: false, onOpenChange: () => {} })
+const Ctx = createContext<AlertDialogContext>({ open: false, onOpenChange: () => {}, titleId: '', descriptionId: '' })
 
 export function AlertDialog({
   open: controlled,
@@ -16,41 +20,32 @@ export function AlertDialog({
   onOpenChange: (v: boolean) => void
   children: ReactNode
 }) {
-  return <Ctx.Provider value={{ open: controlled, onOpenChange }}>{children}</Ctx.Provider>
+  const titleId = useId()
+  const descriptionId = useId()
+  return <Ctx.Provider value={{ open: controlled, onOpenChange, titleId, descriptionId }}>{children}</Ctx.Provider>
 }
 
 export function AlertDialogTrigger({ asChild, onClick, children, className, ...props }: any) {
   const { onOpenChange } = useContext(Ctx)
-  if (asChild) {
-    return (
-      <span
-        onClick={() => {
-          onClick?.()
-          onOpenChange(true)
-        }}
-        {...props}
-      >
-        {children}
-      </span>
-    )
-  }
+  const Comp = asChild ? Slot : 'button'
   return (
-    <button
+    <Comp
       onClick={() => {
         onClick?.()
         onOpenChange(true)
       }}
-      className={className}
+      className={asChild ? undefined : className}
       {...props}
     >
       {children}
-    </button>
+    </Comp>
   )
 }
 
 export function AlertDialogContent({ children, className }: { children: ReactNode; className?: string }) {
-  const { open, onOpenChange } = useContext(Ctx)
+  const { open, onOpenChange, titleId, descriptionId } = useContext(Ctx)
   const ref = useRef<HTMLDivElement>(null)
+  useFocusTrap(ref)
 
   useEffect(() => {
     if (!open) return
@@ -58,8 +53,15 @@ export function AlertDialogContent({ children, className }: { children: ReactNod
       if (e.key === 'Escape') onOpenChange(false)
     }
     window.addEventListener('keydown', handler)
+
+    const prevOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
     ref.current?.focus()
-    return () => window.removeEventListener('keydown', handler)
+
+    return () => {
+      window.removeEventListener('keydown', handler)
+      document.body.style.overflow = prevOverflow
+    }
   }, [open, onOpenChange])
 
   if (!open) return null
@@ -72,6 +74,10 @@ export function AlertDialogContent({ children, className }: { children: ReactNod
       <div
         ref={ref}
         tabIndex={-1}
+        role="alertdialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
         className={cn(
           'bg-card border border-border rounded-md shadow-lg max-w-md w-full mx-4 animate-slide-up',
           className,
@@ -89,11 +95,21 @@ export function AlertDialogHeader({ children, className }: { children: ReactNode
 }
 
 export function AlertDialogTitle({ children, className }: { children: ReactNode; className?: string }) {
-  return <h2 className={cn('text-sm font-semibold', className)}>{children}</h2>
+  const { titleId } = useContext(Ctx)
+  return (
+    <h2 id={titleId} className={cn('text-sm font-semibold', className)}>
+      {children}
+    </h2>
+  )
 }
 
 export function AlertDialogDescription({ children, className }: { children: ReactNode; className?: string }) {
-  return <p className={cn('text-xs text-muted-foreground leading-relaxed', className)}>{children}</p>
+  const { descriptionId } = useContext(Ctx)
+  return (
+    <p id={descriptionId} className={cn('text-xs text-muted-foreground leading-relaxed', className)}>
+      {children}
+    </p>
+  )
 }
 
 export function AlertDialogFooter({ children, className }: { children: ReactNode; className?: string }) {

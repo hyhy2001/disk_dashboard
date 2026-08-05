@@ -12,6 +12,7 @@ import { useMemo } from 'react'
 import type { TreemapLevel, TreemapNode } from '../../../shared/api.js'
 import { formatCount, formatPercent, formatSize } from '../lib/format.js'
 import { squarify } from '../lib/squarify.js'
+import { truncateLabel } from '../lib/truncate.js'
 
 interface Props {
   level: TreemapLevel
@@ -124,9 +125,7 @@ export function Treemap({ level, onOpen }: Props): JSX.Element {
               {w >= LABEL_MIN_W && h >= LABEL_MIN_H && (
                 <>
                   <text className="tile__name" x={6} y={15}>
-                    {item.name.length > Math.floor(w / 8)
-                      ? `${item.name.slice(0, Math.max(1, Math.floor(w / 8) - 1))}…`
-                      : item.name}
+                    {truncateLabel(item.name, Math.floor(w / 8))}
                   </text>
                   {h >= 40 && (
                     <text className="tile__size" x={6} y={29}>

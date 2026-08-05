@@ -23,6 +23,17 @@ import { InodesTab } from './tabs/InodesTab.js'
 // when the navigation timing entry is missing or its loadEventEnd is 0 (e.g.
 // served from bfcache or a prerender), so it never shows "-- ms".
 const APP_START = performance.now()
+
+/** Load time to report, with a fallback when the navigation entry is missing. */
+export function loadTimeMs(
+  getNav: () => PerformanceNavigationTiming | undefined,
+  now: number,
+  started: number,
+): number {
+  const nav = getNav()
+  if (nav && nav.loadEventEnd > 0) return Math.round(nav.loadEventEnd - nav.startTime)
+  return Math.round(now - started)
+}
 import { OverviewTab } from './tabs/OverviewTab.js'
 import { PermissionsTab } from './tabs/PermissionsTab.js'
 import { TreemapTab } from './tabs/TreemapTab.js'
@@ -32,7 +43,7 @@ import { ScrollTop } from './components/ScrollTop.js'
 import { StatBar } from './components/StatBar.js'
 import { ColumnResizer } from './components/ColumnResizer.js'
 import { CommandPalette } from './components/CommandPalette.js'
-import { KEYS, loadFilters, readString } from './lib/prefs.js'
+import { KEYS, loadFilters, readString, writeString } from './lib/prefs.js'
 import {
   currentRoute,
   DEFAULT_ROUTE,
@@ -86,6 +97,7 @@ export function App() {
   const [showSettings, setShowSettings] = useState(false)
   const [showChangeLog, setShowChangeLog] = useState(false)
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [loadMs, setLoadMs] = useState<number | null>(null)
   const mainRef = useRef<HTMLDivElement>(null)
   const settingsRef = useRef<HTMLButtonElement>(null)
 
@@ -100,7 +112,7 @@ export function App() {
     root.classList.toggle('dark', theme === 'dark')
   }, [theme])
   useEffect(() => {
-    localStorage.setItem(KEYS.theme, theme)
+    writeString(KEYS.theme, theme)
   }, [theme])
   useEffect(() => {
     writeRoute(route)
@@ -330,21 +342,22 @@ export function App() {
     return () => document.removeEventListener('mousedown', handler)
   }, [showSettings])
 
+  // Load time lives in state, not in a DOM mutation: the sidebar's collapsed and
+  // expanded footers each mount their own span, so writing the number once into a
+  // span from the first render is lost when the sidebar is collapsed and expanded
+  // again. A state value survives every remount.
   useEffect(() => {
-    const el = document.getElementById('page-load-time')
-    if (!el) return
-    const show = () => {
-      const nav = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined
-      // loadEventEnd is 0 when the navigation entry is absent or incomplete
-      // (bfcache, prerender) — fall back to bundle-evaluation time so the footer
-      // always shows a real number instead of "-- ms".
-      const ms = nav && nav.loadEventEnd > 0 ? Math.round(nav.loadEventEnd - nav.startTime) : Math.round(performance.now() - APP_START)
-      const target = el.querySelector('[data-ms]')
-      if (target) target.textContent = `${ms}ms`
-    }
-    if (document.readyState === 'complete') show()
-    else window.addEventListener('load', show)
-    return () => window.removeEventListener('load', show)
+    const compute = () =>
+      setLoadMs(
+        loadTimeMs(
+          () => performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming | undefined,
+          performance.now(),
+          APP_START,
+        ),
+      )
+    if (document.readyState === 'complete') compute()
+    else window.addEventListener('load', compute)
+    return () => window.removeEventListener('load', compute)
   }, [])
 
   const shownGroups = useMemo(() => {
@@ -531,12 +544,12 @@ export function App() {
               )}
             >
               {collapsed ? (
-                <span data-ms />
+                <span data-ms>{loadMs !== null ? `${loadMs}ms` : ''}</span>
               ) : (
                 <>
                   Load time:{' '}
                   <span className="text-[var(--emerald-400)]/80" data-ms>
-                    -- ms
+                    {loadMs !== null ? `${loadMs}ms` : '-- ms'}
                   </span>
                 </>
               )}
@@ -566,7 +579,6 @@ export function App() {
               statuses={statuses}
               selected={route.disk}
               onSelect={pickDisk}
-              onToggleSidebar={() => setCollapsed((c) => !c)}
             />
           </div>
         )}
@@ -802,6 +814,16 @@ const CHANGES = [
   {
     date: '2026-08-05',
     items: [
+      'Inodes tab: searching thousands of accounts no longer lags as you type, and the grid caps at 200 cards with a note instead of rendering every match.',
+      'Inodes tab and disk cards now agree on when a disk is "warning" vs "critical" — one shared 70% / 85% threshold everywhere.',
+      'Treemap: a "Load more" that lands after you have navigated to another folder no longer mixes that folder\u2019s rows into the new one.',
+      'Admin: an expired session now drops back to the login view instead of keeping stale admin state on screen.',
+      'CSV and PNG exports download correctly in Safari, and very large treemap PNG exports no longer fail silently.',
+      'Sidebar "Load time" no longer reverts to "-- ms" after collapsing and re-expanding the sidebar.',
+      'Pagination page numbers and the selected space highlight now actually show which one is active.',
+      'Users tab: the Filters panel closes on Escape and keeps keyboard focus where you expect it.',
+      'Dialogs and the command palette keep keyboard focus inside while open, and the scan freshness of each disk is announced to screen readers.',
+      'Permission Issues: the copy icon is visible on hover again, and type/user filters expose their pressed state to assistive tech.',
       'Treemap: folders that the scan stopped at are no longer clickable into an empty view, and their file sizes are exact instead of including the part of the tree the report never stored.',
       'Permission Issues: the "unknown user" filter now returns the rows its count promises instead of an empty list.',
       'Space comparison: disks sharing one filesystem are counted once, so the header no longer reports more capacity than the machine has.',

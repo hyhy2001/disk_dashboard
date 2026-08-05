@@ -1,9 +1,10 @@
 // Inodes tab — filesystem-level and per-user inode counts.
 
-import { useEffect, useMemo, useState } from 'react'
+import { useDeferredValue, useEffect, useMemo, useState } from 'react'
 import type { InodeStats } from '../../../shared/api.js'
 import { fetchInodes } from '../lib/api.js'
 import { formatCount, formatPercent, formatTimestamp } from '../lib/format.js'
+import { usageTone } from '../lib/usage.js'
 import { Input } from '@/components/ui/input.js'
 import { cn } from '@/lib/utils.js'
 
@@ -11,13 +12,23 @@ interface Props {
   target: string
 }
 
-const WARM = 65
-const HOT = 85
+/** Case-insensitive substring filter over account names. */
+export function filterUsers(users: InodeStats['users'], query: string): InodeStats['users'] {
+  const q = query.trim().toLowerCase()
+  if (!q) return users
+  return users.filter((u) => u.name.toLowerCase().includes(q))
+}
+
+/**
+ * Cap on account cards rendered at once. The filter can still match thousands of
+ * accounts; rendering every card would swamp the tab for the sake of a tail that
+ * is just as reachable by typing more of the name.
+ */
+const MAX_USERS = 200
 
 function tone(pct: number): string {
-  if (pct > HOT) return 'text-[var(--rose-400)]'
-  if (pct > WARM) return 'text-[var(--amber-400)]'
-  return 'text-[var(--emerald-500)]'
+  const t = usageTone(pct)
+  return t === 'critical' ? 'text-[var(--rose-400)]' : t === 'warning' ? 'text-[var(--amber-400)]' : 'text-[var(--emerald-500)]'
 }
 
 function InodeRing({ total, used, scanned }: { total: number; used: number; scanned: number }) {
@@ -112,12 +123,15 @@ export function InodesTab({ target }: Props): JSX.Element {
     setQuery('')
   }, [target])
 
-  const shown = useMemo(() => {
-    if (!data) return []
-    const q = query.trim().toLowerCase()
-    if (!q) return data.users
-    return data.users.filter((u) => u.name.toLowerCase().includes(q))
-  }, [data, query])
+  // The list is re-filtered after the input settles, so typing stays responsive
+  // even against a report with thousands of accounts.
+  const deferredQuery = useDeferredValue(query)
+  const filtered = useMemo(() => filterUsers(data?.users ?? [], deferredQuery), [data, deferredQuery])
+  const shown = filtered.slice(0, MAX_USERS)
+  const truncated = filtered.length > shown.length
+  // Hooks must all run before the early returns below, or the hook count would
+  // differ between the loading and loaded renders.
+  const walked = useMemo(() => (data?.users ?? []).reduce((s, u) => s + u.inodes, 0), [data])
 
   if (error)
     return (
@@ -130,10 +144,9 @@ export function InodesTab({ target }: Props): JSX.Element {
     )
   if (!data) return <div className="h-64 w-full rounded-md bg-muted animate-pulse m-4" />
 
-  const { total, used, free, scanned, users } = data
+  const { total, used, free, scanned } = data
   const usedPct = total !== null && used !== null ? (used / total) * 100 : null
   const unscanned = used !== null ? Math.max(0, used - scanned) : null
-  const walked = users.reduce((s, u) => s + u.inodes, 0)
 
   return (
     <div className="flex flex-1 flex-col lg:flex-row h-full min-h-0">
@@ -193,9 +206,12 @@ export function InodesTab({ target }: Props): JSX.Element {
           <h2 className="text-sm font-semibold">Per-user inodes</h2>
           <span className="text-[12px] text-muted-foreground">
             {formatCount(shown.length)}
-            {shown.length !== users.length ? ` of ${formatCount(users.length)}` : ''} account
-            {users.length !== 1 ? 's' : ''}
+            {filtered.length !== shown.length ? ` of ${formatCount(filtered.length)}` : ''} account
+            {filtered.length !== 1 ? 's' : ''}
           </span>
+          {truncated && (
+            <span className="text-[12px] text-muted-foreground/70 italic">showing first {formatCount(MAX_USERS)} — narrow the search</span>
+          )}
           <div className="flex-1 hidden md:block" />
           <Input
             placeholder="Search users…"
@@ -207,7 +223,7 @@ export function InodesTab({ target }: Props): JSX.Element {
         <div className="flex-1 overflow-auto p-2">
           {shown.length === 0 ? (
             <p className="text-xs text-muted-foreground p-4 text-center">
-              {users.length === 0
+              {data.users.length === 0
                 ? 'No account owns any file in this report.'
                 : `No account matches "${query.trim()}".`}
             </p>

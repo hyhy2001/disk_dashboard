@@ -20,6 +20,7 @@ import { formatCount, formatSize } from '../lib/format.js'
 import { KEYS, readString, writeString } from '../lib/prefs.js'
 import { usedPercent } from '../components/DiskColumn.js'
 import { spaceTotals } from '../lib/space.js'
+import { HOT_USAGE, WARM_USAGE } from '../lib/usage.js'
 
 type Mode = 'absolute' | 'log' | 'percent'
 
@@ -33,9 +34,9 @@ const MODES: { id: Mode; label: string; hint: string }[] = [
 
 /** Health bands, on the same thresholds the disk cards use. */
 const BANDS = [
-  { id: 'critical', label: 'Critical', hint: '85% or more full', min: 85 },
-  { id: 'warning', label: 'Warning', hint: '70–85% full', min: 70 },
-  { id: 'healthy', label: 'Healthy', hint: 'Under 70% full', min: 0 },
+  { id: 'critical', label: 'Critical', hint: `${HOT_USAGE}% or more full`, min: HOT_USAGE },
+  { id: 'warning', label: 'Warning', hint: `${WARM_USAGE}–${HOT_USAGE}% full`, min: WARM_USAGE },
+  { id: 'healthy', label: 'Healthy', hint: `Under ${WARM_USAGE}% full`, min: 0 },
 ] as const
 
 interface Props {

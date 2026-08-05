@@ -10,6 +10,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { downloadSvgAsPng } from '../lib/exportPng.js'
+import { useFocusTrap } from '../lib/useFocusTrap.js'
 
 interface Props {
   title: string
@@ -24,6 +25,7 @@ export function ChartModal({ title, slug, onClose, children }: Props): JSX.Eleme
   const body = useRef<HTMLDivElement>(null)
   const restoreTo = useRef<HTMLElement | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
+  useFocusTrap(panel)
 
   useEffect(() => {
     restoreTo.current = document.activeElement as HTMLElement | null

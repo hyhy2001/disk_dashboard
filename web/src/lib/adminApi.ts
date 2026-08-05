@@ -3,12 +3,27 @@
 // Unlike the main API cache (which is immutable-report data), admin endpoints
 // mutate state, so caching is kept short and cleared on mutation.
 
-import type { SpaceWithDisks, AdminAccount, AuthStatus, DiskTeam } from '../../../shared/api.js'
+import type { SpaceWithDisks, AdminAccount, DiskTeam } from '../../../shared/api.js'
 
-let _authCache: { data: AuthStatus; ts: number } | null = null
+let _authCache: { data: AuthInfo; ts: number } | null = null
+
+/** Fired when a session expires mid-use, so the UI can drop back to the login view. */
+const authInvalidListeners = new Set<() => void>()
+
+/** Subscribe to session expiry. Returns an unsubscribe function. */
+export function onAuthInvalid(fn: () => void): () => void {
+  authInvalidListeners.add(fn)
+  return () => authInvalidListeners.delete(fn)
+}
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { credentials: 'same-origin', ...init })
+  if (res.status === 401) {
+    // The session is gone: the cached "logged in" answer must not outlive it,
+    // and the UI should stop pretending the admin area is open.
+    clearAuthCache()
+    for (const fn of authInvalidListeners) fn()
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({ message: res.statusText }))
     throw new Error((body as any).message ?? res.statusText)
@@ -29,10 +44,10 @@ export interface AuthInfo {
 
 export async function fetchAuthStatus(): Promise<AuthInfo> {
   if (_authCache && Date.now() - _authCache.ts < 5000) {
-    return _authCache.data as unknown as AuthInfo
+    return _authCache.data
   }
   const res = await fetchJson<{ status: string; data: AuthInfo }>('/api/admin/status')
-  _authCache = { data: res.data as unknown as AuthStatus, ts: Date.now() }
+  _authCache = { data: res.data, ts: Date.now() }
   return res.data
 }
 

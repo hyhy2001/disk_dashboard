@@ -108,6 +108,7 @@ export function SyncPill({ target, status, onStale, refreshing }: Props): JSX.El
             : 'text-muted-foreground/60 hover:text-foreground hover:bg-white/[0.04]',
         )}
         title={stale ? 'New report available — click to reload' : 'Re-read report'}
+        aria-label={stale ? 'Reload report' : 'Re-read report'}
       >
         <RefreshCw className={cn('size-3', refreshing && 'animate-spin')} />
         {refreshing ? '' : stale ? 'Reload' : ''}

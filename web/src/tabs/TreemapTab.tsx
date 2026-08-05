@@ -9,7 +9,7 @@
 // keeps your position in the tree. One fetch per level; the server query is
 // O(children), so drilling stays flat regardless of tree size.
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { TreemapLevel, TreemapNode } from '../../../shared/api.js'
 import { Breadcrumbs } from '../components/Breadcrumbs.js'
 import { TreeSearch } from '../components/TreeSearch.js'
@@ -55,6 +55,15 @@ export function TreemapTab({ target, totalSize }: Props): JSX.Element {
   useEffect(() => {
     setOpenId(null)
   }, [target])
+
+  // Latest open directory / target, for the load-more staleness guard. A
+  // useCallback captures the values from the render that created it, which would
+  // be the pre-navigation ones by the time a stale response lands; the guard
+  // needs the *current* ones.
+  const openIdRef = useRef<number | null>(null)
+  const targetRef = useRef(target)
+  openIdRef.current = openId
+  targetRef.current = target
 
   // Page size follows the measured list height so a level fits without scrolling
   // the page. The treemap view is not a list — its tiles scale to whatever box they
@@ -102,20 +111,30 @@ export function TreemapTab({ target, totalSize }: Props): JSX.Element {
     if (!level) return
     setLoadingMore(true)
     const offset = level.childOffset + extraDirs.length
+    // The response belongs to the directory it was asked for. The user can drill
+    // elsewhere (or the target can switch) while it is in flight; appending its
+    // rows then would graft the old directory's children onto the new one.
+    const requestedOpenId = openIdRef.current
+    const requestedTarget = targetRef.current
+    const stillCurrent = (): boolean => openIdRef.current === requestedOpenId && targetRef.current === requestedTarget
     fetchTreemap(target, {
       parent: openId,
       childOffset: offset,
       ...(pageSize !== undefined ? { limit: pageSize } : {}),
     })
       .then((page) => {
+        if (!stillCurrent()) return
         setExtraDirs((prev) => [...prev, ...page.children])
         // The tail page tells us whether anything is still left.
         setLevel((cur) => (cur ? { ...cur, truncated: page.truncated } : cur))
       })
       .catch((err: unknown) => {
+        if (!stillCurrent()) return
         setError(err instanceof Error ? err.message : String(err))
       })
-      .finally(() => setLoadingMore(false))
+      .finally(() => {
+        if (stillCurrent()) setLoadingMore(false)
+      })
   }, [level, extraDirs.length, target, openId, pageSize])
 
   const open = useCallback((node: TreemapNode) => setOpenId(node.id), [])

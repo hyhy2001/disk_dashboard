@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { TargetGroup } from '../../../shared/api.js'
 import { DETAIL_TABS, type DetailTab } from '../lib/route.js'
 import { cn } from '../lib/utils.js'
+import { useFocusTrap } from '../lib/useFocusTrap.js'
 import { HardDrive, LayoutGrid, Monitor, Sun } from 'lucide-react'
 
 interface Props {
@@ -58,6 +59,8 @@ export function CommandPalette({
   const [query, setQuery] = useState('')
   const [selected, setSelected] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFocusTrap(panelRef)
 
   // Close and reset on toggle.
   useEffect(() => {
@@ -180,6 +183,7 @@ export function CommandPalette({
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
+        ref={panelRef}
       >
         <input
           ref={inputRef}

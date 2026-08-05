@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import type { SearchHit } from '../../../shared/api.js'
 import { fetchSearch } from '../lib/api.js'
 import { formatSize } from '../lib/format.js'
@@ -24,6 +24,7 @@ export function TreeSearch({ target, onOpen }: Props): JSX.Element {
   const sentinelRef = useRef<HTMLDivElement>(null)
   const popupRef = useRef<HTMLDivElement>(null)
   const [popupPos, setPopupPos] = useState<{ top: number; left: number; width: number } | null>(null)
+  const listboxId = useId()
 
   useEffect(() => {
     setQuery('')
@@ -152,6 +153,10 @@ export function TreeSearch({ target, onOpen }: Props): JSX.Element {
         className="h-6 w-56 rounded-sm border border-border bg-background px-2 text-[13px] placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         placeholder="Find a file or folder…"
         aria-label="Search this disk"
+        role="combobox"
+        aria-expanded={open && query.trim().length >= MIN_CHARS}
+        aria-controls={listboxId}
+        aria-autocomplete="list"
         value={query}
         onFocus={() => setOpen(true)}
         onChange={(e) => {
@@ -180,11 +185,12 @@ export function TreeSearch({ target, onOpen }: Props): JSX.Element {
           ) : allHits.length === 0 ? (
             <p className="text-[13px] text-muted-foreground p-3">No match for "{query.trim()}".</p>
           ) : (
-            <ul className="divide-y divide-border/20">
+            <ul id={listboxId} className="divide-y divide-border/20" role="listbox" aria-label="Search results">
               {visible.map((h) => (
                 <li key={`${h.kind}-${h.id}-${h.path}`}>
                   <button
                     type="button"
+                    role="option"
                     className="flex items-center gap-2 w-full px-3 py-1.5 text-[13px] hover:bg-muted transition-colors text-left"
                     onClick={() => pick(h)}
                   >

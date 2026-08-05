@@ -19,15 +19,14 @@ export interface LayoutItem<T> extends Rect {
   value: number
 }
 
-/** Worst (largest) aspect ratio in a row of areas laid along `side`. */
-function worstRatio(areas: number[], side: number, sum: number): number {
-  if (sum <= 0 || side <= 0) return Infinity
-  let min = Infinity
-  let max = 0
-  for (const a of areas) {
-    if (a < min) min = a
-    if (a > max) max = a
-  }
+/**
+ * Worst (largest) aspect ratio in a row laid along `side`, from running
+ * min/max/sum stats. Computed from the stats rather than rescanning the row so
+ * the row-growing loop below is O(1) per candidate instead of O(row) — a level
+ * with thousands of entries would otherwise stall on every resize.
+ */
+function worstRatio(min: number, max: number, sum: number, side: number): number {
+  if (sum <= 0 || side <= 0 || min <= 0) return Infinity
   const s2 = sum * sum
   const side2 = side * side
   return Math.max((side2 * max) / s2, s2 / (side2 * min))
@@ -65,17 +64,24 @@ export function squarify<T>(items: T[], value: (item: T) => number, bounds: Rect
     const side = Math.min(w, h)
     const row: typeof scaled = []
     let rowSum = 0
+    let rowMin = Infinity
+    let rowMax = 0
 
-    // Grow the row while the worst aspect ratio keeps improving.
+    // Grow the row while the worst aspect ratio keeps improving. Stats are
+    // carried along so each candidate is one worstRatio call, not a rescan.
     while (i < scaled.length) {
       const next = scaled[i]
       if (!next) break
-      const areas = row.map((r) => r.area)
-      const current = row.length === 0 ? Infinity : worstRatio(areas, side, rowSum)
-      const candidate = worstRatio([...areas, next.area], side, rowSum + next.area)
+      const candSum = rowSum + next.area
+      const candMin = Math.min(rowMin, next.area)
+      const candMax = Math.max(rowMax, next.area)
+      const current = row.length === 0 ? Infinity : worstRatio(rowMin, rowMax, rowSum, side)
+      const candidate = worstRatio(candMin, candMax, candSum, side)
       if (row.length > 0 && candidate > current) break
       row.push(next)
-      rowSum += next.area
+      rowSum = candSum
+      rowMin = candMin
+      rowMax = candMax
       i += 1
     }
 

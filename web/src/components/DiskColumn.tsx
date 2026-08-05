@@ -7,11 +7,12 @@
 // running scan shows up on the owning card instead of only on the active disk's
 // SyncPill.
 
-import { useMemo, useState } from 'react'
+import { memo, useMemo, useState } from 'react'
 import type { ScanStatus, Target } from '../../../shared/api.js'
 import { formatCount, formatSize } from '../lib/format.js'
 import { KEYS, readString, writeString } from '../lib/prefs.js'
 import { isFailedStage, stageLabel } from '../lib/stage.js'
+import { usageTone } from '../lib/usage.js'
 import { cn } from '@/lib/utils.js'
 
 /** Age of a scan in seconds, or null if unknown. */
@@ -60,7 +61,6 @@ interface Props {
   /** Selected disk slug, or null. */
   selected: string | null
   onSelect: (slug: string) => void
-  onToggleSidebar: () => void
 }
 
 /** Scan detail lines for the card tooltip, mirroring legacy's tooltip. */
@@ -83,7 +83,13 @@ function scanDetail(status: ScanStatus | undefined): string[] {
   return lines
 }
 
-function DiskCard({
+/**
+ * Memoised so the App-level status poll — which re-renders the whole shell every
+ * 3s — does not re-render cards whose own status did not change. `onSelect` must
+ * stay stable for the memo to bite, so the column passes its own handler and the
+ * card builds the closure against its slug.
+ */
+const DiskCard = memo(function DiskCard({
   t,
   status,
   active,
@@ -93,7 +99,7 @@ function DiskCard({
   t: Target
   status?: ScanStatus
   active: boolean
-  onSelect: () => void
+  onSelect: (slug: string) => void
   view: DiskView
 }) {
   const cap = t.capacity
@@ -102,11 +108,25 @@ function DiskCard({
   // Bytes the filesystem counts as used but the scan did not walk (or could not
   // descend into) — the unattributed gap legacy surfaced as its own segment.
   const unattributedPct = cap ? Math.max(0, pct - scannedPct) : 0
-  const barColor = pct >= 85 ? 'bg-rose-500' : pct >= 70 ? 'bg-amber-400' : 'bg-emerald-500'
+  const usage = usageTone(pct)
+  const barColor = usage === 'critical' ? 'bg-rose-500' : usage === 'warning' ? 'bg-amber-400' : 'bg-emerald-500'
 
   const running = status?.running === true
   const failed = isFailedStage(status?.stage)
-  const dotColor = running ? 'bg-amber-400 animate-pulse' : failed ? 'bg-rose-500' : statusColor(scanAge(t))
+  const age = scanAge(t)
+  const dotColor = running ? 'bg-amber-400 animate-pulse' : failed ? 'bg-rose-500' : statusColor(age)
+  // Screen readers get the freshness as text; sighted users get the dot colour.
+  const srState = running
+    ? 'Scanning'
+    : failed
+      ? 'Scan failed'
+      : age === null
+        ? 'Never scanned'
+        : age < 3600 * 6
+          ? 'Scan up to date'
+          : age < 3600 * 24
+            ? 'Scan is stale'
+            : 'Scan is outdated'
 
   const stageText = running
     ? (stageLabel(status?.stage) ?? 'Working')
@@ -120,7 +140,7 @@ function DiskCard({
   if (view === 'list') {
     return (
       <button
-        onClick={onSelect}
+        onClick={() => onSelect(t.slug)}
         data-tooltip={tooltip}
         data-tooltip-pos="top"
         className={cn(
@@ -133,12 +153,17 @@ function DiskCard({
       >
         {active && <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded-full bg-emerald-500" />}
         <span className={cn('inline-block size-1.5 rounded-full shrink-0', dotColor)} />
+        <span className="sr-only">{srState}</span>
         <span className="min-w-0 flex-1 truncate text-[15px] font-medium">{t.name}</span>
         {pct > 0 && (
           <span
             className={cn(
               'shrink-0 text-[13px] font-bold tabular-nums',
-              pct >= 85 ? 'text-[var(--rose-400)]' : pct >= 70 ? 'text-[var(--amber-400)]' : 'text-[var(--emerald-400)]',
+              usage === 'critical'
+                ? 'text-[var(--rose-400)]'
+                : usage === 'warning'
+                  ? 'text-[var(--amber-400)]'
+                  : 'text-[var(--emerald-400)]',
             )}
           >
             {pct.toFixed(0)}%
@@ -151,7 +176,7 @@ function DiskCard({
 
   return (
     <button
-      onClick={onSelect}
+      onClick={() => onSelect(t.slug)}
       data-tooltip={tooltip}
       data-tooltip-pos="top"
       className={cn(
@@ -168,6 +193,7 @@ function DiskCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <span className={cn('inline-block size-1.5 rounded-full shrink-0', dotColor)} />
+            <span className="sr-only">{srState}</span>
             <p className="text-sm font-semibold truncate">{t.name}</p>
           </div>
           <p className="text-[13px] text-muted-foreground/70 font-mono truncate mt-0.5">{t.scanRoot}</p>
@@ -176,9 +202,9 @@ function DiskCard({
           <span
             className={cn(
               'shrink-0 rounded-md px-2 py-0.5 text-[13px] font-bold tabular-nums',
-              pct >= 85
+              usage === 'critical'
                 ? 'bg-rose-500/15 text-[var(--rose-400)]'
-                : pct >= 70
+                : usage === 'warning'
                   ? 'bg-amber-400/15 text-[var(--amber-400)]'
                   : 'bg-emerald-500/15 text-[var(--emerald-400)]',
             )}
@@ -247,7 +273,7 @@ function DiskCard({
       )}
     </button>
   )
-}
+})
 
 export function DiskColumn({
   groupName,
@@ -255,7 +281,6 @@ export function DiskColumn({
   statuses,
   selected,
   onSelect,
-  onToggleSidebar: _onToggleSidebar,
 }: Props) {
   const [sort, setSort] = useState<DiskSort>('usage-desc')
   const [query, setQuery] = useState('')
@@ -315,6 +340,7 @@ export function DiskColumn({
               className="inline-flex size-6 items-center justify-center rounded-md border border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               title={view === 'grid' ? 'Compact list' : 'Card grid'}
               aria-pressed={view === 'list'}
+              aria-label={view === 'grid' ? 'Switch to compact list' : 'Switch to card grid'}
             >
               {view === 'grid' ? (
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" /><line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" /><line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" /></svg>
@@ -368,7 +394,7 @@ export function DiskColumn({
             t={t}
             status={statuses[t.slug]}
             active={t.slug === selected}
-            onSelect={() => onSelect(t.slug)}
+            onSelect={onSelect}
             view={view}
           />
         ))}

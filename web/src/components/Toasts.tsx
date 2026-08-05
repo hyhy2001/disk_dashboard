@@ -44,11 +44,20 @@ export function Toasts(): JSX.Element {
               <div className="mt-2 flex items-center gap-2">
                 <div className="h-1 flex-1 overflow-hidden rounded-full bg-muted">
                   {t.progress < 0 ? (
-                    <div className="h-full w-full rounded-full bg-primary animate-pulse" />
+                    <div
+                      className="h-full w-full rounded-full bg-primary animate-pulse"
+                      role="progressbar"
+                      aria-label="Progress"
+                    />
                   ) : (
                     <div
                       className="h-full rounded-full bg-primary transition-all"
                       style={{ width: `${t.progress * 100}%` }}
+                      role="progressbar"
+                      aria-label="Progress"
+                      aria-valuenow={Math.round(t.progress * 100)}
+                      aria-valuemin={0}
+                      aria-valuemax={100}
                     />
                   )}
                 </div>

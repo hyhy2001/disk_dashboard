@@ -188,7 +188,11 @@ function download(name: string, body: string[]): void {
   const a = document.createElement('a')
   a.href = url
   a.download = name
+  // Safari refuses downloads on anchors that are not in the document, so the
+  // anchor must be attached (even if invisible) before the click.
+  document.body.appendChild(a)
   a.click()
+  a.remove()
   // Revoking immediately can cancel the download in some browsers; one tick is
   // enough for the click to have been processed.
   setTimeout(() => URL.revokeObjectURL(url), 0)

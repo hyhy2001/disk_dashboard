@@ -106,7 +106,9 @@ export function NumberPager({ page, pageCount, onGo, busy = false }: NumberProps
         ) : (
           <button
             type="button"
-            className="inline-flex size-7 items-center justify-center rounded-sm text-xs hover:bg-muted transition-colors disabled:opacity-30 aria-current:bg-muted aria-current:text-foreground text-muted-foreground"
+            className={`inline-flex size-7 items-center justify-center rounded-sm text-xs hover:bg-muted transition-colors disabled:opacity-30 ${
+              p === page ? 'bg-muted text-foreground' : 'text-muted-foreground'
+            }`}
             key={p}
             aria-current={p === page ? 'page' : undefined}
             onClick={() => onGo(p)}

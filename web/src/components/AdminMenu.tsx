@@ -5,7 +5,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Shield, User, LogOut, HardDrive, Users, Key, Archive } from 'lucide-react'
 import { success } from '@/lib/toast.js'
-import { fetchAuthStatus, fetchCaptcha, login, logout, setup, type AuthInfo } from '@/lib/adminApi.js'
+import { fetchAuthStatus, fetchCaptcha, login, logout, onAuthInvalid, setup, type AuthInfo } from '@/lib/adminApi.js'
 import { SpacesPanel, GroupConfigPanel, AccountsPanel, BackupsPanel, ChangePasswordPanel } from './AdminModals.js'
 
 export function AdminButton({ collapsed }: { collapsed: boolean }) {
@@ -22,6 +22,17 @@ export function AdminButton({ collapsed }: { collapsed: boolean }) {
   }, [])
   useEffect(() => {
     void check()
+  }, [check])
+
+  // A session that expires mid-use (401 anywhere in the admin area) must close
+  // the admin dialog and fall back to the login button rather than keep showing
+  // stale admin state.
+  useEffect(() => {
+    return onAuthInvalid(() => {
+      setShowAdmin(false)
+      setShowLogin(false)
+      void check()
+    })
   }, [check])
 
   const doLogin = async (username: string, password: string, captchaId?: string, captchaAnswer?: number) => {

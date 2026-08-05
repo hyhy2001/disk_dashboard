@@ -1,6 +1,6 @@
 import { cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { App } from './App.js'
+import { App, loadTimeMs } from './App.js'
 
 vi.mock('./lib/api.js', () => ({
   fetchHealth: () => Promise.resolve({ live: true, targets: 3, version: '0.1.0' }),
@@ -30,6 +30,7 @@ vi.mock('./lib/api.js', () => ({
 vi.mock('./lib/adminApi.js', () => ({
   fetchAuthStatus: () =>
     Promise.resolve({ loggedIn: false, user: null, needsSetup: false, rateLimit: { captcha: false, attempts: 0 } }),
+  onAuthInvalid: () => () => {},
 }))
 
 afterEach(cleanup)
@@ -74,6 +75,22 @@ describe('App shell layout', () => {
     const { container } = render(<App />)
     const mainArea = container.querySelector('[style*="margin-left"]')
     expect(mainArea).toBeTruthy()
+  })
+})
+
+describe('loadTimeMs', () => {
+  it('uses the navigation entry when its load event completed', () => {
+    const nav = { loadEventEnd: 1200, startTime: 100 } as PerformanceNavigationTiming
+    expect(loadTimeMs(() => nav, 0, 0)).toBe(1100)
+  })
+
+  it('falls back to elapsed time when the navigation entry is missing', () => {
+    expect(loadTimeMs(() => undefined, 5000, 4000)).toBe(1000)
+  })
+
+  it('falls back when loadEventEnd is 0 (bfcache or prerender)', () => {
+    const nav = { loadEventEnd: 0, startTime: 100 } as PerformanceNavigationTiming
+    expect(loadTimeMs(() => nav, 5000, 4000)).toBe(1000)
   })
 })
 

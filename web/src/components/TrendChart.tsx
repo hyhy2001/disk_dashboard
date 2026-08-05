@@ -171,7 +171,7 @@ export function TrendChart({ trends, dates, logScale }: Props): JSX.Element {
   const TIP_W = 190
   const tipH = 20 + rows.length * 16
   const tipX = hover === null ? 0 : x(hover) + 12 + TIP_W > width - PAD_R ? x(hover) - 12 - TIP_W : x(hover) + 12
-  const tipY = Math.min(PAD_T, PAD_T + plotH - tipH)
+  const tipY = Math.max(0, Math.min(PAD_T, PAD_T + plotH - tipH))
 
   return (
     <div className="flex h-full min-h-0 flex-col">

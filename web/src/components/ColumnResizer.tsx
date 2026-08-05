@@ -32,10 +32,18 @@ export function applyColumnWidth(px: number): void {
 export function ColumnResizer(): JSX.Element {
   const dragging = useRef(false)
   const width = useRef(initialColumnWidth())
+  const elRef = useRef<HTMLDivElement>(null)
+
+  // The width lives in a ref to avoid re-rendering on every pointer move, so the
+  // aria-valuenow attribute has to be pushed to the DOM by hand.
+  const syncAria = useCallback((px: number) => {
+    elRef.current?.setAttribute('aria-valuenow', String(Math.round(px)))
+  }, [])
 
   useEffect(() => {
     applyColumnWidth(width.current)
-  }, [])
+    syncAria(width.current)
+  }, [syncAria])
 
   const onMove = useCallback((e: PointerEvent) => {
     if (!dragging.current) return
@@ -45,7 +53,8 @@ export function ColumnResizer(): JSX.Element {
     const next = Math.min(MAX, Math.max(MIN, e.clientX - left))
     width.current = next
     applyColumnWidth(next)
-  }, [])
+    syncAria(next)
+  }, [syncAria])
 
   const onUp = useCallback(() => {
     if (!dragging.current) return
@@ -74,8 +83,9 @@ export function ColumnResizer(): JSX.Element {
     const next = Math.min(MAX, Math.max(MIN, width.current + delta))
     width.current = next
     applyColumnWidth(next)
+    syncAria(next)
     writeString(KEYS.diskColumnWidth, String(next))
-  }, [])
+  }, [syncAria])
 
   return (
     <div
@@ -97,8 +107,10 @@ export function ColumnResizer(): JSX.Element {
       onDoubleClick={() => {
         width.current = DEFAULT_WIDTH
         applyColumnWidth(DEFAULT_WIDTH)
+        syncAria(DEFAULT_WIDTH)
         writeString(KEYS.diskColumnWidth, String(DEFAULT_WIDTH))
       }}
+      ref={elRef}
     />
   )
 }

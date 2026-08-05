@@ -10,6 +10,19 @@
 //   2. External styles. Rules from the stylesheet do not travel with a cloned
 //      node, so the classes we rely on are inlined as an explicit <style> block.
 
+/** Longest canvas side (px) that browsers reliably rasterise without bailing. */
+const MAX_PX = 4096
+
+/**
+ * Oversample factor that keeps the rasterised PNG within canvas size limits.
+ * A huge treemap at scale 2 can exceed what the canvas will allocate; dropping
+ * the scale keeps the export working at the cost of some sharpness.
+ */
+export function effectiveScale(width: number, height: number, scale: number, maxPx = MAX_PX): number {
+  const largest = Math.max(width, height, 1)
+  return Math.min(scale, maxPx / largest)
+}
+
 /** Token values that appear in chart markup, resolved against the live theme. */
 const TOKENS = [
   '--accent',
@@ -107,8 +120,9 @@ export async function downloadSvgAsPng(svg: SVGSVGElement, filename: string, sca
   })
 
   const canvas = document.createElement('canvas')
-  canvas.width = width * scale
-  canvas.height = height * scale
+  const effScale = effectiveScale(width, height, scale)
+  canvas.width = Math.max(1, Math.round(width * effScale))
+  canvas.height = Math.max(1, Math.round(height * effScale))
   const ctx = canvas.getContext('2d')
   if (!ctx) throw new Error('canvas 2d context unavailable')
 
@@ -118,8 +132,19 @@ export async function downloadSvgAsPng(svg: SVGSVGElement, filename: string, sca
   ctx.fillRect(0, 0, canvas.width, canvas.height)
   ctx.drawImage(img, 0, 0, canvas.width, canvas.height)
 
+  let dataUrl: string
+  try {
+    dataUrl = canvas.toDataURL('image/png')
+  } catch {
+    // A canvas too large for the browser throws here with no user-visible trace.
+    throw new Error('chart is too large to export as a PNG')
+  }
+
   const link = document.createElement('a')
   link.download = filename
-  link.href = canvas.toDataURL('image/png')
+  link.href = dataUrl
+  // Safari refuses downloads on anchors that are not in the document.
+  document.body.appendChild(link)
   link.click()
+  link.remove()
 }

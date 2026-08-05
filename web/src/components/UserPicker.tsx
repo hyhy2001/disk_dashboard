@@ -5,7 +5,7 @@
 // impossible to use. The window grows as you scroll, which is cheaper than
 // virtualising and good enough at this scale.
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { DetailUser } from '../../../shared/api.js'
 import { formatCount, formatSize } from '../lib/format.js'
 
@@ -28,6 +28,7 @@ export function UserPicker({ users, selected, onSelect }: Props): JSX.Element {
   const [pos, setPos] = useState<{ left: number; top: number; width: number } | null>(null)
   const wrapRef = useRef<HTMLDivElement>(null)
   const searchRef = useRef<HTMLInputElement>(null)
+  const listboxId = useId()
 
   // Measure the button so the dropdown can be fixed-positioned and clamped to the
   // viewport — a left-anchored absolute box overflows on narrow windows.
@@ -119,11 +120,16 @@ export function UserPicker({ users, selected, onSelect }: Props): JSX.Element {
             className="h-7 rounded-sm border border-border bg-background px-2 text-xs placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring mx-2 mt-2"
             placeholder="Search user..."
             aria-label="Search users"
+            role="combobox"
+            aria-expanded="true"
+            aria-controls={listboxId}
+            aria-autocomplete="list"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
 
           <ul
+            id={listboxId}
             className="flex-1 overflow-auto divide-y divide-border/20 mt-1"
             role="listbox"
             aria-label="Users"

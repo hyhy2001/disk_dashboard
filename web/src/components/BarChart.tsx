@@ -132,7 +132,7 @@ export function BarChart({ rows, limit = 10, logScale = false }: Props): JSX.Ele
               <rect className="chart__bar" x={LABEL_W} y={y + 2} width={w} height={barH} rx={4} fill="var(--sky-400)">
                 <title>{`${r.name}: ${formatSize(r.used)}`}</title>
               </rect>
-              <text className="chart__axis chart__axis--mono" x={LABEL_W + trackW + 8} y={mid}>
+              <text className="chart__axis chart__axis--mono" x={width - 4} y={mid} textAnchor="end">
                 {formatSize(r.used)}
               </text>
             </g>

@@ -189,6 +189,7 @@ export function PermissionsTab({ target }: Props): JSX.Element {
               <button
                 key={t.value}
                 onClick={() => setItemType(t.value)}
+                aria-pressed={itemType === t.value}
                 className={cn(
                   'flex-1 rounded-sm py-1 text-[12px] font-medium transition-colors',
                   itemType === t.value ? 'bg-muted text-foreground' : 'text-muted-foreground hover:text-foreground',
@@ -220,13 +221,16 @@ export function PermissionsTab({ target }: Props): JSX.Element {
                 <button
                   key={u.name}
                   onClick={() => toggleUser(u.name)}
+                  aria-pressed={on}
                   className={cn(
                     'flex w-full items-center gap-1.5 rounded-sm px-2 py-1 text-[13px] transition-colors text-left',
                     on ? 'bg-accent text-accent-foreground' : 'hover:bg-muted text-muted-foreground',
                     u.name === UNKNOWN && 'italic',
                   )}
                 >
-                  <span className="w-4 text-[12px]">{on ? '✓' : ''}</span>
+                  <span className="w-4 text-[12px]" aria-hidden="true">
+                    {on ? '✓' : ''}
+                  </span>
                   <span className="flex-1 truncate">{u.name === UNKNOWN ? 'no owning user' : u.name}</span>
                   <span className="tabular-nums text-[12px]">{formatCount(u.count)}</span>
                 </button>
@@ -262,10 +266,10 @@ export function PermissionsTab({ target }: Props): JSX.Element {
                   <span>Error</span>
                 </div>
                 <div className="divide-y divide-border/50">
-                {data.rows.map((r, i) => (
+                {data.rows.map((r) => (
                   <div
-                    key={`${r.path}-${i}`}
-                    className="grid grid-cols-[18px_minmax(0,140px)_1fr_minmax(0,160px)] items-center gap-2 px-4 py-1.5 hover:bg-muted/30 transition-colors text-xs"
+                    key={r.path}
+                    className="group grid grid-cols-[18px_minmax(0,140px)_1fr_minmax(0,160px)] items-center gap-2 px-4 py-1.5 hover:bg-muted/30 transition-colors text-xs"
                   >
                     {r.itemType === 'directory' ? (
                       <Folder className="size-3 text-muted-foreground shrink-0" />

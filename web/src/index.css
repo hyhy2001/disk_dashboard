@@ -21,14 +21,12 @@
   --blur-sm: 6px;
   --blur-lg: 14px;
   --duration-fast: 0.12s;
-  --duration-base: 0.25s;
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
 
   --sidebar-width: 256px;
   --col2-width: 260px;
   --space-6: 24px;
-  --chart-font: 14px;
 }
 
 :root {
@@ -149,7 +147,9 @@
 .tile:focus-visible .tile__name { fill: #fff; }
 .tile__rect { stroke: var(--bg-raised); stroke-width: 1; }
 .tile__name { fill: #fff; font-size: 13px; }
-.tile__size { fill: rgba(255,255,255,0.7); font-size: 12px; font-variant-numeric: tabular-nums; }
+/* Tiles sit at 38% lightness, so white at 70% alpha only reaches ~3:1; push it
+   up so the size label holds up on the darkest tiles. */
+.tile__size { fill: rgba(255,255,255,0.85); font-size: 12px; font-variant-numeric: tabular-nums; }
 
 .donut { display: flex; align-items: center; justify-content: center; gap: 16px; }
 .donut__svg { flex-shrink: 1; min-width: 0; }
