@@ -26,6 +26,29 @@ async function login(app: FastifyInstance, password = 'long-password-1'): Promis
   return cookie.split(';')[0]!
 }
 
+describe('docs gate', () => {
+  it('serves the docs UI only to an admin session', async () => {
+    app = createTestApp()
+    const unauth = await app.inject({ method: 'GET', url: '/docs' })
+    expect(unauth.statusCode).toBe(401)
+
+    const cookie = await login(app)
+    const ok = await app.inject({ method: 'GET', url: '/docs', headers: { cookie } })
+    expect(ok.statusCode).toBe(200)
+    expect(ok.headers['content-type']).toContain('text/html')
+  })
+
+  it('exposes the OpenAPI JSON to an admin, with expected paths', async () => {
+    app = createTestApp()
+    const cookie = await login(app)
+    const res = await app.inject({ method: 'GET', url: '/docs/json', headers: { cookie } })
+    expect(res.statusCode).toBe(200)
+    const spec = res.json()
+    expect(spec.openapi).toMatch(/^3\./)
+    expect(Object.keys(spec.paths)).toContain('/api/health')
+  })
+})
+
 describe('admin auth', () => {
   it('rejects a login with the wrong password', async () => {
     app = createTestApp()

@@ -4,12 +4,15 @@
 
 import Fastify, { type FastifyInstance } from 'fastify'
 import fastifyCookie from '@fastify/cookie'
+import fastifySwagger from '@fastify/swagger'
+import fastifySwaggerUi from '@fastify/swagger-ui'
 import { mkdirSync, mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { registerApi } from './api.js'
 import { registerAdmin } from './admin.js'
 import { closeAdminDb, createDisk, createSpace } from '../db/admin.js'
+import { adminSessionUser } from '../auth.js'
 import { createFixture } from '../db/fixture.js'
 
 let dir: string | null = null
@@ -20,8 +23,27 @@ export function createTestApp(): FastifyInstance {
   process.env.DASHBOARD_ADMIN_DB = join(dir, 'admin.db')
   const app = Fastify()
   void app.register(fastifyCookie)
-  registerApi(app)
-  registerAdmin(app)
+  app.addHook('onRequest', async (request, reply) => {
+    if (request.url.startsWith('/docs') && !adminSessionUser(request)) {
+      return reply.code(401).send({ status: 'error', message: 'admin login required' })
+    }
+  })
+  void app.register(fastifySwagger, {
+    openapi: {
+      info: { title: 'Disk Dashboard API', version: '0.1.0' },
+      servers: [{ url: '/' }],
+    },
+  })
+  void app.register(fastifySwaggerUi, { routePrefix: '/docs' })
+  // Register the API routes inside a plugin: avvio runs plugin bodies in
+  // registration order at boot, so swagger's onRoute capture is installed
+  // before these routes are added. Registering them directly on `app` here
+  // would add them before the swagger plugin body runs and leave the spec
+  // with no paths.
+  void app.register(async (instance) => {
+    registerApi(instance)
+    registerAdmin(instance)
+  })
   return app
 }
 

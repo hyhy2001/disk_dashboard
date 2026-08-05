@@ -11,6 +11,7 @@ import { evictReport, REPORT_FILE } from '../db/reports.js'
 import Database from 'better-sqlite3'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
+import { adminSessionUser, SESSION_COOKIE, type AuthUser } from '../auth.js'
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -21,52 +22,12 @@ function intParam(raw: string): number {
   return /^\d+$/.test(raw) ? Number(raw) : 0
 }
 
-const SESSION_COOKIE = 'du_sess'
-// maxAge mirrors the token expiry in signSession so the browser drops the cookie
-// when the server would reject it. `secure` is off by default because the
-// server has no way to prove the upstream connection is TLS; deployments behind
-// an HTTPS reverse proxy must set DASHBOARD_COOKIE_SECURE=true so the cookie is
-// never sent over plain HTTP.
 const COOKIE_OPTS = {
   path: '/',
   httpOnly: true,
   sameSite: 'lax' as const,
   secure: process.env.DASHBOARD_COOKIE_SECURE === 'true',
   maxAge: 7 * 24 * 60 * 60,
-}
-
-interface AuthUser {
-  id: number
-  username: string
-  role: string
-}
-
-/**
- * Parse the session cookie and return the authenticated user, or null.
- *
- * The cookie is HMAC-signed (so it cannot be forged) and carries an expiry, but
- * neither of those revokes a session when the account is deleted, demoted, or
- * has its password changed. Every request therefore re-checks the cookie against
- * the live admin row: the account must still exist with the same username, role,
- * and session_version, or the cookie is dead.
- */
-function authUser(req: any): AuthUser | null {
-  const raw = req.cookies?.[SESSION_COOKIE]
-  if (!raw) return null
-  const payload = A.verifySession(raw)
-  if (!payload) return null
-  const parts = payload.split(':')
-  const idStr = parts[0]!
-  const role = parts[1]
-  const username = parts[2]
-  const versionStr = parts[3]
-  const id = intParam(idStr)
-  if (!id || !role || !username) return null
-
-  const admin = A.getAdminById(id)
-  if (!admin || admin.username !== username || admin.role !== role) return null
-  if (Number(versionStr) !== admin.session_version) return null
-  return { id, role, username }
 }
 
 /**
@@ -78,7 +39,7 @@ function authUser(req: any): AuthUser | null {
  * request.
  */
 function requireAuth(req: any, reply: any): AuthUser | null {
-  const user = authUser(req)
+  const user = adminSessionUser(req)
   if (!user) {
     reply.code(401).send({ status: 'error', message: 'Unauthorized' })
     return null
@@ -171,7 +132,7 @@ export function registerAdmin(app: FastifyInstance): void {
 
   // --- Login ---
   app.get('/api/admin/status', async (req: any, reply) => {
-    const user = authUser(req)
+    const user = adminSessionUser(req)
     const ip = clientIp(req)
     const rate = A.rateLimitCheck(ip)
     return reply.send({

@@ -11,12 +11,15 @@
 import Fastify from 'fastify'
 import fastifyStatic from '@fastify/static'
 import fastifyCookie from '@fastify/cookie'
+import fastifySwagger from '@fastify/swagger'
+import fastifySwaggerUi from '@fastify/swagger-ui'
 import { existsSync } from 'node:fs'
 import { loadConfig } from './config.js'
 import { registerApi } from './routes/api.js'
 import { registerAdmin } from './routes/admin.js'
 import { closeAll } from './db/reports.js'
 import { closeAdminDb } from './db/admin.js'
+import { adminSessionUser } from './auth.js'
 import { RateLimiter } from './ratelimit.js'
 
 const config = loadConfig()
@@ -55,6 +58,23 @@ app.addHook('onRequest', async (request, reply) => {
 })
 
 await app.register(fastifyCookie, { secret: process.env.DASHBOARD_COOKIE_SECRET || undefined })
+
+// /docs and /docs/json are admin-only. The gate runs as an onRequest hook after
+// fastifyCookie has parsed the session cookie, so an unauthenticated hit never
+// reaches the swagger UI / spec handlers.
+app.addHook('onRequest', async (request, reply) => {
+  if (request.url.startsWith('/docs') && !adminSessionUser(request)) {
+    return reply.code(401).send({ status: 'error', message: 'admin login required' })
+  }
+})
+
+await app.register(fastifySwagger, {
+  openapi: {
+    info: { title: 'Disk Dashboard API', version: '0.1.0' },
+    servers: [{ url: '/' }],
+  },
+})
+await app.register(fastifySwaggerUi, { routePrefix: '/docs' })
 
 registerApi(app)
 registerAdmin(app)
