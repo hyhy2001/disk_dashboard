@@ -28,7 +28,7 @@
     "eslint": "^10.8.0",
     "eslint-config-prettier": "^10.1.8",
     "jsdom": "25.0.1",
-    "playwright": "1.49.1",
+    "playwright": "1.62.1",
     "pm2": "^6.0.14",
     "prebuild-install": "7.1.3",
     "prettier": "^3.9.6",

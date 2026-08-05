@@ -67,8 +67,14 @@ if (config.webDir && existsSync(config.webDir)) {
   // file added to webDir later is covered without a config change. API routes
   // are registered before this hook but never touch webDir, so exempt /api/.
   const SENSITIVE = /(?:^|\.)(?:map|git|env|db|sqlite|sqlite3|log|bak|ts|tsx|svelte|vue|lock)(?:\b|$)/i
+  // Dot-dot segments (raw or %2E-encoded) in a static path must never reach the
+  // file sender: they are the vehicle for the @fastify/static traversal
+  // advisories, and @fastify/send normalises them before its own root check.
+  // Built asset URLs never contain them.
+  const TRAVERSAL = /(?:^|[/\\])\.{2}(?:[/\\]|$)|%2e/i
   app.addHook('onRequest', async (request, reply) => {
-    if (!request.url.startsWith('/api/') && SENSITIVE.test(request.url)) {
+    if (request.url.startsWith('/api/')) return
+    if (TRAVERSAL.test(request.url) || SENSITIVE.test(request.url)) {
       return reply.code(404).send({ status: 'error', message: 'not found' })
     }
   })
