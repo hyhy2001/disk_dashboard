@@ -188,14 +188,24 @@ export function findUid(db: Database.Database, username: string): number | null 
  * single UserRow construction site), so it never carries a real count. Per-user
  * permission figures come from the perm_issues table via perms.ts.
  */
+/**
+ * Cap on accounts returned for the picker. A shared host can carry tens of
+ * thousands of accounts; shipping them all would be a multi-MB JSON blob for a
+ * dropdown that is only ever used to pick someone to inspect. The list is
+ * ordered by size, so the cap keeps the top consumers reachable, which is what
+ * the picker is for.
+ */
+export const USER_LIST_LIMIT = 1000
+
 export function listUsers(db: Database.Database): DetailUser[] {
   const rows = db
     .prepare(
       `SELECT username, total_size, total_files, total_dirs
          FROM detail_users
-        ORDER BY total_size DESC, username ASC`,
+        ORDER BY total_size DESC, username ASC
+        LIMIT ?`,
     )
-    .all() as {
+    .all(USER_LIST_LIMIT) as {
     username: string
     total_size: number
     total_files: number

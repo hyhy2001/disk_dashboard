@@ -12,7 +12,7 @@
 
 import Database from 'better-sqlite3'
 import { existsSync, readdirSync, statSync } from 'node:fs'
-import { join, basename, dirname } from 'node:path'
+import { join } from 'node:path'
 import type { Capacity, Target } from '../../../shared/api.js'
 import { adminDb } from './admin.js'
 
@@ -119,17 +119,15 @@ export function reportPath(reportsDir: string, target: string): string {
 
 /**
  * Try to open a report.db at an explicit path (may be outside reportsDir).
- * Returns the DB handle + the target name (derived from the parent dir), or
- * null if the file doesn't exist.
+ * Returns the cached handle, or null if the file doesn't exist.
  */
-export function openReportAt(path: string): { db: Database.Database; name: string } | null {
+export function openReportAt(path: string): Database.Database | null {
   if (!existsSync(path)) return null
   try {
-    const name = statSync(path).isDirectory() ? 'unknown' : basename(dirname(path))
     const stamp = stampOf(path)
     const hit = pathCache.get(path)
     if (hit) {
-      if (hit.stamp === stamp) return { db: hit.db, name }
+      if (hit.stamp === stamp) return hit.db
       // A rescan replaced the file; drop the stale handle.
       hit.db.close()
       pathCache.delete(path)
@@ -151,7 +149,7 @@ export function openReportAt(path: string): { db: Database.Database; name: strin
     db.pragma('cache_size = -65536')
     pathCache.set(path, { db, stamp })
     warnIfUnsupportedSchema(path, readMeta(db))
-    return { db, name }
+    return db
   } catch {
     return null
   }
@@ -319,6 +317,5 @@ export function openTargetReport(slug: string): Database.Database | null {
   // openReportAt caches by absolute path (reopening when a rescan replaces the
   // file), so every per-target route reuses one handle instead of leaking a new
   // SQLite connection per request.
-  const opened = openReportAt(rp)
-  return opened?.db ?? null
+  return openReportAt(rp)
 }

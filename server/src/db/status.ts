@@ -141,7 +141,7 @@ function build(
   // openReportAt caches the handle by path; do not close it here or the next
   // poll would hand back a closed connection.
   const db = openReportAt(reportDbPath)
-  const meta = db ? readMeta(db.db) : {}
+  const meta = db ? readMeta(db) : {}
 
   const stage = str(status?.stage)
   const message = str(status?.message)

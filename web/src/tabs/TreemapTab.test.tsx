@@ -58,7 +58,6 @@ function level(nodeId: number, name: string, children: TreemapNode[], extra: Par
     remainder: 0,
     filesSize: 0,
     truncated: true,
-    childOffset: children.length,
     childTotal: 50,
     ...extra,
   }

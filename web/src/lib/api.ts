@@ -135,7 +135,10 @@ export function fetchHealth(): Promise<HealthInfo> {
 export interface TreemapQuery {
   /** null starts at the scan root. */
   parent: number | null
-  childOffset?: number
+  /** Keyset cursor: continue paging after this child (the last one shown). */
+  childAfter?: { size: number; name: string }
+  /** Sum of the sizes of children already fetched, so `remainder` stays honest. */
+  childSkippedSize?: number
   /** Files cost an extra query server-side, so only the list view asks. */
   withFiles?: boolean
   fileOffset?: number
@@ -146,7 +149,11 @@ export interface TreemapQuery {
 export function fetchTreemap(target: string, q: TreemapQuery): Promise<TreemapLevel> {
   const params = new URLSearchParams()
   if (q.parent !== null) params.set('parent', String(q.parent))
-  if (q.childOffset) params.set('childOffset', String(q.childOffset))
+  if (q.childAfter) {
+    params.set('childAfterSize', String(q.childAfter.size))
+    params.set('childAfterName', q.childAfter.name)
+  }
+  if (q.childSkippedSize !== undefined) params.set('childSkippedSize', String(q.childSkippedSize))
   if (q.withFiles) params.set('files', '1')
   if (q.fileOffset) params.set('fileOffset', String(q.fileOffset))
   if (q.limit) params.set('limit', String(q.limit))

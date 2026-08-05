@@ -132,21 +132,29 @@ describe('readTreemapLevel', () => {
   })
 
   describe('paging', () => {
-    it('reports childTotal and an offset cursor', () => {
+    /** Keyset cursor for the next page, mirroring how the client builds it. */
+    function nextCursor(level: Awaited<ReturnType<typeof readTreemapLevel>>) {
+      const last = level?.children[level!.children.length - 1]
+      return {
+        childAfter: last ? { size: last.size, name: last.name } : null,
+        childSkippedSize: level?.children.reduce((s, c) => s + c.size, 0) ?? 0,
+      }
+    }
+
+    it('reports childTotal on the first page', () => {
       db = createFixture()
       const level = readTreemapLevel(db, null)
 
       expect(level?.childTotal).toBe(2)
-      expect(level?.childOffset).toBe(2)
       expect(level?.truncated).toBe(false)
     })
 
-    it('continues from childOffset without repeating rows', () => {
+    it('continues from the last child without repeating rows', () => {
       db = createFixture({ extraChildren: 70 })
       const first = readTreemapLevel(db, null)
-      const second = readTreemapLevel(db, null, { childOffset: first?.childOffset })
+      const second = readTreemapLevel(db, null, nextCursor(first))
 
-      expect(first?.childOffset).toBe(60)
+      expect(first?.children.length).toBe(60)
       expect(second?.children.length).toBe(12) // 2 named + 70 extra - 60
       expect(second?.truncated).toBe(false)
 
@@ -156,7 +164,8 @@ describe('readTreemapLevel', () => {
 
     it('keeps remainder correct on later pages by discounting skipped children', () => {
       db = createFixture({ extraChildren: 70 })
-      const page2 = readTreemapLevel(db, null, { childOffset: 60 })
+      const first = readTreemapLevel(db, null)
+      const page2 = readTreemapLevel(db, null, nextCursor(first))
 
       // Page 2's own children plus its remainder must not exceed the parent.
       const shown = page2?.children.reduce((s, c) => s + c.size, 0) ?? 0

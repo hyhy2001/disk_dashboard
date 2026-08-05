@@ -171,8 +171,10 @@ function breadcrumbs(db: Database.Database, id: number): TreemapCrumb[] {
 }
 
 export interface LevelOptions {
-  /** How many children to skip — the "Load more" cursor. */
-  childOffset?: number
+  /** Keyset cursor: continue paging after this child. Absent = first page. */
+  childAfter?: { size: number; name: string } | null
+  /** Sum of the sizes of children the client already fetched. */
+  childSkippedSize?: number
   /** Include files sitting directly in this directory. */
   withFiles?: boolean
   /** How many files to skip. */
@@ -197,7 +199,7 @@ export function readTreemapLevel(
   parentId: number | null,
   opts: LevelOptions = {},
 ): TreemapLevel | null {
-  const { childOffset = 0, withFiles = false, fileOffset = 0 } = opts
+  const { childAfter = null, childSkippedSize = 0, withFiles = false, fileOffset = 0 } = opts
   // Clamp rather than trust: a client asking for 100,000 children would build a
   // page nothing can render.
   const pageSize = Math.max(1, Math.min(CHILD_LIMIT, opts.limit ?? CHILD_LIMIT))
@@ -209,18 +211,34 @@ export function readTreemapLevel(
   if (!node) return null
 
   // One extra row tells us whether more pages exist without a COUNT(*).
-  const rows = db
-    .prepare(
-      `SELECT d.id, n.name, d.total_size, d.file_count, d.dir_count,
-              d.owner_uid, o.username, d.has_files
-         FROM treemap_dirs d
-         JOIN treemap_names n ON n.id = d.name_id
-    LEFT JOIN treemap_owners o ON o.uid = d.owner_uid
+  //
+  // Paging is keyset on (total_size DESC, name ASC), not OFFSET: OFFSET re-walks
+  // every skipped row on each "Load more", which is quadratic over a directory
+  // with tens of thousands of children. `ix_treemap_dirs_parent_size` lets the
+  // keyset seek straight to the last child seen instead.
+  const base =
+    `SELECT d.id, n.name, d.total_size, d.file_count, d.dir_count,
+            d.owner_uid, o.username, d.has_files
+       FROM treemap_dirs d
+       JOIN treemap_names n ON n.id = d.name_id
+  LEFT JOIN treemap_owners o ON o.uid = d.owner_uid`
+  const rows = childAfter
+    ? (db
+        .prepare(
+          `${base}
+        WHERE d.parent_id = ? AND (d.total_size < ? OR (d.total_size = ? AND n.name > ?))
+        ORDER BY d.total_size DESC, n.name ASC
+        LIMIT ?`,
+        )
+        .all(id, childAfter.size, childAfter.size, childAfter.name, pageSize + 1) as ChildRow[])
+    : (db
+        .prepare(
+          `${base}
         WHERE d.parent_id = ?
         ORDER BY d.total_size DESC, n.name ASC
-        LIMIT ? OFFSET ?`,
-    )
-    .all(id, pageSize + 1, childOffset) as ChildRow[]
+        LIMIT ?`,
+        )
+        .all(id, pageSize + 1) as ChildRow[])
 
   const shown = rows.slice(0, pageSize)
   const withChildren = idsWithChildren(db, shown.map((r) => r.id))
@@ -229,9 +247,11 @@ export function readTreemapLevel(
 
   // Size under this node not covered by the children returned *so far*: the
   // unfetched tail plus this directory's own files. The treemap needs it so the
-  // rectangles fill the parent honestly instead of overstating each tile.
+  // rectangles fill the parent honestly instead of overstating each tile. The
+  // client reports how much of the children it already holds, so the server does
+  // not have to re-scan the skipped prefix on every page.
   const coveredSize = shown.reduce((sum, r) => sum + r.total_size, 0)
-  const remainder = node.total_size - coveredSize - childOffsetSize(db, id, childOffset)
+  const remainder = node.total_size - coveredSize - childSkippedSize
 
   // Total bytes of the files sitting directly in this directory (no recursion).
   // This is what the list's `[files]` row shows; `remainder` also carries the
@@ -261,7 +281,7 @@ export function readTreemapLevel(
   const files = withFiles && node.has_files === 1 ? readFiles(db, id, fileOffset, pageSize) : []
 
   return {
-    node: toNode(node, childOffset > 0 || rows.length > 0),
+    node: toNode(node, childAfter !== null || rows.length > 0),
     path: breadcrumbs(db, id),
     children,
     files,
@@ -269,33 +289,12 @@ export function readTreemapLevel(
     remainder: remainder > 0 ? remainder : 0,
     filesSize,
     truncated,
-    childOffset: childOffset + children.length,
     // Same depth-cap caveat as hasChildren: dir_count is the number of
     // subdirectories the *walk* saw, and the treemap keeps rows only down to
     // max_level. On a node at the cap it would render as "showing 0 of 12" over
     // an empty list, so report what the report can actually produce.
-    childTotal: childOffset === 0 && rows.length === 0 ? 0 : node.dir_count,
+    childTotal: childAfter === null && rows.length === 0 ? 0 : node.dir_count,
   }
 }
 
-/**
- * Total size of the children already skipped past. Needed so `remainder` stays
- * correct on later pages — without it page 2 would claim page 1's bytes as
- * unaccounted-for.
- */
-function childOffsetSize(db: Database.Database, id: number, offset: number): number {
-  if (offset <= 0) return 0
-  const row = db
-    .prepare(
-      `SELECT COALESCE(SUM(total_size), 0) AS s FROM (
-         SELECT d.total_size
-           FROM treemap_dirs d
-           JOIN treemap_names n ON n.id = d.name_id
-          WHERE d.parent_id = ?
-          ORDER BY d.total_size DESC, n.name ASC
-          LIMIT ?
-       )`,
-    )
-    .get(id, offset) as { s: number }
-  return row.s
-}
+

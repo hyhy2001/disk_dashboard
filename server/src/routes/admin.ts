@@ -110,10 +110,15 @@ function isUniqueViolation(e: any): boolean {
   return e?.code === 'SQLITE_CONSTRAINT_UNIQUE' || /UNIQUE constraint failed/i.test(String(e?.message))
 }
 
-/** Send a 409 for duplicate names, otherwise rethrow. */
-function uniqueGuard(reply: any, e: any, what: string): never {
+/**
+ * Handle a duplicate-name conflict: send a 409 and return true so the caller
+ * falls out of its catch. Non-unique errors are rethrown. Never sends and then
+ * throws — that makes Fastify log "reply already sent" on every duplicate.
+ */
+function uniqueGuard(reply: any, e: any, what: string): boolean {
   if (isUniqueViolation(e)) {
     reply.code(409).send({ status: 'error', message: `Duplicate ${what}` })
+    return true
   }
   throw e
 }

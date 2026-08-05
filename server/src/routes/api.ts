@@ -198,8 +198,8 @@ function targetFor(disk: { name: string; slug: string; path: string }): Target {
   }
   if (!info) return missing
   try {
-    const meta = readMeta(info.db)
-    const cap = readCapacity(info.db)
+    const meta = readMeta(info)
+    const cap = readCapacity(info)
     const dbSize = statSync(rp).size
     return {
       name: disk.name,
@@ -349,7 +349,9 @@ export function registerApi(app: FastifyInstance): void {
     Params: { target: string }
     Querystring: {
       parent?: string
-      childOffset?: string
+      childAfterSize?: string
+      childAfterName?: string
+      childSkippedSize?: string
       fileOffset?: string
       files?: string
       limit?: string
@@ -373,9 +375,18 @@ export function registerApi(app: FastifyInstance): void {
     const parent = intParam(request.query.parent)
     if (parent === 'bad') return fail(reply, 400, 'parent must be a non-negative integer')
 
-    const childOffset = intParam(request.query.childOffset)
-    if (childOffset === 'bad') {
-      return fail(reply, 400, 'childOffset must be a non-negative integer')
+    // Keyset cursor: the (size, name) of the last child the client already has.
+    // A name alone is not a cursor, so require both halves together.
+    const childAfterSize = intParam(request.query.childAfterSize)
+    if (childAfterSize === 'bad') {
+      return fail(reply, 400, 'childAfterSize must be a non-negative integer')
+    }
+    const childAfterName = request.query.childAfterName
+    const childAfter = childAfterSize !== null && childAfterName ? { size: childAfterSize, name: childAfterName } : null
+
+    const childSkippedSize = intParam(request.query.childSkippedSize)
+    if (childSkippedSize === 'bad') {
+      return fail(reply, 400, 'childSkippedSize must be a non-negative integer')
     }
 
     const fileOffset = intParam(request.query.fileOffset)
@@ -393,7 +404,8 @@ export function registerApi(app: FastifyInstance): void {
     const limit = sizeParam(request.query.limit)
 
     const level = readTreemapLevel(db, parent, {
-      childOffset: childOffset ?? 0,
+      childAfter,
+      childSkippedSize: childSkippedSize ?? 0,
       // Files cost an extra skip-scan, so the client opts in.
       withFiles: request.query.files === '1',
       fileOffset: fileOffset ?? 0,

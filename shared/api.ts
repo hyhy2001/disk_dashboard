@@ -146,8 +146,6 @@ export interface TreemapLevel {
   filesSize: number
   /** Whether more children exist past the ones returned. */
   truncated: boolean
-  /** Number of children returned so far, for the next offset. */
-  childOffset: number
   /** Total subdirectories directly inside, for a "showing N of M" label. */
   childTotal: number
 }

@@ -210,6 +210,9 @@ install: $(NODE_BIN)/node $(PY_BIN)/python3
 
 build: $(NODE_BIN)/node
 	@echo '==> Building with NODE_ENV=production (dev React would double-mount and run slower) ...'
+	# tsc does not delete outputs for sources that were removed, so stale .js from
+	# deleted modules would otherwise survive every rebuild and get served.
+	@rm -rf "$(ROOT)/server/dist" "$(ROOT)/web/dist"
 	@bash -c 'ulimit -v unlimited 2>/dev/null || echo "  WARNING: cannot raise virtual-memory limit — WASM build may fail"; NODE_ENV=production "$(NPM)" run build'
 
 dev: $(NODE_BIN)/node

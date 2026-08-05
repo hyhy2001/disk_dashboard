@@ -110,16 +110,20 @@ export function TreemapTab({ target, totalSize }: Props): JSX.Element {
   const loadMore = useCallback(() => {
     if (!level) return
     setLoadingMore(true)
-    const offset = level.childOffset + extraDirs.length
     // The response belongs to the directory it was asked for. The user can drill
     // elsewhere (or the target can switch) while it is in flight; appending its
     // rows then would graft the old directory's children onto the new one.
     const requestedOpenId = openIdRef.current
     const requestedTarget = targetRef.current
     const stillCurrent = (): boolean => openIdRef.current === requestedOpenId && targetRef.current === requestedTarget
+    // Keyset cursor: the last child already shown plus the size it covers, so
+    // the next page starts there and the server need not re-scan the prefix.
+    const dirs = [...level.children, ...extraDirs]
+    const lastChild = dirs[dirs.length - 1]
     fetchTreemap(target, {
       parent: openId,
-      childOffset: offset,
+      ...(lastChild ? { childAfter: { size: lastChild.size, name: lastChild.name } } : {}),
+      childSkippedSize: dirs.reduce((sum, d) => sum + d.size, 0),
       ...(pageSize !== undefined ? { limit: pageSize } : {}),
     })
       .then((page) => {
@@ -135,7 +139,7 @@ export function TreemapTab({ target, totalSize }: Props): JSX.Element {
       .finally(() => {
         if (stillCurrent()) setLoadingMore(false)
       })
-  }, [level, extraDirs.length, target, openId, pageSize])
+  }, [level, extraDirs, target, openId, pageSize])
 
   const open = useCallback((node: TreemapNode) => setOpenId(node.id), [])
   const navigate = useCallback((id: number) => setOpenId(id), [])
