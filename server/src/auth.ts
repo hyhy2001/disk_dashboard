@@ -1,6 +1,6 @@
 // Shared session handling for admin authentication.
 //
-// Session: a signed cookie `du_sess` carrying `adminId:role:username`.
+// Session: a signed cookie `du_sess` carrying `adminId:role:username:session_version`.
 // The HMAC-based signature (rather than a random token) means the server
 // can validate the session without a session store — stateless, like JWT
 // but simpler.

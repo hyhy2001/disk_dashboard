@@ -131,7 +131,7 @@ export function registerAdmin(app: FastifyInstance): void {
           properties: { username: { type: 'string' }, password: { type: 'string' } },
           required: ['username', 'password'],
         },
-        response: { 200: envelopeRef(), 409: { type: 'object' } },
+        response: { 200: envelopeRef(), 403: { type: 'object' } },
       },
     },
     async (req: any, reply: FastifyReply) => {
