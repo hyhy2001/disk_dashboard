@@ -519,9 +519,11 @@ describe('disk column resize ceiling leaves the main panel usable', () => {
       const page = await browser.newPage({ viewport: { width: w, height: h } })
       await page.goto(URL, { waitUntil: 'networkidle' })
       // Below 1280px the shell auto-collapses the sidebar, which hides the disk
-      // column entirely; expand it so there is a column to resize.
+      // column entirely; expand it so there is a column to resize. Matched on the
+      // accessible label rather than on the glyph inside: the button's content is
+      // an icon, and keying a test to it would break on any icon change.
       await page.evaluate(() => {
-        const toggle = [...document.querySelectorAll('aside button')].find((b) => b.textContent === '▸')
+        const toggle = document.querySelector('aside button[aria-label="Expand sidebar"]')
         if (toggle instanceof HTMLElement) toggle.click()
       })
       await page.waitForSelector(DISK_CARD, { timeout: 15_000 })

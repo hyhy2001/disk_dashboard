@@ -146,7 +146,9 @@ export function ColumnResizer(): JSX.Element {
 
   return (
     <div
-      className="absolute top-0 bottom-0 z-10 hidden lg:block w-1.5 cursor-col-resize hover:bg-accent/50 transition-colors"
+      // `group` so the grip can react to hover on the whole 6px strip rather than
+      // on its own 12px box — the strip is the drag target, the grip only marks it.
+      className="group absolute top-0 bottom-0 z-10 hidden lg:block w-1.5 cursor-col-resize hover:bg-accent/50 transition-colors"
       style={{ left: 'calc(var(--sidebar-width) + var(--col2-width) - 3px)' }}
       role="separator"
       aria-orientation="vertical"
@@ -155,6 +157,7 @@ export function ColumnResizer(): JSX.Element {
       aria-valuemin={MIN}
       aria-valuemax={MAX}
       tabIndex={0}
+      title="Drag to resize · double-click to reset"
       onKeyDown={onKey}
       onPointerDown={(e) => {
         dragging.current = true
@@ -170,6 +173,31 @@ export function ColumnResizer(): JSX.Element {
         writeString(KEYS.diskColumnWidth, String(DEFAULT_WIDTH))
       }}
       ref={elRef}
-    />
+    >
+      {/* Grip.
+          A 6px strip that only lights up once the pointer is already on it is
+          undiscoverable — nothing tells you the column can be resized at all. The
+          grip is always visible at a low opacity and firms up on hover or keyboard
+          focus. It deliberately does NOT set pointer-events-none: it is wider than
+          the strip, so it would otherwise look grabbable while dragging only
+          worked on the 6px behind it. Events bubble to the separator's own
+          handlers, and setPointerCapture binds to currentTarget, so a drag started
+          on the grip behaves exactly like one started on the strip.
+          aria-hidden because the separator role, its label and its value range
+          already describe the control; the dots are decoration. */}
+      <div
+        aria-hidden="true"
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex h-8 w-3 cursor-col-resize items-center justify-center rounded-full border border-border/40 bg-surface/80 text-muted-foreground/70 opacity-60 shadow-sm backdrop-blur-sm transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
+      >
+        <svg width="8" height="16" viewBox="0 0 8 16" fill="currentColor" role="presentation">
+          <circle cx="2.5" cy="4" r="1" />
+          <circle cx="5.5" cy="4" r="1" />
+          <circle cx="2.5" cy="8" r="1" />
+          <circle cx="5.5" cy="8" r="1" />
+          <circle cx="2.5" cy="12" r="1" />
+          <circle cx="5.5" cy="12" r="1" />
+        </svg>
+      </div>
+    </div>
   )
 }

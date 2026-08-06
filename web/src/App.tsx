@@ -54,7 +54,7 @@ import {
   type Route,
 } from './lib/route.js'
 import { cn } from './lib/utils.js'
-import { Monitor, HardDrive, Sun, Moon, Settings, FileText, X } from 'lucide-react'
+import { Monitor, HardDrive, Sun, Moon, Settings, FileText, X, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 type Theme = 'dark' | 'light'
@@ -555,15 +555,23 @@ export function App() {
               )}
             </p>
           </div>
-          {/* Collapse toggle */}
+          {/* Collapse toggle.
+              Centred on the sidebar's right edge rather than pinned near the top:
+              the edge is the thing being toggled, so the control belongs at its
+              midpoint, where it also sits closest to the pointer's resting place
+              on a tall window. -translate-y-1/2 against top-1/2 does the centring
+              so it stays put at any viewport height. */}
           <button
             onClick={() => {
               manualCollapsedRef.current = !collapsed
               setCollapsed((c) => !c)
             }}
-            className="absolute -right-3 top-5 z-40 hidden md:flex size-5 items-center justify-center rounded-full border border-border/50 bg-surface/80 text-[12px] text-muted-foreground hover:text-foreground hover:border-border transition-colors backdrop-blur-sm"
+            className="absolute -right-3 top-1/2 -translate-y-1/2 z-40 hidden md:flex size-6 items-center justify-center rounded-full border border-border/50 bg-surface/80 text-muted-foreground hover:text-foreground hover:border-border transition-colors backdrop-blur-sm shadow-sm"
+            title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+            aria-expanded={!collapsed}
           >
-            {collapsed ? '▸' : '◂'}
+            {collapsed ? <ChevronRight className="size-3.5" /> : <ChevronLeft className="size-3.5" />}
           </button>
         </aside>
 
@@ -845,6 +853,7 @@ const CHANGES = [
       'The refresh and copy-path buttons are now large enough to tap reliably.',
       'Disk column: the space name no longer disappears when the column is dragged narrow, the size · files · dirs line stays on one row at every column width, and dragging the column wide now stops before it squeezes the charts and tables beside it — with your chosen width restored once the window has room for it again.',
       'Overview charts on a phone: the date and size labels along the chart edges no longer run into each other — they thin out to as many as actually fit — and the first date is no longer cut off ("7/29" instead of "07/29"), which affected every window size. Panel titles now show in full instead of wrapping to three lines and still being clipped.',
+      'The disk column edge now shows a grip handle, so it is clear the column can be dragged wider or narrower — double-click it to reset. The sidebar collapse button sits at the middle of the sidebar edge instead of near the top, and now says what it does on hover.',
     ],
   },
   {
