@@ -15,7 +15,6 @@ import {
   fetchOverview,
   fetchRegroupedOverview,
   fetchStatuses,
-  fetchUsers,
 } from './lib/api.js'
 import { NoTargets } from './components/NoTargets.js'
 import { DiskColumn } from './components/DiskColumn.js'
@@ -343,25 +342,6 @@ export function App() {
   }, [route.disk, groupsVersion, isGuest])
   const hasUserGroups = userGroups !== null
 
-  // Every account on the disk, for the group editor to hand out. The overview's
-  // own user list is capped at the server's render limit, so it would silently
-  // hide the tail of a large disk from the person doing the grouping.
-  const [groupUsers, setGroupUsers] = useState<string[]>([])
-  useEffect(() => {
-    if (!showMyGroups || !route.disk) return
-    let live = true
-    fetchUsers(route.disk)
-      .then((rows) => {
-        if (live) setGroupUsers(rows.map((r) => r.name))
-      })
-      .catch(() => {
-        if (live) setGroupUsers([])
-      })
-    return () => {
-      live = false
-    }
-  }, [showMyGroups, route.disk])
-
   useEffect(() => {
     if (!route.disk || !activeGroup || diskNotFound) {
       setOverview(null)
@@ -531,7 +511,7 @@ export function App() {
                     {/* Guests only. An owner or admin edits the shared grouping in
                         Admin → Group Config; offering them a second, browser-local
                         one here would just be two things called the same name. */}
-                    {isGuest && route.disk && (
+                    {isGuest && (
                       <button
                         onClick={() => {
                           setShowSettings(false)
@@ -925,13 +905,12 @@ export function App() {
         <ScrollTop targetRef={mainRef} />
       </div>
       <ChangeLogModal open={showChangeLog} onClose={() => setShowChangeLog(false)} />
-      {route.disk && (
+      {showMyGroups && (
         <MyGroupsDialog
-          open={showMyGroups}
+          open
           onClose={() => setShowMyGroups(false)}
-          slug={route.disk}
-          diskName={active?.name ?? route.disk}
-          source={{ users: groupUsers, official: officialTeams }}
+          groups={groups}
+          initialSlug={route.disk}
           onChanged={() => setGroupsVersion((v) => v + 1)}
         />
       )}

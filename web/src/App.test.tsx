@@ -168,9 +168,9 @@ describe('browser-local Group Config entry', () => {
     expect(text).not.toContain('Group Config')
   })
 
-  it('hides it when no disk is open, since it groups the users of one disk', async () => {
+  it('offers it with no disk open, since the dialog has its own disk picker', async () => {
     const { container } = renderAt('/')
     await act(async () => {})
-    expect(await settingsMenuText(container)).not.toContain('Group Config')
+    expect(await settingsMenuText(container)).toContain('Group Config')
   })
 })
