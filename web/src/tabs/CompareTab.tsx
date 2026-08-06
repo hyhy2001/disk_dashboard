@@ -137,7 +137,9 @@ export function CompareTab({ spaceName, targets, onSelect }: Props): JSX.Element
 
       <section className="m-3 rounded-lg border border-border bg-surface/50 shadow-sm">
         <header className="flex flex-wrap items-center gap-2 border-b border-border/40 px-3 py-2">
-          <h2 className="text-sm font-semibold flex-1 min-w-0">{spaceName} — capacity by disk</h2>
+          <h2 className="text-sm font-semibold flex-1 min-w-0 truncate" title={`${spaceName} — capacity by disk`}>
+            {spaceName} — capacity by disk
+          </h2>
           <span className="text-[12px] text-muted-foreground tabular-nums truncate hidden sm:inline">
             {formatSize(totals.used)} of {formatSize(totals.total)} used · {formatSize(totals.scanned)} attributed
             {totals.sharedFilesystems > 0 && (

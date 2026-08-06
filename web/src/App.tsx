@@ -844,6 +844,7 @@ const CHANGES = [
       'Overview fits one screen on short desktop windows down to 560px tall, and uses the extra height on tall monitors instead of leaving it blank.',
       'The refresh and copy-path buttons are now large enough to tap reliably.',
       'Disk column: the space name no longer disappears when the column is dragged narrow, the size · files · dirs line stays on one row at every column width, and dragging the column wide now stops before it squeezes the charts and tables beside it — with your chosen width restored once the window has room for it again.',
+      'Overview charts on a phone: the date and size labels along the chart edges no longer run into each other — they thin out to as many as actually fit — and the first date is no longer cut off ("7/29" instead of "07/29"), which affected every window size. Panel titles now show in full instead of wrapping to three lines and still being clipped.',
     ],
   },
   {

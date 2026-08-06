@@ -9,6 +9,7 @@
 
 import type { UsageRow } from '../../../shared/api.js'
 import { formatSize } from '../lib/format.js'
+import { clampLabelCentre, estimateLabelWidth, quarterTicks, widestLabel } from '../lib/axis.js'
 import { useSize } from '../lib/useSize.js'
 
 interface Props {
@@ -99,8 +100,12 @@ export function BarChart({ rows, limit = 10, logScale = false }: Props): JSX.Ele
   }
 
   // Size axis ticks: 0/25/50/75/100% of the axis range, matching the y-axis
-  // tick pattern used by the capacity timeline.
-  const AXIS_TICKS = [0, 0.25, 0.5, 0.75, 1] as const
+  // tick pattern used by the capacity timeline — thinned to the ends when the
+  // track is too narrow to hold all five. At 320px the five labels overlapped by
+  // 30px of their 48px width, which made the axis unreadable rather than dense.
+  const tickLabels = [0, 0.25, 0.5, 0.75, 1].map((t) => formatSize(valueAt(t)))
+  const tickLabelW = widestLabel(tickLabels)
+  const AXIS_TICKS = quarterTicks(trackW, tickLabelW)
   // The axis sits just below the last bar, inside the AXIS_H band. Anchoring it
   // to `height` put the labels at y = height + 5, outside the viewBox, so the
   // whole row was clipped away.
@@ -142,10 +147,18 @@ export function BarChart({ rows, limit = 10, logScale = false }: Props): JSX.Ele
           {/* Size axis at the bottom, aligned to the bar track. */}
           <line className="chart__grid" x1={LABEL_W} y1={axisY} x2={LABEL_W + trackW} y2={axisY} />
           {AXIS_TICKS.map((t) => {
-            const x = LABEL_W + t * trackW
+            const label = formatSize(valueAt(t))
             return (
-              <text key={t} className="chart__axis chart__axis--mono" x={x} y={axisY + 10} textAnchor="middle">
-                {formatSize(valueAt(t))}
+              <text
+                key={t}
+                className="chart__axis chart__axis--mono"
+                // Kept inside the svg: centred on LABEL_W, the "0 B" tick reached
+                // back under the user names, and the last tick past the right edge.
+                x={clampLabelCentre(LABEL_W + t * trackW, estimateLabelWidth(label), 0, width)}
+                y={axisY + 10}
+                textAnchor="middle"
+              >
+                {label}
               </text>
             )
           })}

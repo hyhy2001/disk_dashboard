@@ -14,6 +14,7 @@
 
 import { useId, useState } from 'react'
 import type { HistoryPoint } from '../../../shared/api.js'
+import { clampLabelCentre, labelStride, quarterTicks, widestLabel } from '../lib/axis.js'
 import { formatScanDate, formatSize } from '../lib/format.js'
 import { useSize } from '../lib/useSize.js'
 
@@ -27,6 +28,9 @@ const PAD_L = 14
 const PAD_R = 92
 const PAD_T = 12
 const PAD_B = 34
+
+/** Horizontal grid lines. Always all five — lines cannot collide, labels can. */
+const GRID_TICKS = [0, 0.25, 0.5, 0.75, 1] as const
 
 // Legacy's exact strokes: solid amber for Used, translucent dashed amber for the
 // scan result, translucent dashed slate for Total. The amber is a CSS var so it
@@ -109,9 +113,17 @@ export function AreaChart({ points, showLegend }: Props): JSX.Element {
   const area = `${usedPath} L${x(points.length - 1)},${PAD_T + plotH} L${PAD_L},${PAD_T + plotH} Z`
 
   const latest = points[points.length - 1] as HistoryPoint
-  const ticks = [0, 0.25, 0.5, 0.75, 1]
-  const labelEvery = Math.max(1, Math.ceil(points.length / 8))
   const active = hover !== null ? points[hover] : undefined
+
+  // Axis label density from the pixels available, not from the point count. The
+  // old `Math.ceil(points.length / 8)` drew all six dates of a week-long history
+  // however narrow the plot was, and at 320px they merged into one run of digits.
+  const dateLabels = points.map((p) => formatScanDate(p.date))
+  const dateLabelW = widestLabel(dateLabels)
+  const dateStride = labelStride(points.length, plotW, dateLabelW)
+  // The y-axis gutter is a fixed PAD_R wide, so its labels can only collide
+  // vertically — the tick count follows the plot height.
+  const ticks = quarterTicks(plotH, 14)
 
   /**
    * Track the nearest data index and the raw pointer y.
@@ -167,15 +179,19 @@ export function AreaChart({ points, showLegend }: Props): JSX.Element {
             </linearGradient>
           </defs>
 
-          {ticks.map((t) => {
+          {GRID_TICKS.map((t) => {
             const gy = PAD_T + plotH - t * plotH
             return (
               <g key={t}>
                 <line className="chart__grid" x1={PAD_L} y1={gy} x2={width - PAD_R} y2={gy} />
-                {/* Axis labels on the right, as legacy positioned them. */}
-                <text className="chart__axis chart__axis--mono" x={width - PAD_R + 8} y={gy + 3}>
-                  {formatSize(maxY * t)}
-                </text>
+                {/* Axis labels on the right, as legacy positioned them. Grid lines
+                    stay at every quarter — they cannot collide — while the labels
+                    thin out on a short plot, where five of them overlapped. */}
+                {ticks.includes(t) && (
+                  <text className="chart__axis chart__axis--mono" x={width - PAD_R + 8} y={gy + 3}>
+                    {formatSize(maxY * t)}
+                  </text>
+                )}
               </g>
             )
           })}
@@ -253,9 +269,16 @@ export function AreaChart({ points, showLegend }: Props): JSX.Element {
 
           {points.map((p, i) => (
             <g key={`${p.date}-${i}`}>
-              {i % labelEvery === 0 && (
-                <text className="chart__axis" x={x(i)} y={height - 8} textAnchor="middle">
-                  {formatScanDate(p.date)}
+              {i % dateStride === 0 && (
+                <text
+                  className="chart__axis"
+                  // Nudged in at the ends: the first date is centred on the plot's
+                  // left edge, so half of it fell outside the svg and was clipped.
+                  x={clampLabelCentre(x(i), dateLabelW, 0, width)}
+                  y={height - 8}
+                  textAnchor="middle"
+                >
+                  {dateLabels[i]}
                 </text>
               )}
             </g>

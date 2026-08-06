@@ -53,7 +53,17 @@ export function OverviewTab({ overview }: Props): JSX.Element {
         {/* ── Timeline (spans both columns) ── */}
         <div className="md:col-span-2 rounded-lg border border-border bg-surface/50 shadow-sm flex flex-col">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border/40 px-3 py-2">
-            <h2 className="text-sm font-semibold flex-1 min-w-0">Capacity Over Time</h2>
+            {/* Its own row below sm, sharing one with the controls above it. The
+                header already wraps, but `flex-1` made the title give up its width
+                to the range picker instead of wrapping — at 320px that left 49px of
+                a 78px title, so it read "Ca…". A full-width basis lets the wrap do
+                the work, and truncate is the backstop for a title longer still. */}
+            <h2
+              className="w-full min-w-0 truncate text-sm font-semibold sm:w-auto sm:flex-1"
+              title="Capacity Over Time"
+            >
+              Capacity Over Time
+            </h2>
             <DeltaBadge points={shownHistory} />
             <div className="flex items-center gap-1">
               <RangePicker value={range} onChange={setRange} available={rangeAvailable} />
@@ -71,7 +81,9 @@ export function OverviewTab({ overview }: Props): JSX.Element {
         {/* ── Teams donut ── */}
         <div className="rounded-lg border border-border bg-surface/50 shadow-sm flex flex-col">
           <div className="flex items-center justify-between border-b border-border/40 px-3 py-2">
-            <h2 className="text-sm font-semibold">Usage by Teams</h2>
+            <h2 className="min-w-0 truncate text-sm font-semibold" title="Usage by Teams">
+              Usage by Teams
+            </h2>
             <ExpandButton onClick={() => setExpanded('teams')} />
           </div>
           <div className="panel-chart--half p-3 flex flex-col justify-center">
@@ -89,7 +101,12 @@ export function OverviewTab({ overview }: Props): JSX.Element {
         {/* ── Users bar ── */}
         <div className="rounded-lg border border-border bg-surface/50 shadow-sm flex flex-col">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border/40 px-3 py-2">
-            <h2 className="text-sm font-semibold flex-1 min-w-0">Top Consuming Users</h2>
+            <h2
+              className="w-full min-w-0 truncate text-sm font-semibold sm:w-auto sm:flex-1"
+              title="Top Consuming Users"
+            >
+              Top Consuming Users
+            </h2>
             {teamFilter && (
               <button
                 type="button"

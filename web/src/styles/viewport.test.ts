@@ -201,6 +201,141 @@ describe('Overview fits one viewport', () => {
 })
 
 /*
+ * Chart axis labels must be legible, not merely present.
+ *
+ * Both Overview charts sized their axis from the data rather than from the pixels
+ * they had. The timeline drew one label per point up to eight, so on a 320px phone
+ * six dates merged into one run of digits ("07/2907/3007/31…"); the user chart
+ * always drew five size ticks, which overlapped by 30px of their 48px width. The
+ * timeline's first date was also centred on the plot's left edge, so half of it sat
+ * at a negative x and the svg's overflow:hidden clipped it — "07/29" rendered as
+ * "7/29" at every width, desktop included.
+ *
+ * A DOM-shape assertion cannot see any of this: the <text> nodes are all present
+ * and correctly positioned per their own attributes. Only their painted boxes
+ * overlap, so the check has to be geometric.
+ */
+describe('chart axis labels stay legible', () => {
+  for (const [w, h] of [
+    [320, 568],
+    [360, 640],
+    [390, 844],
+    [430, 932],
+    [768, 1024],
+    [1440, 900],
+  ] as const) {
+    it(`neither overlap nor clip at ${w}x${h}`, async () => {
+      if (!reachable || !browser) {
+        console.warn(`skipped: ${URL} unreachable`)
+        return
+      }
+
+      const page = await openOverview(w, h)
+
+      const problems = await page.evaluate(() => {
+        const bad: string[] = []
+        for (const svg of document.querySelectorAll('.main svg')) {
+          const box = svg.getBoundingClientRect()
+          // Skip decorative glyphs and anything too small to carry an axis.
+          if (box.width < 40) continue
+
+          // Clipped by the svg's own overflow:hidden.
+          for (const text of svg.querySelectorAll('text')) {
+            const r = text.getBoundingClientRect()
+            if (r.width === 0) continue
+            if (box.left - r.left > 0.5) bad.push(`«${text.textContent}» cut off at the left edge`)
+            if (r.right - box.right > 0.5) bad.push(`«${text.textContent}» cut off at the right edge`)
+          }
+
+          // Painted on top of a neighbour. Labels on the same axis share a
+          // baseline, so an overlap needs both a vertical and a horizontal one.
+          const labels = [...svg.querySelectorAll('.chart__axis')]
+            .map((t) => ({ text: t.textContent ?? '', r: t.getBoundingClientRect() }))
+            .filter((l) => l.r.width > 0)
+          labels.sort((a, b) => a.r.top - b.r.top || a.r.left - b.r.left)
+          for (let i = 1; i < labels.length; i += 1) {
+            const prev = labels[i - 1]
+            const cur = labels[i]
+            if (!prev || !cur) continue
+            const vertical = Math.min(prev.r.bottom, cur.r.bottom) - Math.max(prev.r.top, cur.r.top)
+            const horizontal = Math.min(prev.r.right, cur.r.right) - Math.max(prev.r.left, cur.r.left)
+            if (vertical > 1 && horizontal > 0.5) {
+              bad.push(`«${prev.text}» and «${cur.text}» overlap by ${Math.round(horizontal)}px`)
+            }
+          }
+        }
+        return [...new Set(bad)]
+      })
+      await page.close()
+
+      expect(problems, `axis label problems: ${problems.join('; ')}`).toEqual([])
+    }, 45_000)
+  }
+
+  it('keeps the first and last date, and thins the rest, on a narrow plot', async () => {
+    if (!reachable || !browser) {
+      console.warn(`skipped: ${URL} unreachable`)
+      return
+    }
+
+    const page = await openOverview(320, 568)
+    const dates = await page.evaluate(() => {
+      const chart = document.querySelector('.main svg.chart')
+      return [...(chart?.querySelectorAll('.chart__axis') ?? [])]
+        .map((t) => t.textContent ?? '')
+        .filter((t) => t.includes('/'))
+    })
+    await page.close()
+
+    // Thinning must not empty the axis: a chart with no dates on it is as
+    // useless as one whose dates are illegible.
+    expect(dates.length, 'the timeline should still be labelled at 320px').toBeGreaterThanOrEqual(2)
+  }, 45_000)
+})
+
+/*
+ * Panel titles must be readable, not just unclipped.
+ *
+ * "Capacity Over Time" shared a flex row with the range picker and the expand
+ * button, which are sized first, so at 320px it was left 49px of the 78px it
+ * needed — and with no `truncate` it reflowed to three lines and was still cut.
+ * Adding truncate alone turned it into "Ca…", which passes an overflow check
+ * while telling the reader nothing, so below sm the title takes its own row.
+ */
+describe('Overview panel titles are readable', () => {
+  for (const [w, h] of [
+    [320, 568],
+    [390, 844],
+    [768, 1024],
+  ] as const) {
+    it(`shows each panel title in full at ${w}x${h}`, async () => {
+      if (!reachable || !browser) {
+        console.warn(`skipped: ${URL} unreachable`)
+        return
+      }
+
+      const page = await openOverview(w, h)
+      const titles = await page.evaluate(() =>
+        [...document.querySelectorAll('.main .grid > div.rounded-lg h2')].map((h) => ({
+          text: h.textContent?.trim() ?? '',
+          shown: h.clientWidth,
+          needed: h.scrollWidth,
+          height: h.getBoundingClientRect().height,
+        })),
+      )
+      await page.close()
+
+      expect(titles.length, 'Overview should have three titled panels').toBe(3)
+      for (const title of titles) {
+        expect(title.needed - title.shown, `«${title.text}» is truncated at ${w}px`).toBeLessThanOrEqual(1)
+        // One line at the 14px title size is ~20px; three lines was the old bug.
+        expect(title.height, `«${title.text}» wraps to multiple lines at ${w}px`).toBeLessThan(30)
+      }
+    }, 45_000)
+  }
+})
+
+/*
  * Nothing may be pushed off the right edge of the screen.
  *
  * The capacity strip was five fixed-size figures in a flex row, so its width was
