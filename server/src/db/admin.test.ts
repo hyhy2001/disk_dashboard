@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { existsSync, mkdtempSync, mkdirSync, rmSync, statSync } from 'node:fs'
+import { existsSync, mkdtempSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import {
@@ -173,11 +173,25 @@ describe('backup name validation', () => {
     expect(safeBackupName('admin_backup_2026-08-05T1200_1a2b.db')).toBe(true)
   })
 
+  it('accepts a suffix-less name from before the suffix existed', () => {
+    // Backups written before the random suffix was introduced have none.
+    // Rejecting them left real files listed in the UI but impossible to delete
+    // or restore — every attempt failed with "file not found".
+    expect(safeBackupName('admin_backup_2026-08-02T1339.db')).toBe(true)
+  })
+
   it('rejects names that could escape the backup directory', () => {
     expect(safeBackupName('../admin.db')).toBe(false)
     expect(safeBackupName('..%2Fadmin.db')).toBe(false)
     expect(safeBackupName('admin_backup_2026-08-05T120000.db.gz')).toBe(false)
     expect(safeBackupName('admin_backup_2026-08-05T120000_1a2b.db/extra')).toBe(false)
+    // The optional suffix must not open a hole: still no separator, traversal
+    // or partial-match escape once the suffix is absent.
+    expect(safeBackupName('admin_backup_2026-08-02T1339.db/../../admin.db')).toBe(false)
+    expect(safeBackupName('admin_backup_2026-08-02T1339.db.bak')).toBe(false)
+    expect(safeBackupName('../admin_backup_2026-08-02T1339.db')).toBe(false)
+    expect(safeBackupName('admin_backup_2026-08-02T1339_.db')).toBe(false)
+    expect(safeBackupName('admin_backup_2026-08-02T1339_zzzz.db')).toBe(false)
   })
 
   it('refuses to delete a file outside the backup directory via a traversal name', () => {
@@ -192,6 +206,23 @@ describe('backup name validation', () => {
   it('refuses to restore a traversal name', () => {
     withTempDb()
     expect(restoreBackup('../admin.db')).toBe(false)
+  })
+
+  it('deletes a backup left behind by an older build', () => {
+    // The reported symptom: a pre-suffix backup file sat in the UI list and
+    // every Delete came back "file not found", because the name it was created
+    // with no longer passed validation.
+    const base = withTempDb()
+    createSpace('prod')
+    const dir = join(base, 'backups')
+    mkdirSync(dir, { recursive: true })
+    const legacy = 'admin_backup_2026-08-02T1339.db'
+    writeFileSync(join(dir, legacy), 'not a real db, only its name matters here')
+
+    expect(listBackups().some((b) => b.name === legacy)).toBe(true)
+    expect(deleteBackup(legacy)).toBe(true)
+    expect(existsSync(join(dir, legacy))).toBe(false)
+    expect(listBackups().some((b) => b.name === legacy)).toBe(false)
   })
 })
 

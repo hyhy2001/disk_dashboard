@@ -794,9 +794,16 @@ export interface BackupInfo {
  * so no path separator, dot-dot or URL-encoded variant can slip through. Backup
  * names arrive from the URL, so they are attacker-controlled once an admin
  * session exists.
+ *
+ * The `_xxxx` suffix is optional because it was only introduced when this
+ * validation was added. Backups written before that have no suffix, and
+ * requiring one made them permanently unlistable-but-undeletable: the UI showed
+ * them, then every Delete and Restore failed with "file not found". Accepting
+ * the older shape costs nothing — it is still a fully anchored pattern with no
+ * separator, dot or wildcard that could escape the backup directory.
  */
 export function safeBackupName(name: string): boolean {
-  return /^admin_backup_\d{4}-\d{2}-\d{2}T\d{4}_[0-9a-f]{4}\.db$/.test(name)
+  return /^admin_backup_\d{4}-\d{2}-\d{2}T\d{4}(_[0-9a-f]{4})?\.db$/.test(name)
 }
 
 /** A unique backup filename. The random suffix stops same-second collisions. */
