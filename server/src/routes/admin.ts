@@ -59,6 +59,25 @@ function requireOwner(req: any, reply: any): AuthUser | null {
   return user
 }
 
+/**
+ * Require a role allowed to edit Group Config — owner or admin.
+ *
+ * Group Config is the one area an `admin` may write; disk mapping, accounts and
+ * backups are owner-only. Every admin route previously used `requireAuth`, which
+ * only asked "is anyone logged in" — so an `admin` account could delete the whole
+ * disk mapping or restore over admin.db. The role column existed and was checked
+ * on five account routes; everywhere else it was ignored.
+ */
+function requireGroupConfig(req: any, reply: any): AuthUser | null {
+  const user = requireAuth(req, reply)
+  if (!user) return null
+  if (user.role !== 'owner' && user.role !== 'admin') {
+    reply.code(403).send({ status: 'error', message: 'Group config access required' })
+    return null
+  }
+  return user
+}
+
 function clientIp(req: any): string {
   // req.ip honors the Fastify trustProxy setting: with it off (the default) it
   // is the socket address and the X-Forwarded-For header is ignored, so a client
@@ -359,7 +378,7 @@ export function registerAdmin(app: FastifyInstance): void {
     '/api/admin/spaces',
     { schema: { response: { 200: envelopeRef() } } },
     async (req: any, reply: FastifyReply) => {
-      if (!requireAuth(req, reply)) return
+      if (!requireOwner(req, reply)) return
       return reply.send({ status: 'success', data: A.listSpacesWithDisks() })
     },
   )
@@ -378,7 +397,7 @@ export function registerAdmin(app: FastifyInstance): void {
       },
     },
     async (req: any, reply: FastifyReply) => {
-      if (!requireAuth(req, reply)) return
+      if (!requireOwner(req, reply)) return
       const { name } = req.body ?? {}
       if (!name || typeof name !== 'string') {
         return reply.code(422).send({ status: 'error', message: 'Name required' })
@@ -406,7 +425,7 @@ export function registerAdmin(app: FastifyInstance): void {
       },
     },
     async (req: any, reply: FastifyReply) => {
-      if (!requireAuth(req, reply)) return
+      if (!requireOwner(req, reply)) return
       const id = intParam(req.params.id)
       const { name } = req.body ?? {}
       if (!id || !name) return reply.code(422).send({ status: 'error', message: 'Invalid request' })
@@ -468,7 +487,7 @@ export function registerAdmin(app: FastifyInstance): void {
       },
     },
     async (req: any, reply: FastifyReply) => {
-      if (!requireAuth(req, reply)) return
+      if (!requireOwner(req, reply)) return
       const { spaces } = req.body ?? {}
       if (!Array.isArray(spaces)) {
         return reply.code(422).send({ status: 'error', message: 'spaces array required' })
@@ -492,7 +511,7 @@ export function registerAdmin(app: FastifyInstance): void {
     '/api/admin/spaces/:id',
     { schema: { params: pathParams(['id']), response: { 200: envelopeRef() } } },
     async (req: any, reply: FastifyReply) => {
-      if (!requireAuth(req, reply)) return
+      if (!requireOwner(req, reply)) return
       const id = intParam(req.params.id)
       if (!id) return reply.code(422).send({ status: 'error', message: 'Invalid id' })
       A.deleteSpace(id)
@@ -514,7 +533,7 @@ export function registerAdmin(app: FastifyInstance): void {
       },
     },
     async (req: any, reply: FastifyReply) => {
-      if (!requireAuth(req, reply)) return
+      if (!requireOwner(req, reply)) return
       const { space_id, name, path } = req.body ?? {}
       if (!space_id || !name || !path) {
         return reply.code(422).send({ status: 'error', message: 'space_id, name, and path required' })
@@ -543,7 +562,7 @@ export function registerAdmin(app: FastifyInstance): void {
       },
     },
     async (req: any, reply: FastifyReply) => {
-      if (!requireAuth(req, reply)) return
+      if (!requireOwner(req, reply)) return
       const id = intParam(req.params.id)
       const { name, path } = req.body ?? {}
       if (!id) return reply.code(422).send({ status: 'error', message: 'Invalid id' })
@@ -579,7 +598,7 @@ export function registerAdmin(app: FastifyInstance): void {
       },
     },
     async (req: any, reply: FastifyReply) => {
-      if (!requireAuth(req, reply)) return
+      if (!requireOwner(req, reply)) return
       const { path } = req.body ?? {}
       if (typeof path !== 'string' || !path) {
         return reply.code(422).send({ status: 'error', message: 'path required' })
@@ -593,7 +612,7 @@ export function registerAdmin(app: FastifyInstance): void {
     '/api/admin/disks/:id/import-teams',
     { schema: { params: pathParams(['id']), response: { 200: envelopeRef() } } },
     async (req: any, reply: FastifyReply) => {
-      if (!requireAuth(req, reply)) return
+      if (!requireGroupConfig(req, reply)) return
       const diskId = intParam(req.params.id)
       if (!diskId) return reply.code(422).send({ status: 'error', message: 'Invalid disk id' })
 
@@ -650,7 +669,7 @@ export function registerAdmin(app: FastifyInstance): void {
     '/api/admin/disks/:id/users',
     { schema: { params: pathParams(['id']), response: { 200: envelopeRef() } } },
     async (req: any, reply: FastifyReply) => {
-      if (!requireAuth(req, reply)) return
+      if (!requireGroupConfig(req, reply)) return
       const diskId = intParam(req.params.id)
       if (!diskId) return reply.code(422).send({ status: 'error', message: 'Invalid disk id' })
 
@@ -680,7 +699,7 @@ export function registerAdmin(app: FastifyInstance): void {
     '/api/admin/disks/:id',
     { schema: { params: pathParams(['id']), response: { 200: envelopeRef() } } },
     async (req: any, reply: FastifyReply) => {
-      if (!requireAuth(req, reply)) return
+      if (!requireOwner(req, reply)) return
       const id = intParam(req.params.id)
       if (!id) return reply.code(422).send({ status: 'error', message: 'Invalid id' })
       // Close the cached readonly handle too: nothing will ask for this slug again,
@@ -694,11 +713,37 @@ export function registerAdmin(app: FastifyInstance): void {
   )
 
   // --- Disk Teams (admin+) ---
+
+  /**
+   * Disks an admin may configure groups for, without the disk mapping itself.
+   *
+   * Group Config needs a disk list, but `GET /api/admin/spaces` is owner-only —
+   * it carries filesystem paths, which are infrastructure detail an admin has no
+   * reason to see. This returns only what the group editor renders: identity and
+   * which space each disk sits in.
+   */
+  app.get(
+    '/api/admin/group-targets',
+    { schema: { response: { 200: envelopeRef() } } },
+    async (req: any, reply: FastifyReply) => {
+      if (!requireGroupConfig(req, reply)) return
+      const targets = A.listSpacesWithDisks().flatMap((space) =>
+        space.disks.map((disk) => ({
+          id: disk.id,
+          name: disk.name,
+          slug: disk.slug,
+          spaceName: space.name,
+        })),
+      )
+      return reply.send({ status: 'success', data: targets })
+    },
+  )
+
   app.get(
     '/api/admin/disks/:id/teams',
     { schema: { params: pathParams(['id']), response: { 200: envelopeRef() } } },
     async (req: any, reply: FastifyReply) => {
-      if (!requireAuth(req, reply)) return
+      if (!requireGroupConfig(req, reply)) return
       const diskId = intParam(req.params.id)
       if (!diskId) return reply.code(422).send({ status: 'error', message: 'Invalid disk id' })
       return reply.send({ status: 'success', data: A.listDiskTeams(diskId) })
@@ -720,7 +765,7 @@ export function registerAdmin(app: FastifyInstance): void {
       },
     },
     async (req: any, reply: FastifyReply) => {
-      if (!requireAuth(req, reply)) return
+      if (!requireGroupConfig(req, reply)) return
       const diskId = intParam(req.params.id)
       const { name } = req.body ?? {}
       if (!diskId) return reply.code(422).send({ status: 'error', message: 'Invalid disk id' })
@@ -745,7 +790,7 @@ export function registerAdmin(app: FastifyInstance): void {
       },
     },
     async (req: any, reply: FastifyReply) => {
-      if (!requireAuth(req, reply)) return
+      if (!requireGroupConfig(req, reply)) return
       const id = intParam(req.params.id)
       if (!id) return reply.code(422).send({ status: 'error', message: 'Invalid id' })
       const { name, users } = req.body ?? {}
@@ -775,7 +820,7 @@ export function registerAdmin(app: FastifyInstance): void {
     '/api/admin/teams/:id',
     { schema: { params: pathParams(['id']), response: { 200: envelopeRef() } } },
     async (req: any, reply: FastifyReply) => {
-      if (!requireAuth(req, reply)) return
+      if (!requireGroupConfig(req, reply)) return
       const id = intParam(req.params.id)
       if (!id) return reply.code(422).send({ status: 'error', message: 'Invalid id' })
       A.deleteDiskTeam(id)
@@ -788,7 +833,7 @@ export function registerAdmin(app: FastifyInstance): void {
     '/api/admin/backups',
     { schema: { response: { 200: envelopeRef() } } },
     async (req: any, reply: FastifyReply) => {
-      if (!requireAuth(req, reply)) return
+      if (!requireOwner(req, reply)) return
       return reply.send({ status: 'success', data: A.listBackups() })
     },
   )
@@ -797,7 +842,7 @@ export function registerAdmin(app: FastifyInstance): void {
     '/api/admin/backups',
     { schema: { response: { 200: envelopeRef() } } },
     async (req: any, reply: FastifyReply) => {
-      if (!requireAuth(req, reply)) return
+      if (!requireOwner(req, reply)) return
       return reply.code(201).send({ status: 'success', data: await A.createBackup() })
     },
   )
@@ -817,7 +862,7 @@ export function registerAdmin(app: FastifyInstance): void {
     '/api/admin/backups/:name',
     { schema: { params: pathParams(['name']), response: { 200: envelopeRef() } } },
     async (req: any, reply: FastifyReply) => {
-      if (!requireAuth(req, reply)) return
+      if (!requireOwner(req, reply)) return
       const ok = A.deleteBackup(req.params.name)
       if (!ok) return reply.code(404).send({ status: 'error', message: 'Backup not found' })
       return reply.send({ status: 'success', data: null })
@@ -829,7 +874,7 @@ export function registerAdmin(app: FastifyInstance): void {
     '/api/admin/stats',
     { schema: { response: { 200: envelopeRef() } } },
     async (req: any, reply: FastifyReply) => {
-      if (!requireAuth(req, reply)) return
+      if (!requireOwner(req, reply)) return
       return reply.send({ status: 'success', data: A.getSummaryStats() })
     },
   )

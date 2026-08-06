@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { createAdmin } from '../db/admin.js'
 import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
-import { cleanup, createTestApp, login, testDir } from './helpers.js'
+import { cleanup, createTestApp, login, loginAs, testDir } from './helpers.js'
 
 let app: FastifyInstance
 
@@ -256,5 +256,147 @@ describe('backup and restore end-to-end', () => {
       payload: { username: 'bob', password: 'long-password-1' },
     })
     expect(login2.statusCode).toBe(200)
+  })
+})
+
+describe('role separation: owner vs admin', () => {
+  /**
+   * Every owner-only route, with a payload valid enough that a 403 can only come
+   * from the guard. A route that answered 200/422 here would mean an `admin`
+   * account got through — which is exactly the hole this suite exists to catch.
+   */
+  const OWNER_ONLY: { method: 'GET' | 'POST' | 'PUT' | 'DELETE'; url: string; payload?: object }[] = [
+    { method: 'GET', url: '/api/admin/spaces' },
+    { method: 'POST', url: '/api/admin/spaces', payload: { name: 'x' } },
+    { method: 'PUT', url: '/api/admin/spaces/1', payload: { name: 'y' } },
+    { method: 'PUT', url: '/api/admin/spaces/layout', payload: { spaces: [] } },
+    { method: 'DELETE', url: '/api/admin/spaces/1' },
+    { method: 'POST', url: '/api/admin/disks', payload: { space_id: 1, name: 'x', path: '/tmp' } },
+    { method: 'PUT', url: '/api/admin/disks/1', payload: { name: 'x' } },
+    { method: 'DELETE', url: '/api/admin/disks/1' },
+    { method: 'POST', url: '/api/admin/disks/test-read', payload: { path: '/tmp' } },
+    { method: 'GET', url: '/api/admin/backups' },
+    { method: 'POST', url: '/api/admin/backups' },
+    { method: 'DELETE', url: '/api/admin/backups/admin_backup_2026-01-01T0000_abcd.db' },
+    { method: 'POST', url: '/api/admin/backups/admin_backup_2026-01-01T0000_abcd.db/restore' },
+    { method: 'GET', url: '/api/admin/stats' },
+    { method: 'GET', url: '/api/admin/accounts' },
+    { method: 'POST', url: '/api/admin/accounts', payload: { username: 'zz', password: 'long-password-1' } },
+  ]
+
+  it('refuses every owner-only route to an admin account', async () => {
+    app = createTestApp()
+    const cookie = await loginAs(app, 'admin')
+    const wrong: string[] = []
+    for (const r of OWNER_ONLY) {
+      const res = await app.inject({ method: r.method, url: r.url, headers: { cookie }, payload: r.payload })
+      if (res.statusCode !== 403) wrong.push(`${r.method} ${r.url} → ${res.statusCode}`)
+    }
+    expect(wrong).toEqual([])
+  })
+
+  it('still allows the owner through those same routes', async () => {
+    app = createTestApp()
+    const cookie = await loginAs(app, 'owner')
+    // Reading is enough to prove the guard is not blanket-denying; the write
+    // routes have their own tests elsewhere.
+    for (const url of ['/api/admin/spaces', '/api/admin/backups', '/api/admin/stats', '/api/admin/accounts']) {
+      const res = await app.inject({ method: 'GET', url, headers: { cookie } })
+      expect(res.statusCode, url).toBe(200)
+    }
+  })
+
+  it('lets an admin read and write group config', async () => {
+    app = createTestApp()
+    // Seed a disk as the owner, then act as the admin.
+    const ownerCookie = await loginAs(app, 'owner')
+    const vol = join(testDir(), 'vol-groups')
+    mkdirSync(vol, { recursive: true })
+    const layout = await app.inject({
+      method: 'PUT',
+      url: '/api/admin/spaces/layout',
+      headers: { cookie: ownerCookie },
+      payload: { spaces: [{ name: 'prod', disks: [{ name: 'data', path: vol }] }] },
+    })
+    expect(layout.statusCode).toBe(200)
+    const diskId = (layout.json().data as { disks: { id: number }[] }[])[0]?.disks[0]?.id
+
+    const cookie = await loginAs(app, 'admin')
+    const list = await app.inject({ method: 'GET', url: `/api/admin/disks/${diskId}/teams`, headers: { cookie } })
+    expect(list.statusCode).toBe(200)
+
+    const created = await app.inject({
+      method: 'POST',
+      url: `/api/admin/disks/${diskId}/teams`,
+      headers: { cookie },
+      payload: { name: 'devs' },
+    })
+    expect(created.statusCode).toBe(201)
+    const teamId = (created.json().data as { id: number }).id
+
+    const updated = await app.inject({
+      method: 'PUT',
+      url: `/api/admin/teams/${teamId}`,
+      headers: { cookie },
+      payload: { users: ['alice'] },
+    })
+    expect(updated.statusCode).toBe(200)
+
+    const removed = await app.inject({ method: 'DELETE', url: `/api/admin/teams/${teamId}`, headers: { cookie } })
+    expect(removed.statusCode).toBe(200)
+  })
+
+  it('gives an admin a disk list for group config, without filesystem paths', async () => {
+    app = createTestApp()
+    const ownerCookie = await loginAs(app, 'owner')
+    const vol = join(testDir(), 'vol-targets')
+    mkdirSync(vol, { recursive: true })
+    await app.inject({
+      method: 'PUT',
+      url: '/api/admin/spaces/layout',
+      headers: { cookie: ownerCookie },
+      payload: { spaces: [{ name: 'prod', disks: [{ name: 'data', path: vol }] }] },
+    })
+
+    const cookie = await loginAs(app, 'admin')
+    const res = await app.inject({ method: 'GET', url: '/api/admin/group-targets', headers: { cookie } })
+    expect(res.statusCode).toBe(200)
+    const targets = res.json().data as Record<string, unknown>[]
+    expect(targets).toHaveLength(1)
+    expect(targets[0]).toMatchObject({ name: 'data', spaceName: 'prod' })
+    // The path is infrastructure detail an admin has no reason to see.
+    expect(JSON.stringify(targets)).not.toContain(vol)
+  })
+
+  it('lets an admin change their own password but not another account’s', async () => {
+    app = createTestApp()
+    const cookie = await loginAs(app, 'admin')
+
+    // Resetting someone else's password is owner-only. Checked before the
+    // self-service call below, which rotates session_version and would retire
+    // this cookie — a 401 then would prove nothing about the role guard.
+    const other = await app.inject({
+      method: 'POST',
+      url: '/api/admin/accounts/1/password',
+      headers: { cookie },
+      payload: { password: 'yet-another-password' },
+    })
+    expect(other.statusCode).toBe(403)
+
+    const own = await app.inject({
+      method: 'POST',
+      url: '/api/admin/me/password',
+      headers: { cookie },
+      payload: { currentPassword: 'long-password-1', newPassword: 'another-long-password' },
+    })
+    expect(own.statusCode).toBe(200)
+  })
+
+  it('refuses group config to an unauthenticated caller', async () => {
+    app = createTestApp()
+    for (const url of ['/api/admin/group-targets', '/api/admin/disks/1/teams']) {
+      const res = await app.inject({ method: 'GET', url })
+      expect(res.statusCode, url).toBe(401)
+    }
   })
 })

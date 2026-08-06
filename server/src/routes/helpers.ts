@@ -78,11 +78,28 @@ export function cleanup(): void {
 
 /** Seed an owner and log in, returning the session cookie. */
 export async function login(app: FastifyInstance, password = 'long-password-1'): Promise<string> {
-  createAdmin('bob', password, 'owner')
+  return loginAs(app, 'owner', 'bob', password)
+}
+
+/**
+ * Seed an account with the given role and log in, returning the session cookie.
+ *
+ * Role separation is only testable with a real non-owner session: the guards read
+ * the role off the signed cookie, so a hand-built cookie would not exercise them.
+ */
+export async function loginAs(
+  app: FastifyInstance,
+  role: 'owner' | 'admin',
+  // Annotated: without it TS infers the parameter type from the default and
+  // narrows it to the role union, rejecting any other username.
+  username: string = role,
+  password = 'long-password-1',
+): Promise<string> {
+  createAdmin(username, password, role)
   const res = await app.inject({
     method: 'POST',
     url: '/api/admin/login',
-    payload: { username: 'bob', password },
+    payload: { username, password },
   })
   expect(res.statusCode).toBe(200)
   const setCookie = res.headers['set-cookie'] as unknown as string | string[] | undefined
