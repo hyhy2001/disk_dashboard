@@ -77,6 +77,13 @@ const GroupSchema = {
 }
 
 const UsageRowSchema = { type: 'object', additionalProperties: true }
+
+// Bounds for viewer-supplied groups. Generous for real use — a disk has far
+// fewer teams and accounts than this — but they stop an unauthenticated caller
+// from turning the regroup endpoint into a memory amplifier.
+const MAX_USER_GROUPS = 200
+const MAX_GROUP_MEMBERS = 20000
+const MAX_GROUP_NAME = 256
 const HistoryPointSchema = { type: 'object', additionalProperties: true }
 const LooseObjectArray = { type: 'array', items: { type: 'object', additionalProperties: true } }
 
@@ -359,12 +366,60 @@ function fileStamp(now = new Date()): string {
 }
 
 /**
- * Apply teams from admin.db to the overview, overriding report.db team assignments.
- * This lets the admin Group Config control team → user mapping in the dashboard.
+ * Regroup an overview against an explicit set of teams.
+ *
+ * Shared by the admin-configured ("official") teams and the viewer's own
+ * ("user") groups so the two can never drift: the same membership always
+ * produces the same totals, whichever layer supplied it.
  *
  * Team totals must come from the FULL user set, not overview.users/otherUsers —
  * those are each capped at USER_LIMIT, so on a disk with more accounts than the
- * cap, any admin-team member beyond it would silently vanish from the rollup.
+ * cap, any team member beyond it would silently vanish from the rollup. This is
+ * also why the viewer's groups are resolved here rather than in the browser: the
+ * client only ever receives the capped lists.
+ */
+function applyTeams(db: Database.Database, overview: Overview, teams: { name: string; users: string[] }[]): Overview {
+  // Full, uncapped user list — the authoritative set for team membership.
+  const rows = db
+    .prepare('SELECT username, total_size FROM detail_users WHERE total_size > 0 ORDER BY total_size DESC')
+    .all() as { username: string; total_size: number }[]
+
+  const mapped = assignAdminTeams(rows, teams)
+
+  // Cap only what the UI renders; team totals above already used every user.
+  return {
+    ...overview,
+    teams: mapped.teams,
+    users: mapped.users.slice(0, USER_LIMIT),
+    otherUsers: mapped.otherUsers.slice(0, USER_LIMIT),
+  }
+}
+
+/**
+ * Build the Target row readOverview needs, from the report's own meta.
+ *
+ * The slug is the route id; the display name comes from the admin DB so a
+ * renamed disk still shows its current name in the header.
+ */
+function targetRow(db: Database.Database, slug: string): Target {
+  const disk = diskBySlug(slug)
+  const meta = readMeta(db)
+  return {
+    name: disk?.name ?? slug,
+    slug,
+    scanRoot: meta.scan_root ?? '',
+    scanTimestamp: Number(meta.scan_timestamp) || 0,
+    totalFiles: Number(meta.total_files) || 0,
+    totalDirs: Number(meta.total_dirs) || 0,
+    totalSize: Number(meta.total_size) || 0,
+    dbSizeBytes: 0,
+    capacity: readCapacity(db),
+  }
+}
+
+/**
+ * Apply teams from admin.db to the overview, overriding report.db team assignments.
+ * This lets the admin Group Config control team → user mapping in the dashboard.
  */
 function applyAdminTeams(db: Database.Database, slug: string, overview: Overview): Overview {
   try {
@@ -374,20 +429,7 @@ function applyAdminTeams(db: Database.Database, slug: string, overview: Overview
     const adminTeams = listDiskTeams(disk.id)
     if (adminTeams.length === 0) return overview
 
-    // Full, uncapped user list — the authoritative set for team membership.
-    const rows = db
-      .prepare('SELECT username, total_size FROM detail_users WHERE total_size > 0 ORDER BY total_size DESC')
-      .all() as { username: string; total_size: number }[]
-
-    const mapped = assignAdminTeams(rows, adminTeams)
-
-    // Cap only what the UI renders; team totals above already used every user.
-    return {
-      ...overview,
-      teams: mapped.teams,
-      users: mapped.users.slice(0, USER_LIMIT),
-      otherUsers: mapped.otherUsers.slice(0, USER_LIMIT),
-    }
+    return applyTeams(db, overview, adminTeams)
   } catch {
     return overview
   }
@@ -557,25 +599,80 @@ export function registerApi(app: FastifyInstance): void {
         return fail(reply, 404, `no report found for target '${target}'`)
       }
 
-      // The slug is the route id; the display name comes from the admin DB so a
-      // renamed disk still shows its current name in the header.
-      const disk = diskBySlug(target)
+      return ok(applyAdminTeams(db, target, readOverview(db, targetRow(db, target))))
+    },
+  )
 
-      // readOverview needs a Target row; build one from meta.
-      const meta = readMeta(db)
-      const row: Target = {
-        name: disk?.name ?? target,
-        slug: target,
-        scanRoot: meta.scan_root ?? '',
-        scanTimestamp: Number(meta.scan_timestamp) || 0,
-        totalFiles: Number(meta.total_files) || 0,
-        totalDirs: Number(meta.total_dirs) || 0,
-        totalSize: Number(meta.total_size) || 0,
-        dbSizeBytes: 0,
-        capacity: readCapacity(db),
+  /**
+   * The same overview, regrouped against groups the caller supplies.
+   *
+   * Backs the viewer's own ("user") group layer, which lives in that browser's
+   * localStorage. The definition travels with the request instead of being
+   * stored, so this writes nothing and needs no session — it is the public
+   * overview endpoint with a different team mapping applied.
+   *
+   * The grouping cannot be done in the browser: the overview payload caps its
+   * user lists at USER_LIMIT, so client-side totals would quietly omit members
+   * on any disk with more accounts than the cap. Resolving here, through the same
+   * applyTeams the admin layer uses, keeps user totals identical to official ones.
+   */
+  app.post<{ Params: { target: string }; Body: { groups?: { name: string; users: string[] }[] } }>(
+    '/api/overview/:target/regroup',
+    {
+      schema: {
+        params: pathParams(['target']),
+        body: {
+          type: 'object',
+          additionalProperties: true,
+          properties: {
+            groups: {
+              type: 'array',
+              maxItems: MAX_USER_GROUPS,
+              items: {
+                type: 'object',
+                additionalProperties: true,
+                properties: {
+                  name: { type: 'string', maxLength: MAX_GROUP_NAME },
+                  users: { type: 'array', maxItems: MAX_GROUP_MEMBERS, items: { type: 'string' } },
+                },
+                required: ['name'],
+              },
+            },
+          },
+          required: ['groups'],
+        },
+        response: { 200: OverviewDataSchema },
+      },
+    },
+    async (request, reply): Promise<ApiResponse<Overview>> => {
+      const { target } = request.params
+      if (!isSafeTargetName(target)) {
+        return fail(reply, 400, 'invalid target name')
       }
 
-      return ok(applyAdminTeams(db, target, readOverview(db, row)))
+      const groups = request.body?.groups ?? []
+      // Bounded above by the schema; this guards the total across groups, which
+      // maxItems cannot express. Without it, 200 groups × 20k members each would
+      // build a several-million-entry map per request.
+      const totalMembers = groups.reduce((n, g) => n + (g.users?.length ?? 0), 0)
+      if (totalMembers > MAX_GROUP_MEMBERS) {
+        return fail(reply, 422, `too many group members (max ${MAX_GROUP_MEMBERS})`)
+      }
+
+      const db = openTargetReport(target)
+      if (!db) {
+        return fail(reply, 404, `no report found for target '${target}'`)
+      }
+
+      const overview = readOverview(db, targetRow(db, target))
+      // No groups means "show me the untouched report" — skip straight past both
+      // the user layer and the admin layer to the scanner's own teams.
+      if (groups.length === 0) return ok(overview)
+
+      const clean = groups
+        .map((g) => ({ name: String(g.name ?? '').trim(), users: g.users ?? [] }))
+        .filter((g) => g.name)
+      return ok(applyTeams(db, overview, clean))
     },
   )
 
