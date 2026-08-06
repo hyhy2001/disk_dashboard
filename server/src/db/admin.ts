@@ -697,6 +697,80 @@ export function importDiskTeams(diskId: number, teams: { name: string; users: st
   })(teams)
 }
 
+/** One space as the Disk Mapping editor submits it. `id` absent means "create". */
+export interface LayoutSpaceInput {
+  id?: number
+  name: string
+  disks: { id?: number; name: string; path: string }[]
+}
+
+/**
+ * Apply the whole Disk Mapping editor in one transaction.
+ *
+ * The editor used to save by firing one HTTP request per create/update/delete,
+ * in a loop, from the browser. A failure partway through — a path that no longer
+ * exists, a duplicate name, a dropped connection — left the database holding
+ * some of the edits and the UI reporting "Save failed", with no way to tell
+ * which half had landed. Every write now happens inside a single SQLite
+ * transaction, so the save either applies completely or not at all.
+ *
+ * Validation runs over the entire payload *before* any write. better-sqlite3
+ * rolls back on a thrown error, but validating up front means the common
+ * mistakes (an empty name, a path that does not exist) are reported without
+ * touching the database at all.
+ */
+export function saveLayout(spaces: LayoutSpaceInput[]): SpaceWithDisks[] {
+  for (const space of spaces) {
+    if (typeof space.name !== 'string' || space.name.trim().length === 0) {
+      throw new Error('every space needs a name')
+    }
+    for (const disk of space.disks) {
+      if (typeof disk.name !== 'string' || disk.name.trim().length === 0) {
+        throw new Error(`disk in '${space.name}' needs a name`)
+      }
+      const valid = validateDiskPath(disk.path)
+      if (!valid.ok) throw new Error(`'${disk.name}': ${valid.reason}`)
+    }
+    // Caught here rather than by the UNIQUE index so the message names the
+    // offending disk instead of surfacing a constraint error.
+    const names = space.disks.map((d) => d.name.trim().toLowerCase())
+    const duplicate = names.find((n, i) => names.indexOf(n) !== i)
+    if (duplicate !== undefined) {
+      throw new Error(`'${space.name}' has two disks named '${duplicate}'`)
+    }
+  }
+
+  const db = adminDb()
+  return db.transaction((rows: LayoutSpaceInput[]) => {
+    const keptSpaceIds = new Set(rows.map((s) => s.id).filter((id): id is number => id !== undefined))
+    // Deleting a space cascades to its disks, so this runs before the per-space
+    // work and the disk sweep below only has to consider surviving spaces.
+    for (const existing of listSpaces()) {
+      if (!keptSpaceIds.has(existing.id)) deleteSpace(existing.id)
+    }
+
+    for (const [order, space] of rows.entries()) {
+      const spaceId = space.id ?? createSpace(space.name.trim()).id
+      if (space.id !== undefined) updateSpace(space.id, space.name.trim())
+      db.prepare('UPDATE spaces SET sort_order = ? WHERE id = ?').run(order, spaceId)
+
+      const keptDiskIds = new Set(space.disks.map((d) => d.id).filter((id): id is number => id !== undefined))
+      const current = adminDb().prepare('SELECT id FROM disks WHERE space_id = ?').all(spaceId) as { id: number }[]
+      for (const existing of current) {
+        if (!keptDiskIds.has(existing.id)) deleteDisk(existing.id)
+      }
+
+      for (const [diskOrder, disk] of space.disks.entries()) {
+        const diskId = disk.id ?? createDisk(spaceId, disk.name.trim(), disk.path.trim()).id
+        if (disk.id !== undefined) updateDisk(disk.id, { name: disk.name.trim(), path: disk.path.trim() })
+        db.prepare('UPDATE disks SET sort_order = ? WHERE id = ?').run(diskOrder, diskId)
+      }
+    }
+
+    return listSpacesWithDisks()
+  })(spaces)
+}
+
 // ---------------------------------------------------------------------------
 // Backup & Restore
 // ---------------------------------------------------------------------------

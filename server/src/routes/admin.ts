@@ -419,6 +419,75 @@ export function registerAdmin(app: FastifyInstance): void {
     },
   )
 
+  /**
+   * Save the whole Disk Mapping editor at once.
+   *
+   * The editor previously saved by looping create/update/delete calls from the
+   * browser, one request each. Any failure partway through committed the earlier
+   * writes and abandoned the rest, leaving the mapping in a state neither the
+   * admin nor the UI could describe. This applies the entire layout in one
+   * transaction instead: it either lands completely or changes nothing.
+   */
+  app.put(
+    '/api/admin/spaces/layout',
+    {
+      schema: {
+        body: {
+          type: 'object',
+          additionalProperties: true,
+          properties: {
+            spaces: {
+              type: 'array',
+              items: {
+                type: 'object',
+                additionalProperties: true,
+                properties: {
+                  id: { type: 'integer' },
+                  name: { type: 'string' },
+                  disks: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      additionalProperties: true,
+                      properties: {
+                        id: { type: 'integer' },
+                        name: { type: 'string' },
+                        path: { type: 'string' },
+                      },
+                      required: ['name', 'path'],
+                    },
+                  },
+                },
+                required: ['name', 'disks'],
+              },
+            },
+          },
+          required: ['spaces'],
+        },
+        response: { 200: envelopeRef() },
+      },
+    },
+    async (req: any, reply: FastifyReply) => {
+      if (!requireAuth(req, reply)) return
+      const { spaces } = req.body ?? {}
+      if (!Array.isArray(spaces)) {
+        return reply.code(422).send({ status: 'error', message: 'spaces array required' })
+      }
+      try {
+        return reply.send({ status: 'success', data: A.saveLayout(spaces) })
+      } catch (e) {
+        // A duplicate name reaches here as a SQLite constraint error; anything
+        // else is one of saveLayout's own validation messages, which name the
+        // offending space or disk and are safe to show. uniqueGuard rethrows on
+        // a non-constraint error, so the two cases are split by hand here.
+        if (isUniqueViolation(e)) {
+          return reply.code(409).send({ status: 'error', message: 'Duplicate space or disk name' })
+        }
+        return reply.code(422).send({ status: 'error', message: (e as Error).message })
+      }
+    },
+  )
+
   app.delete(
     '/api/admin/spaces/:id',
     { schema: { params: pathParams(['id']), response: { 200: envelopeRef() } } },

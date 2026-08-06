@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -33,11 +33,7 @@ import { success, failure } from '@/lib/toast.js'
 import { clearApiCache } from '@/lib/api.js'
 import {
   createAccount,
-  createDisk,
-  createSpace,
   deleteAccount,
-  deleteDisk,
-  deleteSpace,
   fetchAccounts,
   fetchDiskTeams,
   createDiskTeam,
@@ -47,8 +43,7 @@ import {
   fetchDiskUsers,
   fetchSpaces,
   resetAccountPassword,
-  updateDisk,
-  updateSpace,
+  saveSpaceLayout,
   fetchBackups,
   createBackup,
   restoreBackup,
@@ -74,12 +69,15 @@ function PwInput(p: { value: string; onChange: (v: string) => void; placeholder?
         value={p.value}
         onChange={(e) => p.onChange(e.target.value)}
         autoFocus={p.autoFocus}
-        className="pr-8"
+        className="pr-9"
       />
       <button
         type="button"
         onClick={() => setShow((s) => !s)}
-        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
+        aria-label={show ? 'Hide password' : 'Show password'}
+        aria-pressed={show}
+        title={show ? 'Hide password' : 'Show password'}
+        className="absolute right-1 top-1/2 flex size-6 -translate-y-1/2 items-center justify-center rounded text-muted-foreground transition-colors hover:text-foreground"
         tabIndex={-1}
       >
         {show ? <EyeOff className="size-3.5" /> : <Eye className="size-3.5" />}
@@ -123,8 +121,8 @@ function genKey(): string {
 
 // ── Export: Panel (no Dialog wrapper) + Dialog (with wrapper) ───────
 
-export function SpacesPanel() {
-  return <SpacesContent />
+export function SpacesPanel(p: { onDirtyChange?: (dirty: boolean) => void }) {
+  return <SpacesContent onDirtyChange={p.onDirtyChange} />
 }
 export function GroupConfigPanel() {
   return <GroupConfigContent />
@@ -187,9 +185,109 @@ export function ChangePasswordDialog(p: { open: boolean; onClose: () => void; us
 
 // ── Spaces Content ──────────────────────────────────────────────────
 
-function SpacesContent() {
-  const [spaces, setSpaces] = useState<any[]>([])
-  const [baseline, setBaseline] = useState<any[]>([])
+/** A space or disk as the editor holds it: server fields plus a local react key. */
+interface EditDisk {
+  id?: number
+  slug?: string
+  name: string
+  path: string
+  _key: string
+}
+interface EditSpace {
+  id?: number
+  name: string
+  disks: EditDisk[]
+  _key: string
+}
+
+/** One human-readable difference between the loaded layout and the edited one. */
+interface Change {
+  kind: 'added' | 'removed' | 'renamed' | 'moved'
+  what: string
+}
+
+/**
+ * Compare the saved layout against the edited one.
+ *
+ * The old code did `JSON.stringify(a) !== JSON.stringify(b) ? 1 : 0`, so the
+ * "Changes" figure was a yes/no flag wearing a number's clothing — three edits
+ * still read "1" — and "Show Diff" had nothing to list because no list was ever
+ * computed. Diffing by identity gives both the honest count and the lines.
+ */
+function diffLayout(baseline: EditSpace[], current: EditSpace[]): Change[] {
+  const changes: Change[] = []
+  const baseById = new Map(baseline.filter((s) => s.id !== undefined).map((s) => [s.id, s]))
+  const curById = new Map(current.filter((s) => s.id !== undefined).map((s) => [s.id, s]))
+
+  for (const space of baseline) {
+    if (space.id !== undefined && !curById.has(space.id)) {
+      changes.push({ kind: 'removed', what: `space “${space.name}”` })
+    }
+  }
+
+  for (const space of current) {
+    const before = space.id !== undefined ? baseById.get(space.id) : undefined
+    if (!before) {
+      changes.push({ kind: 'added', what: `space “${space.name || 'unnamed'}”` })
+      for (const disk of space.disks) {
+        changes.push({ kind: 'added', what: `disk “${disk.name || 'unnamed'}”` })
+      }
+      continue
+    }
+    if (before.name !== space.name) {
+      changes.push({ kind: 'renamed', what: `space “${before.name}” → “${space.name}”` })
+    }
+    const beforeDisks = new Map(before.disks.filter((d) => d.id !== undefined).map((d) => [d.id, d]))
+    const currentDiskIds = new Set(space.disks.map((d) => d.id).filter((id) => id !== undefined))
+    for (const disk of before.disks) {
+      if (disk.id !== undefined && !currentDiskIds.has(disk.id)) {
+        changes.push({ kind: 'removed', what: `disk “${disk.name}”` })
+      }
+    }
+    for (const disk of space.disks) {
+      const diskBefore = disk.id !== undefined ? beforeDisks.get(disk.id) : undefined
+      if (!diskBefore) {
+        changes.push({ kind: 'added', what: `disk “${disk.name || 'unnamed'}” in “${space.name}”` })
+        continue
+      }
+      if (diskBefore.name !== disk.name) {
+        changes.push({ kind: 'renamed', what: `disk “${diskBefore.name}” → “${disk.name}”` })
+      }
+      if (diskBefore.path !== disk.path) {
+        changes.push({ kind: 'moved', what: `path of “${disk.name}” → ${disk.path || '(empty)'}` })
+      }
+    }
+  }
+  return changes
+}
+
+/**
+ * Reasons the current layout cannot be saved.
+ *
+ * Save used to be enabled whenever anything differed, so blanking a name or a
+ * path sent the request anyway and the failure only surfaced from the API —
+ * after, under the old per-entity save loop, earlier disks had already been
+ * written. Checking here keeps the button honest about what it will do.
+ */
+function layoutProblems(spaces: EditSpace[]): string[] {
+  const problems: string[] = []
+  for (const space of spaces) {
+    if (!space.name.trim()) problems.push('A space is missing its name')
+    const seen = new Set<string>()
+    for (const disk of space.disks) {
+      if (!disk.name.trim()) problems.push(`A disk in “${space.name || 'unnamed space'}” is missing its name`)
+      if (!disk.path.trim()) problems.push(`“${disk.name || 'A disk'}” is missing its path`)
+      const key = disk.name.trim().toLowerCase()
+      if (key && seen.has(key)) problems.push(`“${space.name}” has two disks named “${disk.name}”`)
+      seen.add(key)
+    }
+  }
+  return [...new Set(problems)]
+}
+
+function SpacesContent({ onDirtyChange }: { onDirtyChange?: (dirty: boolean) => void }) {
+  const [spaces, setSpaces] = useState<EditSpace[]>([])
+  const [baseline, setBaseline] = useState<EditSpace[]>([])
   const [saving, setSaving] = useState(false)
   const [showDiff, setShowDiff] = useState(false)
   const [showRaw, setShowRaw] = useState(false)
@@ -197,11 +295,13 @@ function SpacesContent() {
   const [restoreName, setRestoreName] = useState<string | null>(null)
   const [testBusyKey, setTestBusyKey] = useState<string | null>(null)
   const [testResult, setTestResult] = useState<Record<string, DiskReadTest>>({})
+  const [confirmDeleteSpace, setConfirmDeleteSpace] = useState<number | null>(null)
+  const [confirmRestore, setConfirmRestore] = useState(false)
   const nameInputs = useRef<Record<string, HTMLInputElement | null>>({})
 
   const load = useCallback(async () => {
     const raw = await fetchSpaces()
-    const sp = raw.map((s: any) => ({
+    const sp: EditSpace[] = raw.map((s: any) => ({
       ...s,
       _key: genKey(),
       disks: s.disks.map((d: any) => ({ ...d, _key: genKey() })),
@@ -232,20 +332,51 @@ function SpacesContent() {
     }
   }
 
-  const changes =
-    JSON.stringify(
-      baseline.map((s: any) => ({ name: s.name, disks: s.disks.map((d: any) => ({ name: d.name, path: d.path })) })),
-    ) !==
-    JSON.stringify(
-      spaces.map((s: any) => ({ name: s.name, disks: s.disks.map((d: any) => ({ name: d.name, path: d.path })) })),
-    )
-      ? 1
-      : 0
-  const totalDisks = spaces.reduce((s: number, sp: any) => s + sp.disks.length, 0)
+  const changeList = useMemo(() => diffLayout(baseline, spaces), [baseline, spaces])
+  const changes = changeList.length
+  const problems = useMemo(() => (changes > 0 ? layoutProblems(spaces) : []), [spaces, changes])
+  const totalDisks = spaces.reduce((s: number, sp) => s + sp.disks.length, 0)
+
+  // The parent dialog blocks its own close while edits are pending, so it has to
+  // know. Reported through an effect rather than during render so the parent's
+  // state update never happens mid-render of this child.
+  useEffect(() => {
+    onDirtyChange?.(changes > 0)
+  }, [changes, onDirtyChange])
+  useEffect(() => () => onDirtyChange?.(false), [onDirtyChange])
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      // One transactional request: the server applies all of it or none of it.
+      const saved = await saveSpaceLayout(
+        spaces.map((s) => ({
+          ...(s.id !== undefined ? { id: s.id } : {}),
+          name: s.name,
+          disks: s.disks.map((d) => ({ ...(d.id !== undefined ? { id: d.id } : {}), name: d.name, path: d.path })),
+        })),
+      )
+      const next: EditSpace[] = saved.map((s: any) => ({
+        ...s,
+        _key: genKey(),
+        disks: s.disks.map((d: any) => ({ ...d, _key: genKey() })),
+      }))
+      setSpaces(next)
+      setBaseline(JSON.parse(JSON.stringify(next)))
+      clearApiCache()
+      success('Saved', `${changes} change${changes !== 1 ? 's' : ''} applied`)
+    } catch (e: any) {
+      // Nothing was written, so the editor keeps the user's edits rather than
+      // reloading them away — they can fix the problem and save again.
+      failure('Save failed — nothing was changed', e.message)
+    } finally {
+      setSaving(false)
+    }
+  }
 
   return (
     <div className="flex flex-col min-h-0">
-      <div className="grid grid-cols-4 gap-3 mb-3 text-xs">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-3 text-xs">
         <div className="rounded border border-border/50 px-3 py-2">
           <span className="text-muted-foreground">Spaces</span>
           <span className="float-right font-semibold">{spaces.length}</span>
@@ -266,10 +397,7 @@ function SpacesContent() {
         </div>
       </div>
       <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <Button
-          size="sm"
-          onClick={() => setSpaces((s: any[]) => [...s, { name: 'New Space', disks: [], _key: genKey() }])}
-        >
+        <Button size="sm" onClick={() => setSpaces((s) => [...s, { name: 'New Space', disks: [], _key: genKey() }])}>
           <Plus className="size-3.5 mr-1" />
           Add Space
         </Button>
@@ -277,44 +405,34 @@ function SpacesContent() {
           <RotateCcw className="size-3 mr-1" />
           Reload
         </Button>
-        <Button size="sm" variant="outline" onClick={() => setShowDiff((s) => !s)}>
+        <Button size="sm" variant="outline" onClick={() => setShowDiff((s) => !s)} aria-expanded={showDiff}>
           {showDiff ? 'Hide Diff' : 'Show Diff'}
         </Button>
-        <Button size="sm" variant="outline" onClick={() => setShowRaw((s) => !s)}>
+        <Button size="sm" variant="outline" onClick={() => setShowRaw((s) => !s)} aria-expanded={showRaw}>
           Raw JSON
         </Button>
         <div className="flex-1" />
         <Button
           size="sm"
-          onClick={async () => {
-            setSaving(true)
-            try {
-              for (const s of baseline) if (s.id && !spaces.some((sp: any) => sp.id === s.id)) await deleteSpace(s.id)
-              for (const sp of spaces) {
-                const spId = sp.id ? (await updateSpace(sp.id, sp.name), sp.id) : (await createSpace(sp.name)).id
-                const baseDisks = baseline.find((s: any) => s.id === sp.id)?.disks || []
-                for (const d of baseDisks)
-                  if (d.id && !sp.disks.some((dd: any) => dd.id === d.id)) await deleteDisk(d.id)
-                for (const d of sp.disks) {
-                  if (d.id) await updateDisk(d.id, { name: d.name, path: d.path })
-                  else await createDisk(spId, d.name, d.path)
-                }
-              }
-              success('Saved')
-              void load()
-            } catch (e: any) {
-              failure('Save failed', e.message)
-            } finally {
-              setSaving(false)
-            }
-          }}
-          disabled={!changes || saving}
+          onClick={() => void save()}
+          disabled={!changes || saving || problems.length > 0}
+          title={problems[0] ?? (changes ? `Save ${changes} change${changes !== 1 ? 's' : ''}` : 'No changes to save')}
         >
           {saving ? 'Saving…' : 'Save'}
         </Button>
       </div>
+      {problems.length > 0 && (
+        <div className="mb-3 rounded border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
+          <p className="font-semibold">Cannot save yet</p>
+          <ul className="mt-1 list-disc pl-4 space-y-0.5">
+            {problems.map((p) => (
+              <li key={p}>{p}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className="space-y-3 overflow-auto flex-1 min-h-0 pr-1">
-        {spaces.map((sp: any, spIdx: number) => (
+        {spaces.map((sp, spIdx: number) => (
           <div key={sp._key || sp.id} className="rounded-lg border border-border/60">
             <div className="flex items-center gap-2 bg-muted/20 px-3 py-2 border-b border-border/40">
               <HardDrive className="size-3.5 text-muted-foreground shrink-0" />
@@ -325,11 +443,12 @@ function SpacesContent() {
                 value={sp.name}
                 onChange={(e) => {
                   const c = [...spaces]
-                  c[spIdx] = { ...c[spIdx], name: e.target.value }
+                  c[spIdx] = { ...c[spIdx]!, name: e.target.value }
                   setSpaces(c)
                 }}
-                className="flex-1 bg-transparent text-sm font-medium border-none outline-none focus:ring-0 focus-visible:bg-muted/40 focus-visible:rounded-sm focus-visible:px-0.5 p-0"
+                className="flex-1 min-w-0 bg-transparent text-sm font-medium border-none outline-none focus:ring-0 focus-visible:bg-muted/40 focus-visible:rounded-sm focus-visible:px-0.5 p-0"
                 placeholder="Space name"
+                aria-label={`Space name${sp.name ? `: ${sp.name}` : ''}`}
               />
               <Button
                 variant="ghost"
@@ -349,9 +468,11 @@ function SpacesContent() {
                 size="sm"
                 onClick={() => {
                   const c = [...spaces]
-                  c[spIdx] = { ...c[spIdx], disks: [...c[spIdx].disks, { name: '', path: '', _key: genKey() }] }
+                  c[spIdx] = { ...c[spIdx]!, disks: [...c[spIdx]!.disks, { name: '', path: '', _key: genKey() }] }
                   setSpaces(c)
                 }}
+                aria-label={`Add a disk to ${sp.name || 'space'}`}
+                title="Add disk"
               >
                 <Plus className="size-3" />
               </Button>
@@ -359,37 +480,47 @@ function SpacesContent() {
                 variant="ghost"
                 size="sm"
                 onClick={() => {
-                  if (!sp.id || confirm('Delete this space and all its disks?'))
-                    setSpaces((s: any[]) => s.filter((_: any, i: number) => i !== spIdx))
+                  // An unsaved space has nothing to lose, so it goes without a
+                  // prompt; a saved one asks, through the same dialog every other
+                  // destructive action in here uses rather than window.confirm.
+                  if (sp.id === undefined) setSpaces((s) => s.filter((_, i: number) => i !== spIdx))
+                  else setConfirmDeleteSpace(spIdx)
                 }}
                 className="text-destructive"
+                aria-label={`Delete ${sp.name || 'space'} and its disks`}
+                title="Delete space"
               >
                 <Trash2 className="size-3" />
               </Button>
             </div>
             <div className="px-3 py-2 space-y-2">
-              {sp.disks.map((d: any, dIdx: number) => (
+              {sp.disks.map((d, dIdx: number) => (
                 <div key={d._key} className="rounded-sm bg-muted/10 border border-border/30 px-2 py-1.5">
-                  <div className="flex items-center gap-2">
+                  {/* Wraps below sm: name, path and two buttons on one row need
+                      ~360px, and on a phone the delete button was pushed past the
+                      dialog's right edge. */}
+                  <div className="flex flex-wrap items-center gap-2">
                     <input
                       value={d.name}
                       onChange={(e) => {
                         const c = [...spaces]
-                        c[spIdx].disks[dIdx] = { ...c[spIdx].disks[dIdx], name: e.target.value }
+                        c[spIdx]!.disks[dIdx] = { ...c[spIdx]!.disks[dIdx]!, name: e.target.value }
                         setSpaces(c)
                       }}
-                      className="flex-1 min-w-0 bg-muted/20 rounded-sm px-2 py-1 text-xs border border-border/30 outline-none focus:border-emerald-500/40 transition-colors"
+                      className="min-w-0 flex-1 basis-[45%] bg-muted/20 rounded-sm px-2 py-1 text-xs border border-border/30 outline-none focus:border-emerald-500/40 transition-colors"
                       placeholder="Display name"
+                      aria-label="Disk display name"
                     />
                     <input
                       value={d.path}
                       onChange={(e) => {
                         const c = [...spaces]
-                        c[spIdx].disks[dIdx] = { ...c[spIdx].disks[dIdx], path: e.target.value }
+                        c[spIdx]!.disks[dIdx] = { ...c[spIdx]!.disks[dIdx]!, path: e.target.value }
                         setSpaces(c)
                       }}
-                      className="flex-[2] min-w-0 bg-muted/20 rounded-sm px-2 py-1 text-xs font-mono border border-border/30 outline-none focus:border-emerald-500/40 transition-colors"
+                      className="min-w-0 flex-[2] basis-full sm:basis-auto bg-muted/20 rounded-sm px-2 py-1 text-xs font-mono border border-border/30 outline-none focus:border-emerald-500/40 transition-colors"
                       placeholder="Path to report.db"
+                      aria-label="Path to the directory holding report.db"
                     />
                     <Button
                       type="button"
@@ -398,6 +529,7 @@ function SpacesContent() {
                       className="h-6 px-2 text-[12px] shrink-0"
                       onClick={() => void runDiskTest(d._key, d.path)}
                       disabled={!d.path.trim() || testBusyKey === d._key}
+                      title="Check that a report can be read from this path"
                     >
                       {testBusyKey === d._key ? 'Testing…' : 'Test read'}
                     </Button>
@@ -406,10 +538,12 @@ function SpacesContent() {
                       size="sm"
                       onClick={() => {
                         const c = [...spaces]
-                        c[spIdx].disks = c[spIdx].disks.filter((_: any, i: number) => i !== dIdx)
+                        c[spIdx]!.disks = c[spIdx]!.disks.filter((_, i: number) => i !== dIdx)
                         setSpaces(c)
                       }}
                       className="text-destructive shrink-0"
+                      aria-label={`Remove disk ${d.name || '(unnamed)'}`}
+                      title="Remove disk"
                     >
                       <X className="size-3" />
                     </Button>
@@ -439,7 +573,9 @@ function SpacesContent() {
                             failure('Copy failed')
                           }
                         }}
-                        className="hover:text-foreground transition-colors"
+                        aria-label={`Copy the public link for ${d.name || 'this disk'}`}
+                        title="Copy public link"
+                        className="flex size-6 shrink-0 items-center justify-center rounded transition-colors hover:text-foreground"
                       >
                         <Copy className="size-3" />
                       </button>
@@ -456,6 +592,26 @@ function SpacesContent() {
           <p className="font-semibold text-muted-foreground mb-1">
             {changes} change{changes !== 1 ? 's' : ''}
           </p>
+          {/* The panel used to print only that count — a "Show Diff" button that
+              showed no diff. */}
+          <ul className="space-y-0.5">
+            {changeList.map((c, i) => (
+              <li key={`${c.kind}-${c.what}-${i}`} className="flex gap-2">
+                <span
+                  className={
+                    c.kind === 'added'
+                      ? 'text-[var(--emerald-400)] w-14 shrink-0'
+                      : c.kind === 'removed'
+                        ? 'text-destructive w-14 shrink-0'
+                        : 'text-[var(--amber-400)] w-14 shrink-0'
+                  }
+                >
+                  {c.kind}
+                </span>
+                <span className="min-w-0 break-words">{c.what}</span>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
       {showRaw && (
@@ -463,9 +619,9 @@ function SpacesContent() {
           <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">Raw JSON</summary>
           <pre className="mt-1 text-[12px] font-mono bg-muted/20 rounded p-2 max-h-32 overflow-auto text-muted-foreground">
             {JSON.stringify(
-              spaces.map((s: any) => ({
+              spaces.map((s) => ({
                 name: s.name,
-                disks: s.disks.map((d: any) => ({ name: d.name, path: d.path })),
+                disks: s.disks.map((d) => ({ name: d.name, path: d.path })),
               })),
               null,
               2,
@@ -491,8 +647,10 @@ function SpacesContent() {
           Backup
         </Button>
         <select
+          value={restoreName ?? ''}
           onChange={(e) => setRestoreName(e.target.value || null)}
-          className="h-7 rounded border border-border/50 bg-transparent px-1 text-[12px] text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+          aria-label="Choose a backup to restore"
+          className="h-7 min-w-0 rounded border border-border/50 bg-transparent px-1 text-[12px] text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
         >
           <option value="">Restore backup…</option>
           {backups.map((b) => (
@@ -501,26 +659,54 @@ function SpacesContent() {
             </option>
           ))}
         </select>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={async () => {
-            if (restoreName)
-              try {
-                await restoreBackup(restoreName)
-                success('Restored')
-                setRestoreName(null)
-                void load()
-              } catch (e: any) {
-                failure('Restore failed', e.message)
-              }
-          }}
-          disabled={!restoreName}
-        >
+        <Button size="sm" variant="ghost" onClick={() => setConfirmRestore(true)} disabled={!restoreName}>
           <RotateCcw className="size-3 mr-1" />
           Restore
         </Button>
       </div>
+
+      <ConfirmDialog
+        open={confirmDeleteSpace !== null}
+        onOpenChange={() => setConfirmDeleteSpace(null)}
+        title="Delete space?"
+        description={
+          confirmDeleteSpace === null
+            ? ''
+            : `“${spaces[confirmDeleteSpace]?.name ?? 'This space'}” and its ${
+                spaces[confirmDeleteSpace]?.disks.length ?? 0
+              } disk mapping(s) will be removed when you save. The reports on disk are not touched.`
+        }
+        action="Remove"
+        onConfirm={() => {
+          if (confirmDeleteSpace !== null) {
+            const idx = confirmDeleteSpace
+            setSpaces((s) => s.filter((_, i: number) => i !== idx))
+            setConfirmDeleteSpace(null)
+          }
+        }}
+      />
+      {/* Restoring rewrites the whole admin database, which is a larger action
+          than anything else on this panel and previously happened on one click. */}
+      <ConfirmDialog
+        open={confirmRestore}
+        onOpenChange={() => setConfirmRestore(false)}
+        title="Restore this backup?"
+        description={`Every space, disk mapping, group and account will be replaced by the contents of ${restoreName ?? 'the backup'}. This cannot be undone.`}
+        action="Restore"
+        onConfirm={async () => {
+          setConfirmRestore(false)
+          if (!restoreName) return
+          try {
+            await restoreBackup(restoreName)
+            success('Restored')
+            setRestoreName(null)
+            clearApiCache()
+            void load()
+          } catch (e: any) {
+            failure('Restore failed', e.message)
+          }
+        }}
+      />
     </div>
   )
 }
@@ -567,6 +753,8 @@ function AccountsContent() {
                 <Button
                   variant="ghost"
                   size="sm"
+                  aria-label={`Reset password for ${a.username}`}
+                  title={`Reset password for ${a.username}`}
                   onClick={() => {
                     setResetId(a.id)
                     setResetPw('')
@@ -578,6 +766,8 @@ function AccountsContent() {
                   <Button
                     variant="ghost"
                     size="sm"
+                    aria-label={`Delete account ${a.username}`}
+                    title={`Delete account ${a.username}`}
                     onClick={() => {
                       setConfirmId(a.id)
                       setConfirmName(a.username)
@@ -709,10 +899,22 @@ function BackupsContent() {
                 <td className="py-2 text-xs text-muted-foreground">{b.mtime.slice(0, 19).replace('T', ' ')}</td>
                 <td className="py-2 text-xs text-muted-foreground">{formatBytes(b.size)}</td>
                 <td className="py-2 text-right">
-                  <Button variant="ghost" size="sm" onClick={() => setRestoreName(b.name)}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`Restore backup ${b.name}`}
+                    title={`Restore backup ${b.name}`}
+                    onClick={() => setRestoreName(b.name)}
+                  >
                     <RotateCcw className="size-3" />
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => setDeleteName(b.name)}>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`Delete backup ${b.name}`}
+                    title={`Delete backup ${b.name}`}
+                    onClick={() => setDeleteName(b.name)}
+                  >
                     <Trash2 className="size-3 text-destructive" />
                   </Button>
                 </td>
@@ -986,28 +1188,37 @@ function GroupConfigContent() {
         <div className="flex-1" />
         <button
           onClick={onExportFull}
-          className="inline-flex items-center gap-1 rounded px-2 py-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          title="Export the whole group configuration as JSON"
+          className="inline-flex min-h-6 items-center gap-1 rounded px-2 py-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
         >
           <Download className="size-3" />
           Export
         </button>
         <button
           onClick={onImportFile}
-          className="inline-flex items-center gap-1 rounded px-2 py-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+          title="Import a group configuration JSON file"
+          className="inline-flex min-h-6 items-center gap-1 rounded px-2 py-1 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
         >
           <Upload className="size-3" />
           Import
         </button>
         <button
           onClick={() => setShowHelp(true)}
-          className="inline-flex size-5 items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors font-mono text-[13px]"
+          aria-label="Group config help"
+          title="Group config help"
+          className="inline-flex size-6 items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors font-mono text-[13px]"
         >
           ?
         </button>
       </div>
-      <div className="grid grid-cols-3 gap-3 flex-1 min-h-0 overflow-hidden" style={{ height: '100%' }}>
+      {/* Three panes side by side need roughly 600px; below that they stack so
+          each keeps a usable width instead of squeezing to a few characters. */}
+      <div
+        className="grid grid-cols-1 gap-3 flex-1 min-h-0 overflow-auto sm:grid-cols-3 sm:overflow-hidden"
+        style={{ height: '100%' }}
+      >
         {/* Disks */}
-        <div className="flex flex-col min-h-0 border-r border-border/30 pr-2">
+        <div className="flex flex-col min-h-0 sm:border-r border-border/30 sm:pr-2">
           <p className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground mb-1">Disks</p>
           <input
             placeholder="Search…"
@@ -1042,7 +1253,7 @@ function GroupConfigContent() {
         </div>
 
         {/* Groups */}
-        <div className="flex flex-col min-h-0 border-r border-border/30 pr-2">
+        <div className="flex flex-col min-h-0 sm:border-r border-border/30 sm:pr-2">
           <div className="flex items-center justify-between mb-1">
             <p className="text-[12px] font-semibold uppercase tracking-wider text-muted-foreground">Groups</p>
             <div className="flex gap-1">
@@ -1074,7 +1285,9 @@ function GroupConfigContent() {
                     setAddingGroup(true)
                     setNewGroupName('')
                   }}
-                  className="inline-flex size-5 items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+                  aria-label="Add group"
+                  title="Add group"
+                  className="inline-flex size-6 items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                 >
                   <Plus className="size-3" />
                 </button>
@@ -1154,29 +1367,36 @@ function GroupConfigContent() {
                         }}
                       />
                     ) : (
-                      <button
-                        onClick={() => setSelectedTeam(t)}
-                        onDoubleClick={() => startRename(t)}
+                      // The delete control is a sibling, not a child: a <button>
+                      // inside a <button> is invalid HTML, and browsers recover
+                      // by hoisting it out, which breaks its click target.
+                      <div
+                        className="flex w-full items-center rounded hover:bg-muted"
                         onDragOver={(e) => e.preventDefault()}
                         onDrop={async (e) => {
                           e.preventDefault()
                           const names = parseNames(e)
                           if (names.length > 0) await moveUser(names, t.id)
                         }}
-                        className="flex w-full items-center gap-1 px-2 py-1.5 text-left hover:bg-muted rounded"
                       >
-                        <span className="flex-1 truncate font-medium">{t.name}</span>
-                        <span className="text-[12px] text-muted-foreground/60">{t.users.length}</span>
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            setConfirmDelete(t.id)
-                          }}
-                          className="text-muted-foreground/40 hover:text-destructive transition-colors shrink-0 ml-1"
+                          onClick={() => setSelectedTeam(t)}
+                          onDoubleClick={() => startRename(t)}
+                          title={`${t.name} — double-click to rename`}
+                          className="flex min-w-0 flex-1 items-center gap-1 rounded px-2 py-1.5 text-left"
                         >
-                          <Trash2 className="size-2.5" />
+                          <span className="flex-1 truncate font-medium">{t.name}</span>
+                          <span className="text-[12px] text-muted-foreground/60">{t.users.length}</span>
                         </button>
-                      </button>
+                        <button
+                          onClick={() => setConfirmDelete(t.id)}
+                          aria-label={`Delete group ${t.name}`}
+                          title={`Delete group ${t.name}`}
+                          className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground/40 transition-colors hover:text-destructive"
+                        >
+                          <Trash2 className="size-3" />
+                        </button>
+                      </div>
                     )}
                   </div>
                 ))}
@@ -1309,9 +1529,11 @@ function GroupConfigContent() {
                         e.stopPropagation()
                         moveUser([u], 'other')
                       }}
-                      className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-all"
+                      aria-label={`Remove ${u} from this group`}
+                      title={`Remove ${u} from this group`}
+                      className="flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground opacity-0 transition-all hover:text-destructive focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring group-hover:opacity-100"
                     >
-                      <X className="size-2.5" />
+                      <X className="size-3" />
                     </button>
                   </div>
                 )

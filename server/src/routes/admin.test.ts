@@ -1,7 +1,9 @@
 import type { FastifyInstance, LightMyRequestResponse } from 'fastify'
 import { afterEach, describe, expect, it } from 'vitest'
 import { createAdmin } from '../db/admin.js'
-import { cleanup, createTestApp, login } from './helpers.js'
+import { mkdirSync } from 'node:fs'
+import { join } from 'node:path'
+import { cleanup, createTestApp, login, testDir } from './helpers.js'
 
 let app: FastifyInstance
 
@@ -78,6 +80,7 @@ describe('admin auth', () => {
       { method: 'POST', url: '/api/admin/backups' },
       { method: 'DELETE', url: '/api/admin/teams/1' },
       { method: 'PUT', url: '/api/admin/spaces/1', payload: { name: 'y' } },
+      { method: 'PUT', url: '/api/admin/spaces/layout', payload: { spaces: [] } },
     ]
     for (const mutation of mutations) {
       const res = await app.inject({ method: mutation.method, url: mutation.url, payload: mutation.payload })
@@ -105,6 +108,51 @@ describe('admin auth', () => {
       })
     }
     expect(last!.statusCode).toBe(429)
+  })
+})
+
+describe('space layout save', () => {
+  it('saves a whole layout in one request and returns what was stored', async () => {
+    app = createTestApp()
+    const cookie = await login(app)
+    const vol = join(testDir(), 'vol-layout')
+    mkdirSync(vol, { recursive: true })
+
+    const res = await app.inject({
+      method: 'PUT',
+      url: '/api/admin/spaces/layout',
+      headers: { cookie },
+      payload: { spaces: [{ name: 'prod', disks: [{ name: 'data', path: vol }] }] },
+    })
+    expect(res.statusCode).toBe(200)
+    const saved = res.json().data as { name: string; disks: { name: string }[] }[]
+    expect(saved.map((s) => s.name)).toEqual(['prod'])
+    expect(saved[0]?.disks.map((d) => d.name)).toEqual(['data'])
+  })
+
+  it('reports a validation failure as 422 and changes nothing', async () => {
+    app = createTestApp()
+    const cookie = await login(app)
+    const vol = join(testDir(), 'vol-ok')
+    mkdirSync(vol, { recursive: true })
+
+    await app.inject({
+      method: 'PUT',
+      url: '/api/admin/spaces/layout',
+      headers: { cookie },
+      payload: { spaces: [{ name: 'prod', disks: [{ name: 'data', path: vol }] }] },
+    })
+    const before = (await app.inject({ method: 'GET', url: '/api/admin/spaces', headers: { cookie } })).body
+
+    const bad = await app.inject({
+      method: 'PUT',
+      url: '/api/admin/spaces/layout',
+      headers: { cookie },
+      payload: { spaces: [{ name: 'prod', disks: [{ name: 'data', path: join(vol, 'nope') }] }] },
+    })
+    expect(bad.statusCode).toBe(422)
+    const after = (await app.inject({ method: 'GET', url: '/api/admin/spaces', headers: { cookie } })).body
+    expect(after).toBe(before)
   })
 })
 

@@ -854,6 +854,11 @@ const CHANGES = [
       'Disk column: the space name no longer disappears when the column is dragged narrow, the size · files · dirs line stays on one row at every column width, and dragging the column wide now stops before it squeezes the charts and tables beside it — with your chosen width restored once the window has room for it again.',
       'Overview charts on a phone: the date and size labels along the chart edges no longer run into each other — they thin out to as many as actually fit — and the first date is no longer cut off ("7/29" instead of "07/29"), which affected every window size. Panel titles now show in full instead of wrapping to three lines and still being clipped.',
       'The disk column edge now shows a grip handle, so it is clear the column can be dragged wider or narrower — double-click it to reset. The sidebar collapse button sits at the middle of the sidebar edge instead of near the top, and now says what it does on hover.',
+      'Admin → Disk Mapping now saves the whole mapping in one go: if anything in it is rejected, nothing at all is written, instead of leaving half the changes applied. Save also stays disabled — and says why — while a name or path is still blank or duplicated.',
+      'Admin → Disk Mapping: the "Changes" figure is now the real number of edits rather than always 1, and "Show Diff" lists exactly what will change — spaces and disks added, removed, renamed, or repointed.',
+      'Admin: closing the dialog with unsaved Disk Mapping edits now asks before discarding them, and restoring a backup — which rewrites the whole admin database — now asks for confirmation instead of doing it on one click. Deleting a space asks too.',
+      'Admin: icon-only buttons for reset password, delete, restore and remove-from-group now have hover and screen-reader labels, and are large enough to tap. Group Config no longer nests a delete button inside the group row button.',
+      'Admin on a phone or narrow window: the tab bar wraps instead of overflowing, Group Config stacks its three panes instead of squeezing them, and the dialog keeps a stable height so panels no longer jump as you switch tabs.',
     ],
   },
   {

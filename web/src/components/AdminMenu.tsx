@@ -2,6 +2,16 @@ import { useCallback, useEffect, useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { Shield, User, LogOut, HardDrive, Users, Key, Archive } from 'lucide-react'
 import { success } from '@/lib/toast.js'
@@ -12,6 +22,11 @@ export function AdminButton({ collapsed }: { collapsed: boolean }) {
   const [auth, setAuth] = useState<AuthInfo | null>(null)
   const [showLogin, setShowLogin] = useState(false)
   const [showAdmin, setShowAdmin] = useState(false)
+  // The Disk Mapping editor holds unsaved edits in local state, so closing the
+  // dialog throws them away silently. It reports its dirty flag up here so the
+  // close can be intercepted.
+  const [dirty, setDirty] = useState(false)
+  const [confirmDiscard, setConfirmDiscard] = useState(false)
 
   const check = useCallback(async () => {
     try {
@@ -110,19 +125,33 @@ export function AdminButton({ collapsed }: { collapsed: boolean }) {
         {!collapsed && <span className="truncate max-w-[80px]">{auth.user?.username}</span>}
       </button>
 
-      <Dialog open={showAdmin} onOpenChange={setShowAdmin}>
-        <DialogContent className="sm:max-w-[900px] max-h-[90vh] flex flex-col">
+      <Dialog
+        open={showAdmin}
+        onOpenChange={(v) => {
+          // Closing with unsaved Disk Mapping edits discards them; ask first.
+          if (!v && dirty) {
+            setConfirmDiscard(true)
+            return
+          }
+          setShowAdmin(v)
+        }}
+      >
+        <DialogContent className="sm:max-w-[900px] h-[90vh] max-h-[90vh] flex flex-col">
           <DialogHeader>
-            <div className="flex items-center justify-between pr-6">
+            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 pr-6">
               <DialogTitle className="flex items-center gap-2">
                 <Shield className="size-4" />
                 Admin
               </DialogTitle>
               <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                <span>
+                <span className="truncate max-w-[180px]">
                   {auth.user?.username} · {auth.user?.role}
                 </span>
-                <button onClick={doLogout} className="inline-flex items-center gap-1 text-destructive hover:underline">
+                <button
+                  onClick={doLogout}
+                  title="Sign out"
+                  className="inline-flex min-h-6 items-center gap-1 rounded-sm px-1.5 py-1 text-destructive ring-offset-background transition-colors hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                >
                   <LogOut className="size-3" />
                   Sign out
                 </button>
@@ -130,7 +159,7 @@ export function AdminButton({ collapsed }: { collapsed: boolean }) {
             </div>
           </DialogHeader>
           <Tabs defaultValue="spaces" className="flex-1 flex flex-col min-h-0">
-            <TabsList className="mb-3">
+            <TabsList className="mb-3 h-auto w-full flex-wrap justify-start gap-1">
               <TabsTrigger value="spaces">
                 <HardDrive className="size-3.5 mr-1.5" />
                 Disk Mapping
@@ -156,7 +185,7 @@ export function AdminButton({ collapsed }: { collapsed: boolean }) {
             </TabsList>
             <div className="flex-1 min-h-0 overflow-auto">
               <TabsContent value="spaces" className="mt-0 h-full">
-                <SpacesPanel />
+                <SpacesPanel onDirtyChange={setDirty} />
               </TabsContent>
               <TabsContent value="groups" className="mt-0 h-full">
                 <GroupConfigPanel />
@@ -174,6 +203,32 @@ export function AdminButton({ collapsed }: { collapsed: boolean }) {
               </TabsContent>
             </div>
           </Tabs>
+
+          {/* Inside DialogContent on purpose: the dialog renders through a
+              portal appended to <body>, so an alert placed outside it lands
+              earlier in the DOM and the dialog overlay swallows its clicks. */}
+          <AlertDialog open={confirmDiscard} onOpenChange={setConfirmDiscard}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Discard unsaved changes?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  The Disk Mapping editor has changes that have not been saved. Closing now throws them away.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel onClick={() => setConfirmDiscard(false)}>Keep editing</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => {
+                    setConfirmDiscard(false)
+                    setDirty(false)
+                    setShowAdmin(false)
+                  }}
+                >
+                  Discard
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </DialogContent>
       </Dialog>
     </>

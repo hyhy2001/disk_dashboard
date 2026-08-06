@@ -142,6 +142,32 @@ export async function fetchSpaces(): Promise<SpaceWithDisks[]> {
   return res.data
 }
 
+/** One space as the Disk Mapping editor submits it. `id` absent means "create". */
+export interface LayoutSpaceInput {
+  id?: number
+  name: string
+  disks: { id?: number; name: string; path: string }[]
+}
+
+/**
+ * Save the whole Disk Mapping layout in one request.
+ *
+ * Replaces the old loop of per-entity create/update/delete calls, which
+ * committed whatever had already succeeded when one of them failed. The server
+ * applies this inside a transaction, so a rejected save leaves the mapping
+ * exactly as it was. Returns the saved layout, so the editor can reset its
+ * baseline from what the server actually stored rather than from what it hoped
+ * it sent.
+ */
+export async function saveSpaceLayout(spaces: LayoutSpaceInput[]): Promise<SpaceWithDisks[]> {
+  const res = await fetchJson<{ status: string; data: SpaceWithDisks[] }>('/api/admin/spaces/layout', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ spaces }),
+  })
+  return res.data
+}
+
 export async function createSpace(name: string): Promise<SpaceWithDisks> {
   const res = await fetchJson<{ status: string; data: any }>('/api/admin/spaces', {
     method: 'POST',

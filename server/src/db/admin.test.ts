@@ -17,8 +17,11 @@ import {
   importDiskTeams,
   listBackups,
   listDiskTeams,
+  listSpaces,
+  listSpacesWithDisks,
   restoreBackup,
   safeBackupName,
+  saveLayout,
   signSession,
   teamUserClashes,
   updateDisk,
@@ -44,6 +47,13 @@ function withTempDb(): string {
   dir = mkdtempSync(join(tmpdir(), 'admin-'))
   process.env.DASHBOARD_ADMIN_DB = join(dir, 'admin.db')
   return dir
+}
+
+/** A real directory under an already-created temp db dir. */
+function realPathIn(base: string, name: string): string {
+  const p = join(base, name)
+  mkdirSync(p, { recursive: true })
+  return p
 }
 
 /** A real directory under the temp db dir, so path validation passes. */
@@ -246,5 +256,77 @@ describe('disk team user clashes', () => {
     updateDiskTeam(t3.id, { users: ['carol'] })
     // alice lives on `disk` (t2), so claiming carol on `other` must not clash.
     expect(teamUserClashes(other.id, t3.id, ['carol'])).toEqual([])
+  })
+})
+
+describe('saveLayout', () => {
+  it('applies renames, additions and removals in one shot', () => {
+    const base = withTempDb()
+    const sp = createSpace('prod')
+    const keep = createDisk(sp.id, 'data', realPathIn(base, 'data'))
+    createDisk(sp.id, 'scratch', realPathIn(base, 'scratch'))
+    const gone = createSpace('staging')
+
+    const after = saveLayout([
+      {
+        id: sp.id,
+        name: 'production',
+        disks: [
+          { id: keep.id, name: 'primary', path: keep.path },
+          { name: 'archive', path: realPathIn(base, 'archive') },
+        ],
+      },
+    ])
+
+    expect(after.map((s) => s.name)).toEqual(['production'])
+    expect(after[0]?.disks.map((d) => d.name)).toEqual(['primary', 'archive'])
+    expect(listSpaces().some((s) => s.id === gone.id)).toBe(false)
+  })
+
+  it('leaves the mapping untouched when any disk fails validation', () => {
+    const base = withTempDb()
+    const sp = createSpace('prod')
+    const disk = createDisk(sp.id, 'data', realPathIn(base, 'data'))
+    const before = JSON.stringify(listSpacesWithDisks())
+
+    expect(() =>
+      saveLayout([
+        {
+          id: sp.id,
+          name: 'renamed',
+          disks: [
+            { id: disk.id, name: 'data', path: disk.path },
+            { name: 'bad', path: join(base, 'does-not-exist') },
+          ],
+        },
+      ]),
+    ).toThrow()
+
+    // The rename would have landed first under the old per-entity save loop.
+    expect(JSON.stringify(listSpacesWithDisks())).toBe(before)
+  })
+
+  it('rejects duplicate disk names within a space before writing', () => {
+    const base = withTempDb()
+    const sp = createSpace('prod')
+
+    expect(() =>
+      saveLayout([
+        {
+          id: sp.id,
+          name: 'prod',
+          disks: [
+            { name: 'data', path: realPathIn(base, 'a') },
+            { name: 'DATA', path: realPathIn(base, 'b') },
+          ],
+        },
+      ]),
+    ).toThrow(/two disks named/)
+    expect(listSpacesWithDisks()[0]?.disks).toHaveLength(0)
+  })
+
+  it('rejects a blank space name', () => {
+    withTempDb()
+    expect(() => saveLayout([{ name: '  ', disks: [] }])).toThrow(/needs a name/)
   })
 })
