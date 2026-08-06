@@ -47,6 +47,7 @@ import { PermissionsTab } from './tabs/PermissionsTab.js'
 import { TreemapTab } from './tabs/TreemapTab.js'
 import { UserTab } from './tabs/UserTab.js'
 import { AdminButton } from './components/AdminMenu.js'
+import { fetchAuthStatus, onAuthChanged } from './lib/adminApi.js'
 import { MyGroupsDialog } from './components/MyGroups.js'
 import { fingerprintGroups, teamsToGroups, type UserGroup } from './lib/groups.js'
 import { clearUserGroups, loadUserGroups, saveUserGroups } from './lib/prefs.js'
@@ -303,13 +304,43 @@ export function App() {
   const [groupsVersion, setGroupsVersion] = useState(0)
   const [officialTeams, setOfficialTeams] = useState<UserGroup[]>([])
   const [officialChanged, setOfficialChanged] = useState(false)
+
+  // Whether nobody is signed in. The browser-local grouping is a guest facility:
+  // an owner or admin has the shared one in Admin → Group Config, so offering
+  // both would be two different things wearing the same name.
+  //
+  // Assume guest until told otherwise, and re-ask on every identity change —
+  // signing in has to take the entry point away, not just signing out give it
+  // back.
+  const [isGuest, setIsGuest] = useState(true)
+  useEffect(() => {
+    let live = true
+    const read = () => {
+      fetchAuthStatus()
+        .then((info) => {
+          if (live) setIsGuest(!info.loggedIn)
+        })
+        .catch(() => {
+          // No answer means no session to speak of; the endpoint is unauthenticated,
+          // so a failure here is the server being unreachable, not a refusal.
+          if (live) setIsGuest(true)
+        })
+    }
+    read()
+    const off = onAuthChanged(read)
+    return () => {
+      live = false
+      off()
+    }
+  }, [])
+
   const userGroups = useMemo(() => {
     // groupsVersion takes no part in the result. It is a dependency because
     // localStorage is not reactive: the dialog bumps it after an edit, which is
     // the only signal this has to go and read the new value.
     void groupsVersion
-    return route.disk ? loadUserGroups(route.disk) : null
-  }, [route.disk, groupsVersion])
+    return isGuest && route.disk ? loadUserGroups(route.disk) : null
+  }, [route.disk, groupsVersion, isGuest])
   const hasUserGroups = userGroups !== null
 
   // Every account on the disk, for the group editor to hand out. The overview's
@@ -348,7 +379,10 @@ export function App() {
         const official = teamsToGroups(shared)
         setOfficialTeams(official)
 
-        const mine = route.disk ? loadUserGroups(route.disk) : null
+        // Only guests get the browser-local layer. A signed-in user has no way to
+        // edit or clear it, so applying a leftover override would show them a
+        // grouping they cannot account for or undo.
+        const mine = isGuest && route.disk ? loadUserGroups(route.disk) : null
         if (!mine || mine.groups.length === 0) {
           setOfficialChanged(false)
           setOverview(shared)
@@ -368,7 +402,7 @@ export function App() {
     return () => {
       live = false
     }
-  }, [route.disk, activeGroup, diskNotFound, groupsVersion])
+  }, [route.disk, activeGroup, diskNotFound, groupsVersion, isGuest])
 
   const pickSpace = useCallback((name: string) => {
     // The space list lives in the drawer on mobile; picking one must dismiss it
@@ -494,6 +528,25 @@ export function App() {
                     <div className="px-3 py-1.5 text-[12px] font-semibold uppercase tracking-wider text-muted-foreground border-b border-border/50">
                       Preferences
                     </div>
+                    {/* Guests only. An owner or admin edits the shared grouping in
+                        Admin → Group Config; offering them a second, browser-local
+                        one here would just be two things called the same name. */}
+                    {isGuest && route.disk && (
+                      <button
+                        onClick={() => {
+                          setShowSettings(false)
+                          setShowMyGroups(true)
+                        }}
+                        className="flex w-full items-center gap-2 px-3 py-2 text-xs text-left hover:bg-muted transition-colors"
+                        title="Group users your own way — saved in this browser only"
+                      >
+                        <Users className="size-3.5" />
+                        <span className="flex-1">Group Config</span>
+                        {hasUserGroups && (
+                          <span className="rounded-sm bg-amber-400/15 px-1 text-[11px] text-amber-200/90">on</span>
+                        )}
+                      </button>
+                    )}
                     <button
                       onClick={() => {
                         setShowSettings(false)
@@ -599,19 +652,6 @@ export function App() {
 
           {/* Footer */}
           <div className="border-t border-border/40 px-2 py-2">
-            {route.disk && (
-              <button
-                onClick={() => setShowMyGroups(true)}
-                className="inline-flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-white/[0.04] hover:text-foreground"
-                title="Group users your own way — saved in this browser only"
-              >
-                <Users className="size-3.5 shrink-0" />
-                {!collapsed && <span className="truncate">My groups</span>}
-                {!collapsed && hasUserGroups && (
-                  <span className="ml-auto rounded-sm bg-amber-400/15 px-1 text-[11px] text-amber-200/90">on</span>
-                )}
-              </button>
-            )}
             <AdminButton collapsed={collapsed} />
             <p
               id="page-load-time"
@@ -984,7 +1024,7 @@ const CHANGES = [
       'Admin: icon-only buttons for reset password, delete, restore and remove-from-group now have hover and screen-reader labels, and are large enough to tap. Group Config no longer nests a delete button inside the group row button.',
       'Admin on a phone or narrow window: the tab bar wraps instead of overflowing, Group Config stacks its three panes instead of squeezing them, and the dialog keeps a stable height so panels no longer jump as you switch tabs.',
       'Security fix: an "admin" account could previously delete the whole disk mapping, edit disk paths, or restore over the admin database. Those areas are now owner-only; an admin account gets Group Config and its own password, and the tabs it cannot use are hidden.',
-      'New "My groups" in the sidebar: anyone — signed in or not — can arrange the accounts on a disk into their own groups and see the Overview rolled up that way. The groups are saved in this browser only, and the totals are computed on the server, so they match the shared grouping figure for figure.',
+      'New Group Config under the sidebar settings menu: a viewer who is not signed in can arrange the accounts on a disk into their own groups and see the Overview rolled up that way. The groups are saved in that browser only, and the totals are computed on the server, so they match the shared grouping figure for figure. Signed-in accounts use the shared Group Config in Admin instead.',
       'The Overview teams chart now says whether you are looking at the shared grouping or your own, and tells you when the shared one has changed since you made yours — keeping your version until you choose.',
     ],
   },

@@ -16,6 +16,27 @@ export function onAuthInvalid(fn: () => void): () => void {
   return () => authInvalidListeners.delete(fn)
 }
 
+/**
+ * Fired whenever the signed-in identity changes at all — login, setup, logout or
+ * expiry.
+ *
+ * `onAuthInvalid` only covers the session going away. Parts of the UI outside the
+ * admin dialog decide what to render from *whether* someone is signed in, so they
+ * need to hear about signing in as well; without this they keep their first answer
+ * until something else happens to re-render them.
+ */
+const authChangeListeners = new Set<() => void>()
+
+/** Subscribe to any change of signed-in identity. Returns an unsubscribe function. */
+export function onAuthChanged(fn: () => void): () => void {
+  authChangeListeners.add(fn)
+  return () => authChangeListeners.delete(fn)
+}
+
+function notifyAuthChanged(): void {
+  for (const fn of authChangeListeners) fn()
+}
+
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { credentials: 'same-origin', ...init })
   if (res.status === 401) {
@@ -23,6 +44,7 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
     // and the UI should stop pretending the admin area is open.
     clearAuthCache()
     for (const fn of authInvalidListeners) fn()
+    notifyAuthChanged()
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({ message: res.statusText }))
@@ -72,6 +94,7 @@ export async function login(
     body: JSON.stringify(body),
   })
   clearAuthCache()
+  notifyAuthChanged()
   return res.data
 }
 
@@ -83,6 +106,7 @@ export async function fetchCaptcha(): Promise<{ id: string; question: string }> 
 export async function logout(): Promise<void> {
   await fetchJson<{ status: string }>('/api/admin/logout', { method: 'POST' })
   clearAuthCache()
+  notifyAuthChanged()
 }
 
 export async function setup(username: string, password: string): Promise<AuthInfo['user']> {
@@ -92,6 +116,7 @@ export async function setup(username: string, password: string): Promise<AuthInf
     body: JSON.stringify({ username, password }),
   })
   clearAuthCache()
+  notifyAuthChanged()
   return res.data
 }
 

@@ -1,4 +1,4 @@
-import { cleanup, render } from '@testing-library/react'
+import { act, cleanup, render } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { App, loadTimeMs } from './App.js'
 
@@ -27,13 +27,26 @@ vi.mock('./lib/api.js', () => ({
   clearApiCache: () => {},
 }))
 
+// Mutable so a test can play the same App as a signed-in user. The default is a
+// guest, which is what every other test in this file assumes.
+let loggedIn = false
+
 vi.mock('./lib/adminApi.js', () => ({
   fetchAuthStatus: () =>
-    Promise.resolve({ loggedIn: false, user: null, needsSetup: false, rateLimit: { captcha: false, attempts: 0 } }),
+    Promise.resolve({
+      loggedIn,
+      user: loggedIn ? { id: 1, username: 'someone', role: 'admin' } : null,
+      needsSetup: false,
+      rateLimit: { captcha: false, attempts: 0 },
+    }),
   onAuthInvalid: () => () => {},
+  onAuthChanged: () => () => {},
 }))
 
-afterEach(cleanup)
+afterEach(() => {
+  cleanup()
+  loggedIn = false
+})
 
 describe('App shell layout', () => {
   it('renders sidebar brand text', () => {
@@ -117,5 +130,47 @@ describe('unknown route links', () => {
   it('still renders the dashboard for the default route', () => {
     const { container } = renderAt('/')
     expect(container.querySelector('aside')).toBeTruthy()
+  })
+})
+
+describe('browser-local Group Config entry', () => {
+  /** Point the address bar at a path before the App mounts. */
+  function renderAt(path: string): ReturnType<typeof render> {
+    const spy = vi.spyOn(window, 'location', 'get').mockReturnValue({ ...window.location, pathname: path })
+    const out = render(<App />)
+    spy.mockRestore()
+    return out
+  }
+
+  /** Open the sidebar settings menu and report what it offers. */
+  async function settingsMenuText(container: HTMLElement): Promise<string> {
+    const btn = container.querySelector('#sidebar-settings-btn') as HTMLButtonElement | null
+    expect(btn).toBeTruthy()
+    await act(async () => {
+      btn!.click()
+    })
+    return container.textContent ?? ''
+  }
+
+  it('offers Group Config to a guest viewing a disk', async () => {
+    const { container } = renderAt('/Prod/web-01/overview')
+    // Let the auth probe settle before reading the menu.
+    await act(async () => {})
+    expect(await settingsMenuText(container)).toContain('Group Config')
+  })
+
+  it('hides it from a signed-in account, which has the shared one in Admin', async () => {
+    loggedIn = true
+    const { container } = renderAt('/Prod/web-01/overview')
+    await act(async () => {})
+    const text = await settingsMenuText(container)
+    expect(text).toContain('Change Log')
+    expect(text).not.toContain('Group Config')
+  })
+
+  it('hides it when no disk is open, since it groups the users of one disk', async () => {
+    const { container } = renderAt('/')
+    await act(async () => {})
+    expect(await settingsMenuText(container)).not.toContain('Group Config')
   })
 })

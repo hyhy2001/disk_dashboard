@@ -35,7 +35,7 @@ export function MyGroupsDialog(p: {
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Users className="size-4" />
-            My groups — {p.diskName}
+            Group Config — {p.diskName}
           </DialogTitle>
         </DialogHeader>
         <MyGroupsContent {...p} />
