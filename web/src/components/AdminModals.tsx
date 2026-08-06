@@ -42,6 +42,7 @@ import {
   importDiskTeams,
   fetchDiskUsers,
   fetchSpaces,
+  fetchGroupTargets,
   resetAccountPassword,
   saveSpaceLayout,
   fetchBackups,
@@ -1066,10 +1067,10 @@ function GroupConfigContent() {
   const [renameValue, setRenameValue] = useState('')
 
   useEffect(() => {
-    fetchSpaces()
-      .then((sp) =>
-        setAllDisks(sp.flatMap((s: any) => s.disks.map((d: any) => ({ id: d.id, name: d.name, spaceName: s.name })))),
-      )
+    // Not fetchSpaces: that is owner-only (it carries filesystem paths), and
+    // Group Config is the one area an `admin` account may edit.
+    fetchGroupTargets()
+      .then(setAllDisks)
       .catch(() => {})
   }, [])
 

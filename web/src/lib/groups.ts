@@ -83,6 +83,29 @@ export function sameGrouping(a: readonly UserGroup[], b: readonly UserGroup[]): 
 }
 
 /**
+ * Reconstruct group membership from an overview payload.
+ *
+ * Only as complete as the payload: `users` is capped at the server's render
+ * limit, so on a large disk this sees the biggest accounts and not the tail.
+ * That is fine for seeding the editor and for the change fingerprint — both
+ * compare like against like — but it is why totals are never computed from it.
+ */
+export function teamsToGroups(overview: {
+  teams: { name: string }[]
+  users: { name: string; team?: string }[]
+}): UserGroup[] {
+  const byTeam = new Map<string, string[]>()
+  for (const team of overview.teams) byTeam.set(team.name, [])
+  for (const user of overview.users) {
+    if (!user.team) continue
+    const members = byTeam.get(user.team)
+    if (members) members.push(user.name)
+    else byTeam.set(user.team, [user.name])
+  }
+  return [...byTeam.entries()].map(([name, users]) => ({ name, users }))
+}
+
+/**
  * Drop groups that would not survive a round trip: unnamed, or empty.
  *
  * An empty group is legal on the server (it renders as a zero row) but keeping

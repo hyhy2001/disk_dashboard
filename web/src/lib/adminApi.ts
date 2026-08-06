@@ -142,6 +142,25 @@ export async function fetchSpaces(): Promise<SpaceWithDisks[]> {
   return res.data
 }
 
+/** A disk as the Group Config editor needs it — identity only, no path. */
+export interface GroupTarget {
+  id: number
+  name: string
+  slug: string
+  spaceName: string
+}
+
+/**
+ * Disks an admin may configure groups for.
+ *
+ * Group Config cannot use `fetchSpaces`: that endpoint is owner-only because it
+ * carries filesystem paths, so an `admin` account gets a 403 from it.
+ */
+export async function fetchGroupTargets(): Promise<GroupTarget[]> {
+  const res = await fetchJson<{ status: string; data: GroupTarget[] }>('/api/admin/group-targets')
+  return res.data
+}
+
 /** One space as the Disk Mapping editor submits it. `id` absent means "create". */
 export interface LayoutSpaceInput {
   id?: number

@@ -8,7 +8,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { HealthInfo, Overview, ScanStatus, TargetGroup } from '../../shared/api.js'
-import { clearApiCache, fetchGroups, fetchHealth, fetchOverview, fetchStatuses } from './lib/api.js'
+import {
+  clearApiCache,
+  fetchGroups,
+  fetchHealth,
+  fetchOverview,
+  fetchRegroupedOverview,
+  fetchStatuses,
+  fetchUsers,
+} from './lib/api.js'
 import { NoTargets } from './components/NoTargets.js'
 import { DiskColumn } from './components/DiskColumn.js'
 import { ErrorBoundary } from './components/ErrorBoundary.js'
@@ -39,6 +47,9 @@ import { PermissionsTab } from './tabs/PermissionsTab.js'
 import { TreemapTab } from './tabs/TreemapTab.js'
 import { UserTab } from './tabs/UserTab.js'
 import { AdminButton } from './components/AdminMenu.js'
+import { MyGroupsDialog } from './components/MyGroups.js'
+import { fingerprintGroups, teamsToGroups, type UserGroup } from './lib/groups.js'
+import { clearUserGroups, loadUserGroups, saveUserGroups } from './lib/prefs.js'
 import { ScrollTop } from './components/ScrollTop.js'
 import { StatBar } from './components/StatBar.js'
 import { ColumnResizer } from './components/ColumnResizer.js'
@@ -54,7 +65,7 @@ import {
   type Route,
 } from './lib/route.js'
 import { cn } from './lib/utils.js'
-import { Monitor, HardDrive, Sun, Moon, Settings, FileText, X, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Monitor, HardDrive, Sun, Moon, Settings, FileText, X, ChevronLeft, ChevronRight, Users } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
 type Theme = 'dark' | 'light'
@@ -286,6 +297,40 @@ export function App() {
 
   const active = overview?.target
 
+  // The viewer's own grouping, if they made one for this disk. Bumped by
+  // `groupsVersion` so edits in the dialog re-run the fetch below.
+  const [showMyGroups, setShowMyGroups] = useState(false)
+  const [groupsVersion, setGroupsVersion] = useState(0)
+  const [officialTeams, setOfficialTeams] = useState<UserGroup[]>([])
+  const [officialChanged, setOfficialChanged] = useState(false)
+  const userGroups = useMemo(() => {
+    // groupsVersion takes no part in the result. It is a dependency because
+    // localStorage is not reactive: the dialog bumps it after an edit, which is
+    // the only signal this has to go and read the new value.
+    void groupsVersion
+    return route.disk ? loadUserGroups(route.disk) : null
+  }, [route.disk, groupsVersion])
+  const hasUserGroups = userGroups !== null
+
+  // Every account on the disk, for the group editor to hand out. The overview's
+  // own user list is capped at the server's render limit, so it would silently
+  // hide the tail of a large disk from the person doing the grouping.
+  const [groupUsers, setGroupUsers] = useState<string[]>([])
+  useEffect(() => {
+    if (!showMyGroups || !route.disk) return
+    let live = true
+    fetchUsers(route.disk)
+      .then((rows) => {
+        if (live) setGroupUsers(rows.map((r) => r.name))
+      })
+      .catch(() => {
+        if (live) setGroupUsers([])
+      })
+    return () => {
+      live = false
+    }
+  }, [showMyGroups, route.disk])
+
   useEffect(() => {
     if (!route.disk || !activeGroup || diskNotFound) {
       setOverview(null)
@@ -294,9 +339,28 @@ export function App() {
     let live = true
     setError(null)
     setOverview(null)
+
+    // Always fetch the shared view first: it is the baseline the viewer's groups
+    // are built on, and the thing to compare against for a change notice.
     fetchOverview(route.disk)
-      .then((o) => {
-        if (live) setOverview(o)
+      .then(async (shared) => {
+        if (!live) return
+        const official = teamsToGroups(shared)
+        setOfficialTeams(official)
+
+        const mine = route.disk ? loadUserGroups(route.disk) : null
+        if (!mine || mine.groups.length === 0) {
+          setOfficialChanged(false)
+          setOverview(shared)
+          return
+        }
+
+        // Tell the viewer when the shared grouping moved underneath them, but
+        // keep showing their own — silently discarding their work would be worse.
+        setOfficialChanged(mine.officialFingerprint !== fingerprintGroups(official))
+
+        const regrouped = await fetchRegroupedOverview(route.disk!, mine.groups)
+        if (live) setOverview(regrouped)
       })
       .catch((err: any) => {
         if (live) setError(err.message)
@@ -304,7 +368,7 @@ export function App() {
     return () => {
       live = false
     }
-  }, [route.disk, activeGroup, diskNotFound])
+  }, [route.disk, activeGroup, diskNotFound, groupsVersion])
 
   const pickSpace = useCallback((name: string) => {
     // The space list lives in the drawer on mobile; picking one must dismiss it
@@ -535,6 +599,19 @@ export function App() {
 
           {/* Footer */}
           <div className="border-t border-border/40 px-2 py-2">
+            {route.disk && (
+              <button
+                onClick={() => setShowMyGroups(true)}
+                className="inline-flex w-full items-center gap-2 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-white/[0.04] hover:text-foreground"
+                title="Group users your own way — saved in this browser only"
+              >
+                <Users className="size-3.5 shrink-0" />
+                {!collapsed && <span className="truncate">My groups</span>}
+                {!collapsed && hasUserGroups && (
+                  <span className="ml-auto rounded-sm bg-amber-400/15 px-1 text-[11px] text-amber-200/90">on</span>
+                )}
+              </button>
+            )}
             <AdminButton collapsed={collapsed} />
             <p
               id="page-load-time"
@@ -724,7 +801,44 @@ export function App() {
               ) : !overview ? (
                 <NoTargets health={health} reason="disk-no-report" />
               ) : route.page === 'overview' ? (
-                <OverviewTab overview={overview} />
+                <>
+                  {officialChanged && (
+                    <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-sm border border-amber-400/30 bg-amber-400/10 px-3 py-2 text-xs">
+                      <span className="flex-1">
+                        The shared groups changed since you made yours. You are still seeing your own.
+                      </span>
+                      <button
+                        onClick={() => {
+                          if (!route.disk) return
+                          clearUserGroups(route.disk)
+                          setGroupsVersion((v) => v + 1)
+                        }}
+                        className="rounded-sm px-2 py-1 font-medium underline-offset-2 hover:underline"
+                      >
+                        Use the shared groups
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (!route.disk) return
+                          const mine = loadUserGroups(route.disk)
+                          // Re-baseline against what the shared grouping is now,
+                          // so the notice stops without touching their groups.
+                          if (mine) {
+                            saveUserGroups(route.disk, {
+                              groups: mine.groups,
+                              officialFingerprint: fingerprintGroups(officialTeams),
+                            })
+                          }
+                          setOfficialChanged(false)
+                        }}
+                        className="rounded-sm px-2 py-1 font-medium underline-offset-2 hover:underline"
+                      >
+                        Keep mine
+                      </button>
+                    </div>
+                  )}
+                  <OverviewTab overview={overview} groupSource={hasUserGroups ? 'mine' : 'shared'} />
+                </>
               ) : (
                 <div className="flex flex-1 flex-col min-h-0">
                   {/* One scrolling row rather than a wrapping one: below ~420px the
@@ -771,6 +885,16 @@ export function App() {
         <ScrollTop targetRef={mainRef} />
       </div>
       <ChangeLogModal open={showChangeLog} onClose={() => setShowChangeLog(false)} />
+      {route.disk && (
+        <MyGroupsDialog
+          open={showMyGroups}
+          onClose={() => setShowMyGroups(false)}
+          slug={route.disk}
+          diskName={active?.name ?? route.disk}
+          source={{ users: groupUsers, official: officialTeams }}
+          onChanged={() => setGroupsVersion((v) => v + 1)}
+        />
+      )}
       <CommandPalette
         open={paletteOpen}
         onClose={() => setPaletteOpen(false)}
@@ -859,6 +983,9 @@ const CHANGES = [
       'Admin: closing the dialog with unsaved Disk Mapping edits now asks before discarding them, and restoring a backup — which rewrites the whole admin database — now asks for confirmation instead of doing it on one click. Deleting a space asks too.',
       'Admin: icon-only buttons for reset password, delete, restore and remove-from-group now have hover and screen-reader labels, and are large enough to tap. Group Config no longer nests a delete button inside the group row button.',
       'Admin on a phone or narrow window: the tab bar wraps instead of overflowing, Group Config stacks its three panes instead of squeezing them, and the dialog keeps a stable height so panels no longer jump as you switch tabs.',
+      'Security fix: an "admin" account could previously delete the whole disk mapping, edit disk paths, or restore over the admin database. Those areas are now owner-only; an admin account gets Group Config and its own password, and the tabs it cannot use are hidden.',
+      'New "My groups" in the sidebar: anyone — signed in or not — can arrange the accounts on a disk into their own groups and see the Overview rolled up that way. The groups are saved in this browser only, and the totals are computed on the server, so they match the shared grouping figure for figure.',
+      'The Overview teams chart now says whether you are looking at the shared grouping or your own, and tells you when the shared one has changed since you made yours — keeping your version until you choose.',
     ],
   },
   {

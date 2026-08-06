@@ -10,6 +10,13 @@ import { Expand } from 'lucide-react'
 
 interface Props {
   overview: Overview
+  /**
+   * Which grouping layer produced `overview.teams`.
+   *
+   * Shown next to the donut so nobody mistakes their own arrangement for the
+   * shared one — the two can differ substantially and the numbers look alike.
+   */
+  groupSource?: 'shared' | 'mine'
 }
 type Expanded = 'timeline' | 'teams' | 'users' | null
 
@@ -27,7 +34,7 @@ function ExpandButton({ onClick }: { onClick: () => void }): JSX.Element {
   )
 }
 
-export function OverviewTab({ overview }: Props): JSX.Element {
+export function OverviewTab({ overview, groupSource = 'shared' }: Props): JSX.Element {
   const { capacity, teams, users, otherUsers, history } = overview
   const [range, setRange] = useState<RangeDays>('all')
   const [logScale, setLogScale] = useState(false)
@@ -84,7 +91,23 @@ export function OverviewTab({ overview }: Props): JSX.Element {
             <h2 className="min-w-0 truncate text-sm font-semibold" title="Usage by Teams">
               Usage by Teams
             </h2>
-            <ExpandButton onClick={() => setExpanded('teams')} />
+            <div className="flex shrink-0 items-center gap-1.5">
+              <span
+                className={`rounded-sm px-1.5 py-0.5 text-[11px] font-medium ${
+                  groupSource === 'mine'
+                    ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                    : 'bg-muted text-muted-foreground'
+                }`}
+                title={
+                  groupSource === 'mine'
+                    ? 'Grouped the way you arranged it in this browser'
+                    : 'The grouping everyone sees'
+                }
+              >
+                {groupSource === 'mine' ? 'My groups' : 'Shared'}
+              </span>
+              <ExpandButton onClick={() => setExpanded('teams')} />
+            </div>
           </div>
           <div className="panel-chart--half p-3 flex flex-col justify-center">
             <Donut

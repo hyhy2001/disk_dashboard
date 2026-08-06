@@ -112,8 +112,10 @@ export function AdminButton({ collapsed }: { collapsed: boolean }) {
       </>
     )
 
+  // Owner-only areas are hidden rather than shown-and-refused. This is
+  // convenience, not security: the server rejects them regardless of what the
+  // UI renders.
   const isOwner = auth.user?.role === 'owner'
-
   return (
     <>
       <button
@@ -158,12 +160,16 @@ export function AdminButton({ collapsed }: { collapsed: boolean }) {
               </div>
             </div>
           </DialogHeader>
-          <Tabs defaultValue="spaces" className="flex-1 flex flex-col min-h-0">
+          {/* An admin has no Disk Mapping tab, so it cannot be the default —
+              Radix would open on a tab that renders nothing. */}
+          <Tabs defaultValue={isOwner ? 'spaces' : 'groups'} className="flex-1 flex flex-col min-h-0">
             <TabsList className="mb-3 h-auto w-full flex-wrap justify-start gap-1">
-              <TabsTrigger value="spaces">
-                <HardDrive className="size-3.5 mr-1.5" />
-                Disk Mapping
-              </TabsTrigger>
+              {isOwner && (
+                <TabsTrigger value="spaces">
+                  <HardDrive className="size-3.5 mr-1.5" />
+                  Disk Mapping
+                </TabsTrigger>
+              )}
               <TabsTrigger value="groups">
                 <Users className="size-3.5 mr-1.5" />
                 Group Config
@@ -174,19 +180,23 @@ export function AdminButton({ collapsed }: { collapsed: boolean }) {
                   Accounts
                 </TabsTrigger>
               )}
-              <TabsTrigger value="backups">
-                <Archive className="size-3.5 mr-1.5" />
-                Backups
-              </TabsTrigger>
+              {isOwner && (
+                <TabsTrigger value="backups">
+                  <Archive className="size-3.5 mr-1.5" />
+                  Backups
+                </TabsTrigger>
+              )}
               <TabsTrigger value="password">
                 <Key className="size-3.5 mr-1.5" />
                 Password
               </TabsTrigger>
             </TabsList>
             <div className="flex-1 min-h-0 overflow-auto">
-              <TabsContent value="spaces" className="mt-0 h-full">
-                <SpacesPanel onDirtyChange={setDirty} />
-              </TabsContent>
+              {isOwner && (
+                <TabsContent value="spaces" className="mt-0 h-full">
+                  <SpacesPanel onDirtyChange={setDirty} />
+                </TabsContent>
+              )}
               <TabsContent value="groups" className="mt-0 h-full">
                 <GroupConfigPanel />
               </TabsContent>
@@ -195,9 +205,11 @@ export function AdminButton({ collapsed }: { collapsed: boolean }) {
                   <AccountsPanel />
                 </TabsContent>
               )}
-              <TabsContent value="backups" className="mt-0">
-                <BackupsPanel />
-              </TabsContent>
+              {isOwner && (
+                <TabsContent value="backups" className="mt-0">
+                  <BackupsPanel />
+                </TabsContent>
+              )}
               <TabsContent value="password" className="mt-0">
                 <ChangePasswordPanel user={auth.user} onClose={() => setShowAdmin(false)} />
               </TabsContent>
