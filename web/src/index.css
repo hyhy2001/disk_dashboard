@@ -253,6 +253,11 @@
 @container (min-width: 360px) {
   .diskstats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
+/* Title beside its controls once the column is wide enough to hold both; stacked
+   below that, where sharing a row squeezed the space name down to nothing. */
+@container (min-width: 300px) {
+  .diskcol-head { flex-direction: row; align-items: center; justify-content: space-between; gap: 0.5rem; }
+}
 
 /* ── Scrollbar styling ── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }

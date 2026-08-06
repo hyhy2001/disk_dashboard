@@ -221,13 +221,19 @@ const DiskCard = memo(function DiskCard({
         )}
       </div>
 
+      {/* The three figures wrapped every label onto a second line at the column's
+          default width, because the row is sized to fit all three and there is not
+          room: "1,550,293 files" alone wants ~100px of a 260px column. Truncating
+          each cell instead keeps the row one line tall at every width, and the same
+          numbers are spelled out in full in the Total/Used/Scanned/Free grid below.
+          min-w-0 on the cells is what lets truncate actually bite inside a flex row. */}
       <div className="mt-2 flex items-center gap-1.5 text-[13px] tabular-nums text-muted-foreground/60">
-        <span>{formatSize(t.totalSize)}</span>
-        <span className="text-[10px]">·</span>
-        <span>{formatCount(t.totalFiles)} files</span>
-        <span className="text-[10px]">·</span>
-        <span>{formatCount(t.totalDirs)} dirs</span>
-        <span className="ml-auto text-[12px] text-muted-foreground/60">{relativeTime(scanAge(t))}</span>
+        <span className="shrink-0">{formatSize(t.totalSize)}</span>
+        <span className="shrink-0 text-[10px]">·</span>
+        <span className="min-w-0 truncate">{formatCount(t.totalFiles)} files</span>
+        <span className="shrink-0 text-[10px]">·</span>
+        <span className="min-w-0 truncate">{formatCount(t.totalDirs)} dirs</span>
+        <span className="ml-auto shrink-0 pl-1 text-[12px] text-muted-foreground/60">{relativeTime(scanAge(t))}</span>
       </div>
 
       {cap && (
@@ -331,18 +337,23 @@ export function DiskColumn({ groupName, targets, statuses, selected, onSelect }:
   return (
     <div className="flex h-full flex-col bg-surface/30">
       <div className="border-b border-border/40 px-3.5 py-2.5">
-        <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0">
-            <h2 className="text-sm font-semibold truncate">{groupName}</h2>
-            <p className="text-[12px] text-muted-foreground/60 mt-0.5">
+        {/* Title and controls share a row when there is room and stack when there is
+            not. The column is resizable down to 200px, where the sort select's 145px
+            left the title box at 0px wide — the space name simply vanished. A
+            container query rather than a viewport one, because what runs out is the
+            column's width, not the screen's. */}
+        <div className="diskcol-head flex flex-col gap-1.5">
+          <div className="min-w-0 flex-1">
+            <h2 className="truncate text-sm font-semibold">{groupName}</h2>
+            <p className="truncate text-[12px] text-muted-foreground/60 mt-0.5">
               {visible.length} of {targets.length} disk{targets.length !== 1 ? 's' : ''}
             </p>
           </div>
-          <div className="flex items-center gap-1">
+          <div className="flex min-w-0 shrink items-center gap-1">
             <button
               type="button"
               onClick={() => setAndSaveView(view === 'grid' ? 'list' : 'grid')}
-              className="inline-flex size-6 items-center justify-center rounded-md border border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
+              className="inline-flex size-6 shrink-0 items-center justify-center rounded-md border border-border/40 text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               title={view === 'grid' ? 'Compact list' : 'Card grid'}
               aria-pressed={view === 'list'}
               aria-label={view === 'grid' ? 'Switch to compact list' : 'Switch to card grid'}
@@ -385,7 +396,7 @@ export function DiskColumn({ groupName, targets, statuses, selected, onSelect }:
               value={sort}
               onChange={(e) => setSort(e.target.value as DiskSort)}
               aria-label="Sort disks"
-              className="h-6 rounded-md border border-border/40 bg-transparent px-1.5 text-[12px] text-muted-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500/30"
+              className="h-6 min-w-0 flex-1 rounded-md border border-border/40 bg-transparent px-1.5 text-[12px] text-muted-foreground focus:outline-none focus:ring-1 focus:ring-emerald-500/30"
             >
               {Object.entries(SORT_LABELS).map(([k, v]) => (
                 <option key={k} value={k}>

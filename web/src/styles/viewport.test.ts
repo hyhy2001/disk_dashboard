@@ -292,6 +292,11 @@ describe('disk card figures are not clipped', () => {
         for (const el of document.querySelectorAll('.diskcol p, .diskcol span')) {
           // sr-only text is clipped on purpose — it is sized to 1px by design.
           if (el.classList.contains('sr-only') || el.children.length > 0) continue
+          // So is anything carrying `truncate`: the size · files · dirs cells give
+          // ground with an ellipsis so the row stays one line tall, and the same
+          // figures are spelled out in full in the Total/Used/Scanned/Free grid.
+          // What this test is for is text cut off with no ellipsis and no fallback.
+          if (getComputedStyle(el).textOverflow === 'ellipsis') continue
           if (el.scrollWidth > el.clientWidth + 1) {
             bad.push(`«${(el.textContent ?? '').trim()}» needs ${el.scrollWidth}px, has ${el.clientWidth}px`)
           }
@@ -301,6 +306,113 @@ describe('disk card figures are not clipped', () => {
       await page.close()
 
       expect(clipped, `clipped disk card text: ${clipped.join('; ')}`).toEqual([])
+    }, 45_000)
+  }
+})
+
+/*
+ * The disk column is user-resizable (200–640px), and the suite above only ever
+ * measured it at its 260px default. Three bugs lived in that blind spot: the
+ * space title collapsed to 0px wide at the 200px minimum, the size/files/dirs
+ * meta row wrapped onto a second line below ~340px, and the 640px ceiling was
+ * absolute, so on a 1024px window a fully dragged column left the main panel
+ * 128px. All three are width-of-the-column bugs, not width-of-the-screen bugs,
+ * which is why no viewport-only test could see them.
+ */
+describe('disk column survives its own resize range', () => {
+  for (const width of [200, 240, 300, 360, 480, 640] as const) {
+    it(`keeps the header and card rows intact at ${width}px`, async () => {
+      if (!reachable || !browser) {
+        console.warn(`skipped: ${URL} unreachable`)
+        return
+      }
+
+      const page = await browser.newPage({ viewport: { width: 1600, height: 900 } })
+      await page.goto(URL, { waitUntil: 'networkidle' })
+      await page.waitForSelector(DISK_CARD, { timeout: 15_000 })
+
+      const shape = await page.evaluate(async (colWidth) => {
+        document.documentElement.style.setProperty('--col2-width', `${colWidth}px`)
+        await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))
+        const column = document.querySelector('.diskcol')
+        const title = column?.querySelector('h2')
+        const card = column?.querySelector('.overflow-auto > button')
+        // The size · files · dirs row: one line tall at every width, because each
+        // cell truncates rather than the row reflowing.
+        const meta = card?.querySelector('.tabular-nums')
+        if (!column || !title || !card || !meta) return null
+        const box = column.getBoundingClientRect()
+        return {
+          titleWidth: title.getBoundingClientRect().width,
+          metaHeight: meta.getBoundingClientRect().height,
+          cardOverflowRight: card.getBoundingClientRect().right - box.right,
+        }
+      }, width)
+      await page.close()
+
+      expect(shape, 'disk column, title, card and meta row should all be present').not.toBeNull()
+      // The space name is the column's only label for which group is shown; at the
+      // 200px minimum, sharing a row with the 145px sort select squeezed it to 0.
+      expect(shape!.titleWidth, `space title width at ${width}px`).toBeGreaterThan(40)
+      // Two lines is ~36px; one line is ~18px.
+      expect(shape!.metaHeight, `meta row height at ${width}px`).toBeLessThan(28)
+      expect(shape!.cardOverflowRight, `card overflow past the column at ${width}px`).toBeLessThanOrEqual(1)
+    }, 45_000)
+  }
+})
+
+/*
+ * The column's ceiling has to leave the main panel usable. A hard 640px maximum
+ * meant a 1024px window could be dragged down to 128px of charts and tables, and
+ * a width chosen on a large monitor persisted into a small one. The effective
+ * maximum is therefore viewport-dependent, and the applied width re-clamps on
+ * resize while the stored preference stays put.
+ */
+describe('disk column resize ceiling leaves the main panel usable', () => {
+  for (const [w, h] of [
+    [1024, 600],
+    [1152, 700],
+    [1280, 720],
+    [1920, 1080],
+  ] as const) {
+    it(`keeps main at least 360px wide when dragged to the maximum at ${w}x${h}`, async () => {
+      if (!reachable || !browser) {
+        console.warn(`skipped: ${URL} unreachable`)
+        return
+      }
+
+      const page = await browser.newPage({ viewport: { width: w, height: h } })
+      await page.goto(URL, { waitUntil: 'networkidle' })
+      // Below 1280px the shell auto-collapses the sidebar, which hides the disk
+      // column entirely; expand it so there is a column to resize.
+      await page.evaluate(() => {
+        const toggle = [...document.querySelectorAll('aside button')].find((b) => b.textContent === '▸')
+        if (toggle instanceof HTMLElement) toggle.click()
+      })
+      await page.waitForSelector(DISK_CARD, { timeout: 15_000 })
+
+      // Drive the handle the way a keyboard user would rather than writing the CSS
+      // variable, so the clamp under test is the one that actually runs.
+      await page.focus('[role="separator"]')
+      for (let i = 0; i < 60; i += 1) await page.keyboard.press('Shift+ArrowRight')
+      await page.waitForTimeout(200)
+
+      const geometry = await page.evaluate(() => {
+        const main = document.querySelector('.main')?.getBoundingClientRect()
+        const column = document.querySelector('.diskcol')?.getBoundingClientRect()
+        if (!main || !column) return null
+        return {
+          mainWidth: main.width,
+          columnWidth: column.width,
+          horizontalScroll: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        }
+      })
+      await page.close()
+
+      expect(geometry, 'main and disk column should both be present').not.toBeNull()
+      expect(geometry!.mainWidth, `main panel width at ${w}x${h}`).toBeGreaterThanOrEqual(359)
+      expect(geometry!.columnWidth, 'column should not exceed its 640px ceiling').toBeLessThanOrEqual(641)
+      expect(geometry!.horizontalScroll, 'a maxed column should not scroll the page sideways').toBeLessThanOrEqual(1)
     }, 45_000)
   }
 })

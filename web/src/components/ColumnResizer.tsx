@@ -16,12 +16,36 @@ import { KEYS, readNumber, writeString } from '../lib/prefs.js'
 const MIN = 200
 const MAX = 640
 
+/**
+ * Width the main panel must keep. The 640px ceiling is absolute, so on a 1024px
+ * viewport a fully dragged column left the tables and charts beside it 128px —
+ * narrower than a phone. The effective ceiling therefore also depends on what is
+ * left after the sidebar, and the column re-clamps when the window shrinks.
+ */
+const MIN_MAIN = 360
+
+/** Current sidebar width in px, read from the custom property the shell sets. */
+function sidebarWidth(): number {
+  const raw = getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width')
+  const px = Number.parseFloat(raw)
+  return Number.isFinite(px) ? px : 256
+}
+
+/** The 640px ceiling, lowered when the viewport cannot spare it. */
+export function maxColumnWidth(): number {
+  return Math.max(MIN, Math.min(MAX, window.innerWidth - sidebarWidth() - MIN_MAIN))
+}
+
 export const DEFAULT_WIDTH = 260
 
-/** Read the persisted width, clamped in case the stored value is stale. */
+/** The width the user last chose, unclamped — the preference, not the fit. */
+export function preferredColumnWidth(): number {
+  return Math.min(MAX, Math.max(MIN, readNumber(KEYS.diskColumnWidth, DEFAULT_WIDTH)))
+}
+
+/** Read the persisted width, clamped to what the current window can spare. */
 export function initialColumnWidth(): number {
-  const saved = readNumber(KEYS.diskColumnWidth, DEFAULT_WIDTH)
-  return Math.min(MAX, Math.max(MIN, saved))
+  return Math.min(maxColumnWidth(), Math.max(MIN, preferredColumnWidth()))
 }
 
 /** Apply a width to the layout. Exported so boot can set it before first paint. */
@@ -31,18 +55,43 @@ export function applyColumnWidth(px: number): void {
 
 export function ColumnResizer(): JSX.Element {
   const dragging = useRef(false)
+  // What the user asked for, and what actually fits. They differ on a narrow
+  // window: the applied width is re-clamped as the window resizes, while the
+  // preference is kept intact so widening the window restores it.
+  const desired = useRef(preferredColumnWidth())
   const width = useRef(initialColumnWidth())
   const elRef = useRef<HTMLDivElement>(null)
 
   // The width lives in a ref to avoid re-rendering on every pointer move, so the
-  // aria-valuenow attribute has to be pushed to the DOM by hand.
+  // aria attributes have to be pushed to the DOM by hand.
   const syncAria = useCallback((px: number) => {
     elRef.current?.setAttribute('aria-valuenow', String(Math.round(px)))
+    elRef.current?.setAttribute('aria-valuemax', String(Math.round(maxColumnWidth())))
   }, [])
 
   useEffect(() => {
     applyColumnWidth(width.current)
     syncAria(width.current)
+  }, [syncAria])
+
+  // Re-clamp when the window (or the sidebar's collapsed state) changes the room
+  // available, so a column dragged wide on a large monitor does not squeeze the
+  // main panel to nothing after the window shrinks.
+  useEffect(() => {
+    const refit = (): void => {
+      const next = Math.min(maxColumnWidth(), Math.max(MIN, desired.current))
+      if (next === width.current) return
+      width.current = next
+      applyColumnWidth(next)
+      syncAria(next)
+    }
+    window.addEventListener('resize', refit)
+    const observer = new MutationObserver(refit)
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['style'] })
+    return () => {
+      window.removeEventListener('resize', refit)
+      observer.disconnect()
+    }
   }, [syncAria])
 
   const onMove = useCallback(
@@ -51,7 +100,8 @@ export function ColumnResizer(): JSX.Element {
       // Measure from the column's own left edge so the handle tracks the pointer
       // exactly regardless of what is to the left of it.
       const left = document.querySelector('.diskcol')?.getBoundingClientRect().left ?? 0
-      const next = Math.min(MAX, Math.max(MIN, e.clientX - left))
+      const next = Math.min(maxColumnWidth(), Math.max(MIN, e.clientX - left))
+      desired.current = next
       width.current = next
       applyColumnWidth(next)
       syncAria(next)
@@ -63,7 +113,7 @@ export function ColumnResizer(): JSX.Element {
     if (!dragging.current) return
     dragging.current = false
     document.body.classList.remove('resizing')
-    writeString(KEYS.diskColumnWidth, String(Math.round(width.current)))
+    writeString(KEYS.diskColumnWidth, String(Math.round(desired.current)))
   }, [])
 
   useEffect(() => {
@@ -84,7 +134,8 @@ export function ColumnResizer(): JSX.Element {
       const delta = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0
       if (delta === 0) return
       e.preventDefault()
-      const next = Math.min(MAX, Math.max(MIN, width.current + delta))
+      const next = Math.min(maxColumnWidth(), Math.max(MIN, width.current + delta))
+      desired.current = next
       width.current = next
       applyColumnWidth(next)
       syncAria(next)
@@ -111,9 +162,11 @@ export function ColumnResizer(): JSX.Element {
         document.body.classList.add('resizing')
       }}
       onDoubleClick={() => {
-        width.current = DEFAULT_WIDTH
-        applyColumnWidth(DEFAULT_WIDTH)
-        syncAria(DEFAULT_WIDTH)
+        const next = Math.min(maxColumnWidth(), Math.max(MIN, DEFAULT_WIDTH))
+        desired.current = DEFAULT_WIDTH
+        width.current = next
+        applyColumnWidth(next)
+        syncAria(next)
         writeString(KEYS.diskColumnWidth, String(DEFAULT_WIDTH))
       }}
       ref={elRef}
