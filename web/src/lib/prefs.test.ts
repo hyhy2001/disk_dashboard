@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { KEYS, loadFilters, readNumber } from './prefs.js'
+import {
+  KEYS,
+  clearUserGroups,
+  listUserGroupSlugs,
+  loadFilters,
+  loadUserGroups,
+  readNumber,
+  saveUserGroups,
+} from './prefs.js'
 
 beforeEach(() => {
   localStorage.clear()
@@ -64,5 +72,52 @@ describe('loadFilters validation', () => {
     }
     localStorage.setItem(KEYS.filters, JSON.stringify(ok))
     expect(loadFilters()).toEqual(ok)
+  })
+})
+
+describe('viewer group overrides', () => {
+  it('round-trips a set and keeps disks independent', () => {
+    saveUserGroups('disk-a', { groups: [{ name: 'infra', users: ['root'] }], officialFingerprint: 'abcd1234' })
+    saveUserGroups('disk-b', { groups: [{ name: 'devs', users: ['alice'] }], officialFingerprint: 'ffff0000' })
+
+    expect(loadUserGroups('disk-a')).toEqual({
+      groups: [{ name: 'infra', users: ['root'] }],
+      officialFingerprint: 'abcd1234',
+    })
+    // A grouping only means something against one report's user list, so saving
+    // for one disk must not touch another.
+    expect(loadUserGroups('disk-b')?.groups[0]?.name).toBe('devs')
+    expect(loadUserGroups('never-grouped')).toBeNull()
+  })
+
+  it('clears one disk without disturbing the others', () => {
+    saveUserGroups('disk-a', { groups: [{ name: 'a', users: ['x'] }], officialFingerprint: '1' })
+    saveUserGroups('disk-b', { groups: [{ name: 'b', users: ['y'] }], officialFingerprint: '2' })
+
+    clearUserGroups('disk-a')
+    expect(loadUserGroups('disk-a')).toBeNull()
+    expect(loadUserGroups('disk-b')).not.toBeNull()
+    // Cleared means gone, not present-but-undefined.
+    expect(listUserGroupSlugs()).toEqual(['disk-b'])
+  })
+
+  it('treats a corrupt or hand-edited entry as absent', () => {
+    localStorage.setItem(KEYS.userGroups, '{ not json')
+    expect(loadUserGroups('disk-a')).toBeNull()
+
+    // Right shape at the top level, wrong shape inside.
+    localStorage.setItem(KEYS.userGroups, JSON.stringify({ 'disk-a': { groups: [{ name: 5 }] } }))
+    expect(loadUserGroups('disk-a')).toBeNull()
+
+    localStorage.setItem(KEYS.userGroups, JSON.stringify({ 'disk-a': { groups: [], officialFingerprint: 7 } }))
+    expect(loadUserGroups('disk-a')).toBeNull()
+
+    // An array where an object belongs.
+    localStorage.setItem(KEYS.userGroups, JSON.stringify([{ groups: [], officialFingerprint: 'x' }]))
+    expect(loadUserGroups('disk-a')).toBeNull()
+  })
+
+  it('lists nothing before anything is saved', () => {
+    expect(listUserGroupSlugs()).toEqual([])
   })
 })

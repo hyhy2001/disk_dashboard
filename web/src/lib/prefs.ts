@@ -5,6 +5,8 @@
 // in localStorage may have been written by an older build — or edited by hand — and
 // a bad value must not crash the boot.
 
+import type { UserGroupSet } from './groups.js'
+
 /** Every key this app writes. Keeping them in one object prevents silent typos. */
 export const KEYS = {
   theme: 'duscan-theme',
@@ -14,6 +16,7 @@ export const KEYS = {
   filters: 'duscan-filters',
   compareMode: 'duscan-compare-mode',
   diskView: 'duscan-disk-view',
+  userGroups: 'duscan-user-groups',
 } as const
 
 /**
@@ -131,4 +134,66 @@ export function saveFilters(patch: Partial<FilterState>): FilterState {
   const next = { ...loadFilters(), ...patch }
   writeJson(KEYS.filters, next)
   return next
+}
+
+// ---------------------------------------------------------------------------
+// Viewer's own groups
+// ---------------------------------------------------------------------------
+
+/**
+ * Per-disk group overrides, keyed by disk slug.
+ *
+ * Keyed by disk because a grouping is only meaningful against one report's user
+ * list — unlike filters, which are deliberately shared across targets.
+ */
+type UserGroupStore = Record<string, UserGroupSet>
+
+function isUserGroupSet(v: unknown): v is UserGroupSet {
+  if (typeof v !== 'object' || v === null) return false
+  const o = v as Record<string, unknown>
+  if (typeof o.officialFingerprint !== 'string') return false
+  if (!Array.isArray(o.groups)) return false
+  return o.groups.every((g) => {
+    if (typeof g !== 'object' || g === null) return false
+    const group = g as Record<string, unknown>
+    return (
+      typeof group.name === 'string' && Array.isArray(group.users) && group.users.every((u) => typeof u === 'string')
+    )
+  })
+}
+
+function isUserGroupStore(v: unknown): v is UserGroupStore {
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) return false
+  return Object.values(v as Record<string, unknown>).every(isUserGroupSet)
+}
+
+function loadStore(): UserGroupStore {
+  return readJson(KEYS.userGroups, isUserGroupStore, {})
+}
+
+/** The viewer's groups for one disk, or null when they have not defined any. */
+export function loadUserGroups(slug: string): UserGroupSet | null {
+  return loadStore()[slug] ?? null
+}
+
+export function saveUserGroups(slug: string, set: UserGroupSet): void {
+  writeJson(KEYS.userGroups, { ...loadStore(), [slug]: set })
+}
+
+/** Forget this disk's override, dropping the viewer back to the official layer. */
+export function clearUserGroups(slug: string): void {
+  const store = loadStore()
+  // Rebuilt without the key rather than set to undefined: JSON.stringify would
+  // keep an `undefined` entry out anyway, but leaving it makes `slug in store`
+  // true, which reads as "has an override" to anything checking that way.
+  const next: UserGroupStore = {}
+  for (const [key, value] of Object.entries(store)) {
+    if (key !== slug) next[key] = value
+  }
+  writeJson(KEYS.userGroups, next)
+}
+
+/** Every disk the viewer has grouped, for a "clear all" affordance. */
+export function listUserGroupSlugs(): string[] {
+  return Object.keys(loadStore())
 }

@@ -116,6 +116,32 @@ async function get<T>(path: string, signal?: AbortSignal, cacheable = false): Pr
   return promise
 }
 
+/**
+ * A JSON POST that returns the same envelope as `get`.
+ *
+ * Never cached: the response depends on the request body, while the cache is
+ * keyed by path alone — a second call with different groups would otherwise be
+ * served the first call's answer.
+ */
+async function post<T>(path: string, body: unknown, signal?: AbortSignal): Promise<T> {
+  const res = await fetch(path, {
+    method: 'POST',
+    headers: { Accept: 'application/json', 'content-type': 'application/json' },
+    body: JSON.stringify(body),
+    ...(signal ? { signal } : {}),
+  })
+
+  let payload: ApiResponse<T>
+  try {
+    payload = (await res.json()) as ApiResponse<T>
+  } catch {
+    throw new Error(`${path} returned ${res.status} ${res.statusText}`)
+  }
+
+  if (payload.status === 'error') throw new Error(payload.message)
+  return payload.data
+}
+
 export function fetchTargets(): Promise<Target[]> {
   return get<Target[]>('/api/targets')
 }
@@ -126,6 +152,24 @@ export function fetchGroups(): Promise<TargetGroup[]> {
 
 export function fetchOverview(target: string): Promise<Overview> {
   return get<Overview>(`/api/overview/${encodeURIComponent(target)}`)
+}
+
+/**
+ * The overview regrouped against the viewer's own groups.
+ *
+ * The definition is sent rather than stored — this is the viewer's private
+ * layer, kept in their browser. The rollup has to happen server-side because the
+ * overview's user lists are capped, so summing them here would undercount any
+ * group whose members fall below the cap.
+ *
+ * Not cached: the response depends on the body, and the cache is keyed by path.
+ */
+export function fetchRegroupedOverview(
+  target: string,
+  groups: { name: string; users: string[] }[],
+  signal?: AbortSignal,
+): Promise<Overview> {
+  return post<Overview>(`/api/overview/${encodeURIComponent(target)}/regroup`, { groups }, signal)
 }
 
 export function fetchHealth(): Promise<HealthInfo> {
