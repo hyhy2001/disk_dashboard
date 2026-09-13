@@ -48,7 +48,9 @@ make setup       # one-time: download local Node + Python, npm install, write .e
 make dev         # Fastify + Vite dev servers in the foreground
 ```
 
-Open http://127.0.0.1:5311.
+Open http://127.0.0.1:5311 — Vite serves the UI there and proxies `/api` to the
+Fastify server on 5310 (`web/vite.config.ts`). In production one process serves
+both on the single port from `.env`.
 
 ### RHEL8 / older glibc
 
@@ -112,8 +114,9 @@ same `.env` works on any machine:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `DASHBOARD_PORT` | `5311` | Listen port |
-| `DASHBOARD_HOST` | `127.0.0.1` | Listen address |
+| `DASHBOARD_REPORTS_DIR` | `../disk_scanner/reports` | Directory holding one subdirectory per scanned target, each with a `report.db`. Defaults to the sibling `disk_scanner` checkout, which is where reports land in development; point it at wherever `duscan sync` delivers them in production |
+| `DASHBOARD_PORT` | `5310` | Listen port. `make setup` writes `5311` into `.env`, which is what production uses; the `5310` fallback is the dev API port, because Vite holds `5311` and proxies `/api` to it |
+| `DASHBOARD_HOST` | `127.0.0.1` | Listen address; `make setup` writes `0.0.0.0` so the dashboard is reachable by LAN IP |
 | `DASHBOARD_WEB_DIR` | `web/dist` | Built assets to serve; unset means API-only |
 | `DASHBOARD_ADMIN_DB` | `server/admin.db` | Writable admin database |
 | `DASHBOARD_COOKIE_SECRET` | random (generated) | Session-cookie signing key |

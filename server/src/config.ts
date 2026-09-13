@@ -15,11 +15,12 @@ export interface Config {
   webDir: string | null
   /**
    * Whether X-Forwarded-For may be trusted to name the real client. Off by
-   * default: when the server binds 0.0.0.0 (the default), trusting a header any
-   * LAN peer can set would let them spoof their IP and bypass the admin login
-   * rate limit. Turn it on only behind a reverse proxy that overwrites the
-   * header (e.g. nginx). `false` uses the socket address; a number trusts that
-   * many proxy hops.
+   * default: unless a reverse proxy that overwrites the header is the sole entry
+   * point, any LAN peer can set it themselves, and trusting it would let them
+   * spoof their IP and bypass the admin login rate limit. (`make setup` writes
+   * DASHBOARD_HOST=0.0.0.0, so a default install is LAN-reachable.) Turn it on
+   * only behind such a proxy (e.g. nginx). `false` uses the socket address; a
+   * number trusts that many proxy hops.
    */
   trustProxy: boolean | number
   /** API requests allowed per client IP per minute; 0 disables the limiter. */
@@ -78,6 +79,9 @@ export function loadConfig(): Config {
 
   return {
     reportsDir,
+    // 5310 is the *dev* API port: `make dev` runs Vite on 5311 and it proxies
+    // /api here (web/vite.config.ts), so the two must not collide. Production
+    // gets 5311 from the .env that `make setup` writes.
     port: envInt('DASHBOARD_PORT', 5310),
     // Loopback by default: the dashboard exposes filesystem usage and has no
     // authentication of its own, so binding 0.0.0.0 must be an explicit choice.

@@ -51,7 +51,9 @@ module.exports = {
         NODE_ENV: 'production',
         // The reverse proxy (nginx) proxies to this port.
         DASHBOARD_PORT: dot.DASHBOARD_PORT || '5311',
-        // Loopback only: nginx terminates TLS and is the sole entry point.
+        // All interfaces, not loopback — `make setup` writes the same value.
+        // nginx is meant to be the sole entry point, so firewall this port if
+        // the box is reachable beyond your network.
         DASHBOARD_HOST: dot.DASHBOARD_HOST || '0.0.0.0',
         DASHBOARD_WEB_DIR: dot.DASHBOARD_WEB_DIR || resolve(root, 'web/dist'),
         // Secret for signing session cookies. Set it in .env so sessions survive
@@ -62,6 +64,14 @@ module.exports = {
         // its IP and bypass the admin rate limit. Enable when nginx (or another
         // proxy that overwrites the header) is the only way in.
         DASHBOARD_TRUST_PROXY: dot.DASHBOARD_TRUST_PROXY || 'false',
+        // Forwarded only when .env actually sets them: unlike the entries above,
+        // these have no production-specific override, so restating a default
+        // here would be a second copy of config.ts / admin.ts logic to drift.
+        // Left unset, the server's own default applies.
+        ...(dot.DASHBOARD_ADMIN_DB && { DASHBOARD_ADMIN_DB: dot.DASHBOARD_ADMIN_DB }),
+        ...(dot.DASHBOARD_COOKIE_SECURE && { DASHBOARD_COOKIE_SECURE: dot.DASHBOARD_COOKIE_SECURE }),
+        ...(dot.DASHBOARD_API_RATE_LIMIT && { DASHBOARD_API_RATE_LIMIT: dot.DASHBOARD_API_RATE_LIMIT }),
+        ...(dot.DASHBOARD_REPORTS_DIR && { DASHBOARD_REPORTS_DIR: dot.DASHBOARD_REPORTS_DIR }),
       },
       out_file: resolve(root, 'logs/out.log'),
       error_file: resolve(root, 'logs/error.log'),
