@@ -27,11 +27,11 @@ export interface Config {
   apiRateLimit: number
 }
 
-function envInt(name: string, fallback: number): number {
+function envInt(name: string, fallback: number, min = 1): number {
   const raw = process.env[name]
   if (!raw) return fallback
   const n = Number.parseInt(raw, 10)
-  return Number.isInteger(n) && n > 0 ? n : fallback
+  return Number.isInteger(n) && n >= min ? n : fallback
 }
 
 /**
@@ -90,7 +90,8 @@ export function loadConfig(): Config {
     trustProxy,
     // 1800/min = 30 requests per second per IP: generous for humans (a viewer
     // polls statuses once every 3s) but a raw loop sending thousands/s is cut
-    // off. Set to 0 to disable.
-    apiRateLimit: envInt('DASHBOARD_API_RATE_LIMIT', 1800),
+    // off. Set to 0 to disable — hence min 0 here, the one integer setting with
+    // a meaningful zero. index.ts builds the limiter only when this is > 0.
+    apiRateLimit: envInt('DASHBOARD_API_RATE_LIMIT', 1800, 0),
   }
 }
