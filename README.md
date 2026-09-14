@@ -48,7 +48,9 @@ make setup       # one-time: download local Node + Python, npm install, write .e
 make dev         # Fastify + Vite dev servers in the foreground
 ```
 
-Open http://127.0.0.1:5311.
+Open http://127.0.0.1:5311 — Vite serves the UI there and proxies `/api` to the
+Fastify server on 5310 (`web/vite.config.ts`). In production one process serves
+both on the single port from `.env`.
 
 ### RHEL8 / older glibc
 
@@ -112,14 +114,15 @@ same `.env` works on any machine:
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `DASHBOARD_PORT` | `5311` | Listen port |
-| `DASHBOARD_HOST` | `127.0.0.1` | Listen address |
+| `DASHBOARD_REPORTS_DIR` | `../disk_scanner/reports` | Directory holding one subdirectory per scanned target, each with a `report.db`. Defaults to the sibling `disk_scanner` checkout, which is where reports land in development; point it at wherever `duscan sync` delivers them in production |
+| `DASHBOARD_PORT` | `5310` | Listen port. `make setup` writes `5311` into `.env`, which is what production uses; the `5310` fallback is the dev API port, because Vite holds `5311` and proxies `/api` to it |
+| `DASHBOARD_HOST` | `127.0.0.1` | Listen address; `make setup` writes `0.0.0.0` so the dashboard is reachable by LAN IP |
 | `DASHBOARD_WEB_DIR` | `web/dist` | Built assets to serve; unset means API-only |
 | `DASHBOARD_ADMIN_DB` | `server/admin.db` | Writable admin database |
 | `DASHBOARD_COOKIE_SECRET` | random (generated) | Session-cookie signing key |
 | `DASHBOARD_COOKIE_SECURE` | `false` | Set `true` when behind an HTTPS reverse proxy, so the admin session cookie is marked `Secure` and never sent over plain HTTP |
 | `DASHBOARD_LOG_LEVEL` | `info` | Fastify log level |
-| `DASHBOARD_TRUST_PROXY` | `false` | Set `true` (or a hop count) only when a reverse proxy that overwrites `X-Forwarded-For` is the sole entry point; off by default so a direct LAN client cannot spoof its IP to bypass the admin login rate limit |
+| `DASHBOARD_TRUST_PROXY` | `false` | Set to the reverse proxy's own address (`127.0.0.1`, or a comma-separated list of addresses/CIDRs), or `true` when a proxy that overwrites `X-Forwarded-For` is the sole entry point. Off by default so a direct LAN client cannot spoof its IP to bypass the admin login rate limit. Numeric hop counts are rejected and the server refuses to start — fastify removed them in 5.12.1, since a hop count alone cannot verify the immediate peer |
 | `DASHBOARD_API_RATE_LIMIT` | `1800` | Requests per client IP per minute before the server answers `429` (0 disables). The report endpoints are unauthenticated, so this is the in-app stop for a loop if the port is ever reachable without nginx rate-limiting |
 
 ## Admin setup

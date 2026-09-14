@@ -28,7 +28,8 @@ const app = Fastify({
   logger: { level: process.env.DASHBOARD_LOG_LEVEL ?? 'info' },
   // Without this, req.ip is always the socket peer and X-Forwarded-For is
   // ignored — so a LAN attacker hitting 0.0.0.0 directly cannot fake an IP to
-  // dodge the login rate limit. Behind nginx, set DASHBOARD_TRUST_PROXY=true.
+  // dodge the login rate limit. Behind nginx, set DASHBOARD_TRUST_PROXY to the
+  // proxy's own address so only it is believed (or true, if it is the sole entry).
   trustProxy: config.trustProxy,
   // DoS hardening: bound how long a socket may sit idle, how long a request may
   // take, and how many requests one keep-alive socket may issue, so a flood

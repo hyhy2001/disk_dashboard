@@ -969,6 +969,20 @@ function ChangeLogModal({ open, onClose }: { open: boolean; onClose: () => void 
 
 const CHANGES = [
   {
+    date: '2026-09-14',
+    items: [
+      'DASHBOARD_TRUST_PROXY no longer accepts a number of proxy hops. Fastify removed that form because a hop count cannot verify the immediate peer, which let a client connecting directly claim enough hops and spoof X-Forwarded-For to dodge the admin login rate limit. Set it to the address of the reverse proxy instead — "127.0.0.1", or a comma-separated list of addresses and CIDRs — or to true when the proxy is the only way in. A numeric value now stops the server at startup with a message saying what to write, rather than silently trusting nothing and collapsing every client behind the proxy onto one rate-limit bucket.',
+      'Security fixes in the dependency tree: fastify 5.12.4, tsx 4.23.13, vitest 2.1.9, fast-uri 3.1.7 and 4.1.4, nanoid 3.3.19. Nothing user-visible changes beyond the trust-proxy setting above.',
+    ],
+  },
+  {
+    date: '2026-09-13',
+    items: [
+      'Four settings in .env had no effect on a production start: the reports directory, the admin database path, the HTTPS-only session-cookie flag, and the API rate limit. The dashboard therefore always read reports from the sibling duscan checkout, and the admin cookie was never marked Secure behind a proxy even when you asked for it. All four now reach the server.',
+      'Setting the API rate limit to 0 switches the limiter off, as documented; it used to fall back to 1800 requests per minute instead.',
+    ],
+  },
+  {
     date: '2026-08-05',
     items: [
       'Inodes tab: searching thousands of accounts no longer lags as you type, and the grid caps at 200 cards with a note instead of rendering every match.',
