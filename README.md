@@ -122,7 +122,7 @@ same `.env` works on any machine:
 | `DASHBOARD_COOKIE_SECRET` | random (generated) | Session-cookie signing key |
 | `DASHBOARD_COOKIE_SECURE` | `false` | Set `true` when behind an HTTPS reverse proxy, so the admin session cookie is marked `Secure` and never sent over plain HTTP |
 | `DASHBOARD_LOG_LEVEL` | `info` | Fastify log level |
-| `DASHBOARD_TRUST_PROXY` | `false` | Set `true` (or a hop count) only when a reverse proxy that overwrites `X-Forwarded-For` is the sole entry point; off by default so a direct LAN client cannot spoof its IP to bypass the admin login rate limit |
+| `DASHBOARD_TRUST_PROXY` | `false` | Set to the reverse proxy's own address (`127.0.0.1`, or a comma-separated list of addresses/CIDRs), or `true` when a proxy that overwrites `X-Forwarded-For` is the sole entry point. Off by default so a direct LAN client cannot spoof its IP to bypass the admin login rate limit. Numeric hop counts are rejected and the server refuses to start — fastify removed them in 5.12.1, since a hop count alone cannot verify the immediate peer |
 | `DASHBOARD_API_RATE_LIMIT` | `1800` | Requests per client IP per minute before the server answers `429` (0 disables). The report endpoints are unauthenticated, so this is the in-app stop for a loop if the port is ever reachable without nginx rate-limiting |
 
 ## Admin setup
