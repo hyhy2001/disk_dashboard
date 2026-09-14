@@ -969,6 +969,13 @@ function ChangeLogModal({ open, onClose }: { open: boolean; onClose: () => void 
 
 const CHANGES = [
   {
+    date: '2026-09-13',
+    items: [
+      'Four settings in .env had no effect on a production start: the reports directory, the admin database path, the HTTPS-only session-cookie flag, and the API rate limit. The dashboard therefore always read reports from the sibling duscan checkout, and the admin cookie was never marked Secure behind a proxy even when you asked for it. All four now reach the server.',
+      'Setting the API rate limit to 0 switches the limiter off, as documented; it used to fall back to 1800 requests per minute instead.',
+    ],
+  },
+  {
     date: '2026-08-05',
     items: [
       'Inodes tab: searching thousands of accounts no longer lags as you type, and the grid caps at 200 cards with a note instead of rendering every match.',
